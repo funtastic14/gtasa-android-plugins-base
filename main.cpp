@@ -9,11 +9,10 @@ MYMODCFG(funtastic14.vehicleledsystem, VehicleLEDSystem, 1.0, 0xavion)
 
 ON_MOD_LOAD() {
     logger->SetTag("Vehicle LED System");
-    logger->Info("Vehicle LED System loading...");
 
-    Logic::Initialize();
+    Logic::Init();
+
+    logger->Info("Vehicle LED System loaded successfully");
 
     Events::shutdownRwEvent += Logic::Shutdown;
-
-    logger->Info("Vehicle LED System initialized.");
 }
