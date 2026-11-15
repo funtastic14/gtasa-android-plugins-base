@@ -3,6 +3,7 @@
 
 namespace Logic {
 
+void Initialize();
 void Shutdown();
 
-} // namespace Logic
+}
