@@ -31,4 +31,3 @@ LOCAL_LDLIBS += -llog
 LOCAL_LDFLAGS += -Wl,--exclude-libs,ALL
 
 include $(BUILD_SHARED_LIBRARY)
-
