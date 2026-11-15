@@ -4,7 +4,7 @@
 #include <plugin-sdk/game_sa/Events.h>
 #include <src/logic.h>
 
-MYMOD(funtastic14.vehicleledsystem, VehicleLEDSystem, 1.0, 0xavion)
+MYMODCFG(funtastic14.vehicleledsystem, VehicleLEDSystem, 1.0, 0xavion)
 
 ON_MOD_LOAD() {
     logger->SetTag("Vehicle LED System");
