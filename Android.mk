@@ -1,22 +1,23 @@
 
 LOCAL_PATH := $(call my-dir)
+
 include $(CLEAR_VARS)
 
 LOCAL_CPP_EXTENSION := .cpp .cc
 LOCAL_MODULE := VehicleLEDSystem
 
 LOCAL_SRC_FILES := main.cpp \
-                   src/logic.cpp \
-                   mod/logger.cpp \
-                   mod/config.cpp \
-                   mod/texture_loader.cpp \
-                   mod/music_player.cpp \
-                   mod/thirdparty/imgui/imgui.cpp \
-                   mod/thirdparty/imgui/imgui_draw.cpp \
-                   mod/thirdparty/imgui/imgui_tables.cpp \
-                   mod/thirdparty/imgui/imgui_widgets.cpp \
-                   plugin-sdk/renderware/imgui/imgui_impl_renderware.cpp \
-                   plugin-sdk/renderware/imgui/imgui_shared.cpp
+    src/logic.cpp \
+    mod/logger.cpp \
+    mod/config.cpp \
+    mod/texture_loader.cpp \
+    mod/music_player.cpp \
+    mod/thirdparty/imgui/imgui.cpp \
+    mod/thirdparty/imgui/imgui_draw.cpp \
+    mod/thirdparty/imgui/imgui_tables.cpp \
+    mod/thirdparty/imgui/imgui_widgets.cpp \
+    plugin-sdk/renderware/imgui/imgui_impl_renderware.cpp \
+    plugin-sdk/renderware/imgui/imgui_shared.cpp
 
 LOCAL_CFLAGS += -O2 -DNDEBUG -std=c++17
 LOCAL_CPPFLAGS += -Wall -Wextra -Wno-unused-parameter -fvisibility=hidden -fvisibility-inlines-hidden
