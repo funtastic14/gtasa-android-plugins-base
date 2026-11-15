@@ -1,74 +1,44 @@
 
 #include "logic.h"
+
 #include <mod/config.h>
+#include <mod/logger.h>
 
 namespace Logic {
 
-struct VLSSettings {
-    bool enabled;
-    bool allVehicles;
+static bool g_enabled;
+static bool g_runningLED;
+static bool g_strobo;
+static bool g_rgbLighting;
+static bool g_runningText;
 
-    bool runningTextEnabled;
-    const char* runningText;
-    float runningTextSpeed;
+static int g_brightness;
+static float g_animationSpeed;
 
-    bool stroboEnabled;
-    int stroboSpeed;
+void Init() {
+    logger->Info("Initializing VLS configuration...");
 
-    bool rgbEnabled;
-    int rgbMode;
-    float rgbSpeed;
+    g_enabled = cfg->GetBool("Enabled", true, "General");
 
-    int animationPreset;
-    bool animationLoop;
-};
+    g_runningLED = cfg->GetBool("RunningLED", true, "Effects");
+    g_strobo = cfg->GetBool("Strobo", false, "Effects");
+    g_rgbLighting = cfg->GetBool("RGBLighting", true, "Effects");
+    g_runningText = cfg->GetBool("RunningText", false, "Effects");
 
-static VLSSettings settings;
+    g_brightness = cfg->GetInt("Brightness", 100, "Animation");
+    g_animationSpeed = cfg->GetFloat("Speed", 1.0f, "Animation");
 
-void Initialize() {
-    if (!cfg) {
-        return;
-    }
+    if (g_brightness < 0) g_brightness = 0;
+    if (g_brightness > 100) g_brightness = 100;
 
-    settings.enabled =
-        cfg->GetBool("Enabled", true, "GENERAL");
+    if (g_animationSpeed < 0.1f) g_animationSpeed = 0.1f;
+    if (g_animationSpeed > 10.0f) g_animationSpeed = 10.0f;
 
-    settings.allVehicles =
-        cfg->GetBool("AllVehicles", true, "GENERAL");
-
-    settings.runningTextEnabled =
-        cfg->GetBool("Enabled", false, "RUNNING_TEXT");
-
-    settings.runningText =
-        cfg->GetString("Text", "VEHICLE LED SYSTEM", "RUNNING_TEXT");
-
-    settings.runningTextSpeed =
-        cfg->GetFloat("Speed", 1.0f, "RUNNING_TEXT");
-
-    settings.stroboEnabled =
-        cfg->GetBool("Enabled", false, "STROBO");
-
-    settings.stroboSpeed =
-        cfg->GetInt("Speed", 5, "STROBO");
-
-    settings.rgbEnabled =
-        cfg->GetBool("Enabled", false, "RGB");
-
-    settings.rgbMode =
-        cfg->GetInt("Mode", 0, "RGB");
-
-    settings.rgbSpeed =
-        cfg->GetFloat("Speed", 2.0f, "RGB");
-
-    settings.animationPreset =
-        cfg->GetInt("Preset", 0, "ANIMATION");
-
-    settings.animationLoop =
-        cfg->GetBool("Loop", true, "ANIMATION");
+    logger->Info("VLS configuration initialized.");
 }
 
 void Shutdown() {
-    // Cleanup akan ditambahkan saat sistem efek kendaraan dibuat.
+    // VLS cleanup will be implemented later.
 }
 
 }
