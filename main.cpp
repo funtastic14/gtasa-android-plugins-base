@@ -11,7 +11,9 @@ ON_MOD_LOAD() {
     logger->SetTag("Vehicle LED System");
     logger->Info("Vehicle LED System loading...");
 
+    Logic::Initialize();
+
     Events::shutdownRwEvent += Logic::Shutdown;
 
-    logger->Info("Vehicle LED System loaded successfully");
+    logger->Info("Vehicle LED System initialized.");
 }
