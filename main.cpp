@@ -1,5 +1,6 @@
 
 #include <mod/amlmod.h>
+#include <mod/config.h>
 #include <mod/logger.h>
 #include <plugin-sdk/game_sa/Events.h>
 #include <src/logic.h>
