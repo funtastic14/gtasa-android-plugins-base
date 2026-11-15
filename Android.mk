@@ -5,8 +5,7 @@ include $(CLEAR_VARS)
 LOCAL_CPP_EXTENSION := .cpp .cc
 LOCAL_MODULE := VehicleLEDSystem
 
-LOCAL_SRC_FILES := main.cpp \
-                   src/gui.cpp \
+LOCAL_SRC_FILES := main.cpp \                   
                    src/logic.cpp \
                    mod/logger.cpp \
                    mod/config.cpp \
