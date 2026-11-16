@@ -1,7 +1,7 @@
 
 #include "vehicle_manager.h"
 
-#include <plugin-sdk/game_sa/PlayerPed.h>
+#include <game_sa/PlayerPed.h>
 
 namespace VLS {
 
