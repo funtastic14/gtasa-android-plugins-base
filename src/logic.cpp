@@ -1,8 +1,11 @@
 
 #include "logic.h"
 
+#include "vehicle_manager.h"
+
 #include <mod/config.h>
 #include <mod/logger.h>
+#include <plugin-sdk/game_sa/Events.h>
 
 namespace Logic {
 
@@ -14,6 +17,31 @@ static bool g_runningText;
 
 static int g_brightness;
 static float g_animationSpeed;
+
+static VLS::VehicleManager g_vehicleManager;
+static int g_lastLoggedModelId = -2;
+
+static void OnGameProcess() {
+    if (!g_enabled) {
+        return;
+    }
+
+    g_vehicleManager.Update();
+
+    const int modelId = g_vehicleManager.GetCurrentModelId();
+
+    if (modelId == g_lastLoggedModelId) {
+        return;
+    }
+
+    g_lastLoggedModelId = modelId;
+
+    if (modelId >= 0) {
+        logger->Info("Current vehicle Model ID: %d", modelId);
+    } else {
+        logger->Info("Player is not using a valid vehicle.");
+    }
+}
 
 void Init() {
     logger->Info("Initializing VLS configuration...");
@@ -33,6 +61,10 @@ void Init() {
 
     if (g_animationSpeed < 0.1f) g_animationSpeed = 0.1f;
     if (g_animationSpeed > 10.0f) g_animationSpeed = 10.0f;
+
+    if (g_enabled) {
+        Events::gameProcessEvent += OnGameProcess;
+    }
 
     logger->Info("VLS configuration initialized.");
 }
