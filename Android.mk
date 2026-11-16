@@ -8,8 +8,8 @@ LOCAL_MODULE := VehicleLEDSystem
 
 LOCAL_SRC_FILES := main.cpp \
     src/logic.cpp \
-    src/vehicle_profile_manager.cpp \
     src/vehicle_manager.cpp \
+    src/vehicle_profile_manager.cpp \
     mod/logger.cpp \
     mod/config.cpp \
     mod/texture_loader.cpp \
