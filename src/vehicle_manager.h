@@ -1,7 +1,7 @@
 
 #pragma once
 
-#include <game_sa/entity/Vehicle.h>
+#include <plug-insdk/game_sa/entity/Vehicle.h>
 
 namespace VLS {
 
