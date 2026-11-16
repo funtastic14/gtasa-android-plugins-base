@@ -1,0 +1,21 @@
+
+#pragma once
+
+#include <plugin-sdk/game_sa/Vehicle.h>
+
+namespace VLS {
+
+class VehicleManager {
+public:
+    void Update();
+
+    bool HasCurrentVehicle() const;
+    CVehicle* GetCurrentVehicle() const;
+    int GetCurrentModelId() const;
+
+private:
+    CVehicle* m_currentVehicle = nullptr;
+    int m_currentModelId = -1;
+};
+
+}
