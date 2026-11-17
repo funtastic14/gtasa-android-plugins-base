@@ -2,6 +2,7 @@
 #include "logic.h"
 
 #include "vehicle_manager.h"
+#include "vehicle_profile_manager.h"
 
 #include <mod/config.h>
 #include <mod/logger.h>
@@ -19,6 +20,8 @@ static int g_brightness;
 static float g_animationSpeed;
 
 static VLS::VehicleManager g_vehicleManager;
+static VLS::VehicleProfileManager g_profileManager;
+
 static int g_lastLoggedModelId = -2;
 
 static void OnGameProcess() {
@@ -36,10 +39,29 @@ static void OnGameProcess() {
 
     g_lastLoggedModelId = modelId;
 
-    if (modelId >= 0) {
-        logger->Info("Current vehicle Model ID: %d", modelId);
-    } else {
+    if (modelId < 0) {
         logger->Info("Player is not using a valid vehicle.");
+        return;
+    }
+
+    const VLS::VehicleProfile* customProfile =
+        g_profileManager.Find(modelId);
+
+    const VLS::VehicleProfile& profile =
+        g_profileManager.GetProfileOrDefault(modelId);
+
+    if (customProfile != nullptr) {
+        logger->Info(
+            "Custom vehicle profile selected: Model ID %d, Placements: %d",
+            modelId,
+            static_cast<int>(profile.placements.size())
+        );
+    } else {
+        logger->Info(
+            "Default vehicle profile selected: Model ID %d, Placements: %d",
+            modelId,
+            static_cast<int>(profile.placements.size())
+        );
     }
 }
 
