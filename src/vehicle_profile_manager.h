@@ -26,8 +26,11 @@ public:
     // Memuat profil dari penyimpanan JSON.
     bool Load(int modelId);
 
-    // Menyimpan profil ke penyimpanan JSON.
+    // Menyimpan satu profil.
     bool Save(int modelId) const;
+
+    // Menyimpan seluruh profil yang dikelola.
+    bool SaveAll() const;
 
     // Menghapus profil kendaraan.
     bool Remove(int modelId);
@@ -39,6 +42,9 @@ private:
     std::unordered_map<int, VehicleProfile> m_profiles;
 
     VehicleProfile m_defaultProfile;
+
+    // Menandakan bahwa profil default pernah dimuat atau diatur.
+    bool m_hasDefaultProfile = false;
 };
 
 } // namespace VLS
