@@ -4,6 +4,7 @@
 #include "vehicle_profile.h"
 
 #include <unordered_map>
+#include <unordered_set>
 
 namespace VLS {
 
@@ -23,14 +24,20 @@ public:
     // Mengatur profil default.
     void SetDefaultProfile(const VehicleProfile& profile);
 
+    // Menandai profil sebagai berubah.
+    void MarkDirty(int modelId);
+
+    // Memeriksa apakah profil mengalami perubahan.
+    bool IsDirty(int modelId) const;
+
     // Memuat profil dari penyimpanan JSON.
     bool Load(int modelId);
 
     // Menyimpan satu profil.
-    bool Save(int modelId) const;
+    bool Save(int modelId);
 
-    // Menyimpan seluruh profil yang dikelola.
-    bool SaveAll() const;
+    // Menyimpan seluruh profil yang berubah.
+    bool SaveAll();
 
     // Menghapus profil kendaraan.
     bool Remove(int modelId);
@@ -41,10 +48,12 @@ public:
 private:
     std::unordered_map<int, VehicleProfile> m_profiles;
 
+    std::unordered_set<int> m_dirtyProfiles;
+
     VehicleProfile m_defaultProfile;
 
-    // Menandakan bahwa profil default pernah dimuat atau diatur.
     bool m_hasDefaultProfile = false;
+    bool m_defaultDirty = false;
 };
 
 } // namespace VLS
