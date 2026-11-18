@@ -22,6 +22,8 @@ static float g_animationSpeed;
 static VLS::VehicleManager g_vehicleManager;
 static VLS::VehicleProfileManager g_profileManager;
 
+static const VLS::VehicleProfile* g_currentProfile = nullptr;
+
 static int g_lastLoggedModelId = -2;
 
 static void OnGameProcess() {
@@ -40,6 +42,7 @@ static void OnGameProcess() {
     g_lastLoggedModelId = modelId;
 
     if (modelId < 0) {
+        g_currentProfile = nullptr;
         logger->Info("Player is not using a valid vehicle.");
         return;
     }
@@ -49,6 +52,8 @@ static void OnGameProcess() {
 
     const VLS::VehicleProfile& profile =
         g_profileManager.GetProfileOrDefault(modelId);
+
+    g_currentProfile = &profile;
 
     if (customProfile != nullptr) {
         logger->Info(
@@ -92,7 +97,12 @@ void Init() {
 }
 
 void Shutdown() {
+    g_currentProfile = nullptr;
     // VLS cleanup will be implemented later.
+}
+
+const VLS::VehicleProfile* GetCurrentProfile() {
+    return g_currentProfile;
 }
 
 }
