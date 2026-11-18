@@ -53,6 +53,26 @@ const VehicleProfile& VehicleProfileManager::GetProfileOrDefault(
     return m_defaultProfile;
 }
 
+VehicleProfile* VehicleProfileManager::GetEditable(int modelId) {
+    if (modelId < 0) {
+        return GetEditableDefault();
+    }
+
+    VehicleProfile& profile = GetOrCreate(modelId);
+
+    MarkDirty(modelId);
+
+    return &profile;
+}
+
+VehicleProfile* VehicleProfileManager::GetEditableDefault() {
+    m_hasDefaultProfile = true;
+    m_defaultDirty = true;
+    m_defaultProfile.modelId = -1;
+
+    return &m_defaultProfile;
+}
+
 void VehicleProfileManager::SetDefaultProfile(
     const VehicleProfile& profile
 ) {
@@ -146,7 +166,7 @@ bool VehicleProfileManager::Save(int modelId) {
         return false;
     }
 
-    // Hapus penanda perubahan hanya setelah penyimpanan berhasil.
+    // Hapus penanda perubahan setelah penyimpanan berhasil.
     if (storageModelId < 0) {
         m_defaultDirty = false;
     } else {
@@ -159,7 +179,7 @@ bool VehicleProfileManager::Save(int modelId) {
 bool VehicleProfileManager::SaveAll() {
     bool success = true;
 
-    // Simpan profil default hanya jika berubah.
+    // Simpan profil default jika berubah.
     if (m_defaultDirty) {
         if (!Save(-1)) {
             success = false;
