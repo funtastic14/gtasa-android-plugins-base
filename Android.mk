@@ -10,6 +10,7 @@ LOCAL_SRC_FILES := main.cpp \
     src/logic.cpp \
     src/vehicle_manager.cpp \
     src/vehicle_profile_manager.cpp \
+    src/profile_storage.cpp \
     mod/logger.cpp \
     mod/config.cpp \
     mod/texture_loader.cpp \
