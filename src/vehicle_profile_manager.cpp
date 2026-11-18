@@ -57,12 +57,15 @@ void VehicleProfileManager::SetDefaultProfile(
 ) {
     m_defaultProfile = profile;
     m_defaultProfile.modelId = -1;
+    m_hasDefaultProfile = true;
 }
 
 bool VehicleProfileManager::Load(int modelId) {
+    const int storageModelId = modelId < 0 ? -1 : modelId;
+
     std::string json;
 
-    if (!ProfileStorage::LoadProfileJson(modelId, json)) {
+    if (!ProfileStorage::LoadProfileJson(storageModelId, json)) {
         return false;
     }
 
@@ -72,27 +75,30 @@ bool VehicleProfileManager::Load(int modelId) {
         return false;
     }
 
-    if (profile.modelId != modelId) {
+    if (profile.modelId != storageModelId) {
         return false;
     }
 
-    if (modelId < 0) {
+    if (storageModelId < 0) {
         m_defaultProfile = profile;
         m_defaultProfile.modelId = -1;
+        m_hasDefaultProfile = true;
     } else {
-        m_profiles[modelId] = profile;
+        m_profiles[storageModelId] = profile;
     }
 
     return true;
 }
 
 bool VehicleProfileManager::Save(int modelId) const {
+    const int storageModelId = modelId < 0 ? -1 : modelId;
+
     const VehicleProfile* profile = nullptr;
 
-    if (modelId < 0) {
+    if (storageModelId < 0) {
         profile = &m_defaultProfile;
     } else {
-        profile = Find(modelId);
+        profile = Find(storageModelId);
     }
 
     if (profile == nullptr) {
@@ -100,7 +106,7 @@ bool VehicleProfileManager::Save(int modelId) const {
     }
 
     VehicleProfile profileToSave = *profile;
-    profileToSave.modelId = modelId;
+    profileToSave.modelId = storageModelId;
 
     std::string json;
 
@@ -108,7 +114,27 @@ bool VehicleProfileManager::Save(int modelId) const {
         return false;
     }
 
-    return ProfileStorage::SaveProfileJson(modelId, json);
+    return ProfileStorage::SaveProfileJson(storageModelId, json);
+}
+
+bool VehicleProfileManager::SaveAll() const {
+    bool success = true;
+
+    // Simpan profil default hanya jika pernah dimuat atau diatur.
+    if (m_hasDefaultProfile) {
+        if (!Save(-1)) {
+            success = false;
+        }
+    }
+
+    // Simpan seluruh profil kendaraan yang ada di dalam manager.
+    for (const auto& entry : m_profiles) {
+        if (!Save(entry.first)) {
+            success = false;
+        }
+    }
+
+    return success;
 }
 
 bool VehicleProfileManager::Remove(int modelId) {
