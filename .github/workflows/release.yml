@@ -27,7 +27,7 @@ jobs:
 
       - name: Build Mod with ndk-build
         run: |
-          ndk-build V=1 NDK_PROJECT_PATH=. APP_BUILD_SCRIPT=Android.mk NDK_APPLICATION_MK=Application.mk NDK_DEBUG=0
+          ndk-build -B V=1 NDK_PROJECT_PATH=. APP_BUILD_SCRIPT=Android.mk NDK_APPLICATION_MK=Application.mk NDK_DEBUG=0
 
       - name: Prepare Release Binaries
         run: |
