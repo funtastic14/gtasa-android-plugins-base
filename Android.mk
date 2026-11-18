@@ -12,6 +12,7 @@ LOCAL_SRC_FILES := main.cpp \
     src/vehicle_manager.cpp \
     src/vehicle_profile_manager.cpp \
     src/profile_placement_manager.cpp \
+    src/profile_effect_manager.cpp \
     src/profile_storage.cpp \
     src/profile_json.cpp \
     mod/logger.cpp \
