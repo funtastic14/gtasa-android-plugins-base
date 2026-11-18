@@ -3,6 +3,7 @@
 
 #include "vehicle_manager.h"
 #include "vehicle_profile_manager.h"
+#include "profile_storage.h"
 
 #include <mod/config.h>
 #include <mod/logger.h>
@@ -88,6 +89,15 @@ void Init() {
 
     if (g_animationSpeed < 0.1f) g_animationSpeed = 0.1f;
     if (g_animationSpeed > 10.0f) g_animationSpeed = 10.0f;
+
+    if (VLS::ProfileStorage::Init()) {
+        logger->Info(
+            "VLS profile storage initialized: %s",
+            VLS::ProfileStorage::GetProfilesDirectory()
+        );
+    } else {
+        logger->Info("VLS profile storage initialization failed.");
+    }
 
     if (g_enabled) {
         Events::gameProcessEvent += OnGameProcess;
