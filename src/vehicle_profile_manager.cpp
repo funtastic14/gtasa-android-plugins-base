@@ -1,6 +1,11 @@
 
 #include "vehicle_profile_manager.h"
 
+#include "profile_json.h"
+#include "profile_storage.h"
+
+#include <string>
+
 namespace VLS {
 
 VehicleProfile& VehicleProfileManager::GetOrCreate(int modelId) {
@@ -52,6 +57,58 @@ void VehicleProfileManager::SetDefaultProfile(
 ) {
     m_defaultProfile = profile;
     m_defaultProfile.modelId = -1;
+}
+
+bool VehicleProfileManager::Load(int modelId) {
+    std::string json;
+
+    if (!ProfileStorage::LoadProfileJson(modelId, json)) {
+        return false;
+    }
+
+    VehicleProfile profile;
+
+    if (!ProfileJson::Deserialize(json, profile)) {
+        return false;
+    }
+
+    if (profile.modelId != modelId) {
+        return false;
+    }
+
+    if (modelId < 0) {
+        m_defaultProfile = profile;
+        m_defaultProfile.modelId = -1;
+    } else {
+        m_profiles[modelId] = profile;
+    }
+
+    return true;
+}
+
+bool VehicleProfileManager::Save(int modelId) const {
+    const VehicleProfile* profile = nullptr;
+
+    if (modelId < 0) {
+        profile = &m_defaultProfile;
+    } else {
+        profile = Find(modelId);
+    }
+
+    if (profile == nullptr) {
+        return false;
+    }
+
+    VehicleProfile profileToSave = *profile;
+    profileToSave.modelId = modelId;
+
+    std::string json;
+
+    if (!ProfileJson::Serialize(profileToSave, json)) {
+        return false;
+    }
+
+    return ProfileStorage::SaveProfileJson(modelId, json);
 }
 
 bool VehicleProfileManager::Remove(int modelId) {
