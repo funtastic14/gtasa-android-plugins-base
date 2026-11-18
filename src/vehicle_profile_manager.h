@@ -23,6 +23,12 @@ public:
     // Mengatur profil default.
     void SetDefaultProfile(const VehicleProfile& profile);
 
+    // Memuat profil dari penyimpanan JSON.
+    bool Load(int modelId);
+
+    // Menyimpan profil ke penyimpanan JSON.
+    bool Save(int modelId) const;
+
     // Menghapus profil kendaraan.
     bool Remove(int modelId);
 
