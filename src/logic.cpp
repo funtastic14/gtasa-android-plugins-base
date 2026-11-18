@@ -46,16 +46,13 @@ static void OnGameProcess() {
         return;
     }
 
-    // Muat profil kendaraan jika belum tersedia di memori.
+    // Muat profil kendaraan jika belum tersedia di memory.
     if (g_profileManager.Find(modelId) == nullptr) {
         if (g_profileManager.Load(modelId)) {
-            logger->Info(
-                "Vehicle profile loaded: Model ID %d",
-                modelId
-            );
+            logger->Info("Vehicle profile loaded: Model ID %d", modelId);
         } else {
             logger->Info(
-                "No saved profile for Model ID %d. Using default profile.",
+                "No saved profile for model ID %d; using default profile.",
                 modelId
             );
         }
@@ -112,23 +109,22 @@ void Init() {
         g_animationSpeed = 10.0f;
     }
 
-    // Inisialisasi penyimpanan profil.
     if (VLS::ProfileStorage::Init()) {
         logger->Info(
             "VLS profile storage initialized: %s",
             VLS::ProfileStorage::GetProfilesDirectory()
         );
-
-        // Muat profil default jika file tersedia.
-        if (g_profileManager.Load(-1)) {
-            logger->Info("Default vehicle profile loaded successfully.");
-        } else {
-            logger->Info(
-                "No saved default profile found. Using built-in defaults."
-            );
-        }
     } else {
         logger->Info("VLS profile storage initialization failed.");
+    }
+
+    // Muat profil default saat inisialisasi.
+    if (g_profileManager.Load(-1)) {
+        logger->Info("Default vehicle profile loaded.");
+    } else {
+        logger->Info(
+            "No saved default profile found; using built-in defaults."
+        );
     }
 
     if (g_enabled) {
@@ -139,14 +135,22 @@ void Init() {
 }
 
 void Shutdown() {
+    logger->Info("Saving VLS profiles...");
+
+    if (g_profileManager.SaveAll()) {
+        logger->Info("VLS profiles saved successfully.");
+    } else {
+        logger->Info("Some VLS profiles could not be saved.");
+    }
+
     g_currentProfile = nullptr;
     g_lastLoggedModelId = -2;
 
-    // VLS cleanup will be implemented later.
+    logger->Info("VLS shutdown completed.");
 }
 
 const VLS::VehicleProfile* GetCurrentProfile() {
     return g_currentProfile;
 }
 
-}
+} // namespace Logic
