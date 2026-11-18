@@ -16,7 +16,6 @@ static bool g_runningLED;
 static bool g_strobo;
 static bool g_rgbLighting;
 static bool g_runningText;
-
 static int g_brightness;
 static float g_animationSpeed;
 
@@ -24,7 +23,6 @@ static VLS::VehicleManager g_vehicleManager;
 static VLS::VehicleProfileManager g_profileManager;
 
 static const VLS::VehicleProfile* g_currentProfile = nullptr;
-
 static int g_lastLoggedModelId = -2;
 
 static void OnGameProcess() {
@@ -46,6 +44,21 @@ static void OnGameProcess() {
         g_currentProfile = nullptr;
         logger->Info("Player is not using a valid vehicle.");
         return;
+    }
+
+    // Muat profil kendaraan jika belum tersedia di memori.
+    if (g_profileManager.Find(modelId) == nullptr) {
+        if (g_profileManager.Load(modelId)) {
+            logger->Info(
+                "Vehicle profile loaded: Model ID %d",
+                modelId
+            );
+        } else {
+            logger->Info(
+                "No saved profile for Model ID %d. Using default profile.",
+                modelId
+            );
+        }
     }
 
     const VLS::VehicleProfile* customProfile =
@@ -75,7 +88,6 @@ void Init() {
     logger->Info("Initializing VLS configuration...");
 
     g_enabled = cfg->GetBool("Enabled", true, "General");
-
     g_runningLED = cfg->GetBool("RunningLED", true, "Effects");
     g_strobo = cfg->GetBool("Strobo", false, "Effects");
     g_rgbLighting = cfg->GetBool("RGBLighting", true, "Effects");
@@ -84,17 +96,37 @@ void Init() {
     g_brightness = cfg->GetInt("Brightness", 100, "Animation");
     g_animationSpeed = cfg->GetFloat("Speed", 1.0f, "Animation");
 
-    if (g_brightness < 0) g_brightness = 0;
-    if (g_brightness > 100) g_brightness = 100;
+    if (g_brightness < 0) {
+        g_brightness = 0;
+    }
 
-    if (g_animationSpeed < 0.1f) g_animationSpeed = 0.1f;
-    if (g_animationSpeed > 10.0f) g_animationSpeed = 10.0f;
+    if (g_brightness > 100) {
+        g_brightness = 100;
+    }
 
+    if (g_animationSpeed < 0.1f) {
+        g_animationSpeed = 0.1f;
+    }
+
+    if (g_animationSpeed > 10.0f) {
+        g_animationSpeed = 10.0f;
+    }
+
+    // Inisialisasi penyimpanan profil.
     if (VLS::ProfileStorage::Init()) {
         logger->Info(
             "VLS profile storage initialized: %s",
             VLS::ProfileStorage::GetProfilesDirectory()
         );
+
+        // Muat profil default jika file tersedia.
+        if (g_profileManager.Load(-1)) {
+            logger->Info("Default vehicle profile loaded successfully.");
+        } else {
+            logger->Info(
+                "No saved default profile found. Using built-in defaults."
+            );
+        }
     } else {
         logger->Info("VLS profile storage initialization failed.");
     }
@@ -108,6 +140,8 @@ void Init() {
 
 void Shutdown() {
     g_currentProfile = nullptr;
+    g_lastLoggedModelId = -2;
+
     // VLS cleanup will be implemented later.
 }
 
