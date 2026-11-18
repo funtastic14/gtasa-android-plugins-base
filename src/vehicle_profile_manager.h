@@ -21,6 +21,14 @@ public:
     // Mengambil profil kendaraan atau profil default.
     const VehicleProfile& GetProfileOrDefault(int modelId) const;
 
+    // Mengambil profil kendaraan untuk diedit.
+    // Profil otomatis ditandai berubah.
+    VehicleProfile* GetEditable(int modelId);
+
+    // Mengambil profil default untuk diedit.
+    // Profil otomatis ditandai berubah.
+    VehicleProfile* GetEditableDefault();
+
     // Mengatur profil default.
     void SetDefaultProfile(const VehicleProfile& profile);
 
