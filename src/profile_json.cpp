@@ -1,0 +1,1069 @@
+
+#include "profile_json.h"
+
+#include <cctype>
+#include <cmath>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <limits>
+#include <map>
+#include <string>
+#include <vector>
+
+namespace VLS {
+namespace ProfileJson {
+
+namespace {
+
+static const size_t MAX_JSON_SIZE = 1024 * 1024;
+static const int MAX_JSON_DEPTH = 64;
+
+struct JsonValue {
+    enum Type {
+        Null,
+        Boolean,
+        Number,
+        String,
+        Array,
+        Object
+    };
+
+    Type type = Null;
+    bool boolean = false;
+    double number = 0.0;
+    std::string string;
+    std::vector<JsonValue> array;
+    std::map<std::string, JsonValue> object;
+};
+
+class JsonParser {
+public:
+    explicit JsonParser(const std::string& source)
+        : m_source(source), m_position(0) {
+    }
+
+    bool Parse(JsonValue& result) {
+        SkipWhitespace();
+
+        if (!ParseValue(result, 0)) {
+            return false;
+        }
+
+        SkipWhitespace();
+
+        return m_position == m_source.size();
+    }
+
+private:
+    const std::string& m_source;
+    size_t m_position;
+
+    void SkipWhitespace() {
+        while (m_position < m_source.size() &&
+               std::isspace(
+                   static_cast<unsigned char>(m_source[m_position]))) {
+            ++m_position;
+        }
+    }
+
+    bool Consume(char expected) {
+        SkipWhitespace();
+
+        if (m_position >= m_source.size() ||
+            m_source[m_position] != expected) {
+            return false;
+        }
+
+        ++m_position;
+        return true;
+    }
+
+    bool Match(const char* text) {
+        size_t length = 0;
+
+        while (text[length] != '\0') {
+            ++length;
+        }
+
+        if (m_position + length > m_source.size()) {
+            return false;
+        }
+
+        if (m_source.compare(m_position, length, text) != 0) {
+            return false;
+        }
+
+        m_position += length;
+        return true;
+    }
+
+    static void AppendUtf8(
+        std::string& output,
+        uint32_t codepoint
+    ) {
+        if (codepoint <= 0x7F) {
+            output.push_back(static_cast<char>(codepoint));
+        } else if (codepoint <= 0x7FF) {
+            output.push_back(
+                static_cast<char>(0xC0 | (codepoint >> 6))
+            );
+            output.push_back(
+                static_cast<char>(0x80 | (codepoint & 0x3F))
+            );
+        } else if (codepoint <= 0xFFFF) {
+            output.push_back(
+                static_cast<char>(0xE0 | (codepoint >> 12))
+            );
+            output.push_back(
+                static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F))
+            );
+            output.push_back(
+                static_cast<char>(0x80 | (codepoint & 0x3F))
+            );
+        } else {
+            output.push_back(
+                static_cast<char>(0xF0 | (codepoint >> 18))
+            );
+            output.push_back(
+                static_cast<char>(0x80 | ((codepoint >> 12) & 0x3F))
+            );
+            output.push_back(
+                static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F))
+            );
+            output.push_back(
+                static_cast<char>(0x80 | (codepoint & 0x3F))
+            );
+        }
+    }
+
+    bool ParseHex4(uint32_t& result) {
+        if (m_position + 4 > m_source.size()) {
+            return false;
+        }
+
+        result = 0;
+
+        for (int i = 0; i < 4; ++i) {
+            char c = m_source[m_position++];
+            result <<= 4;
+
+            if (c >= '0' && c <= '9') {
+                result |= static_cast<uint32_t>(c - '0');
+            } else if (c >= 'a' && c <= 'f') {
+                result |= static_cast<uint32_t>(c - 'a' + 10);
+            } else if (c >= 'A' && c <= 'F') {
+                result |= static_cast<uint32_t>(c - 'A' + 10);
+            } else {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    bool ParseString(std::string& result) {
+        if (m_position >= m_source.size() ||
+            m_source[m_position] != '"') {
+            return false;
+        }
+
+        ++m_position;
+        result.clear();
+
+        while (m_position < m_source.size()) {
+            unsigned char c =
+                static_cast<unsigned char>(m_source[m_position++]);
+
+            if (c == '"') {
+                return true;
+            }
+
+            if (c < 0x20) {
+                return false;
+            }
+
+            if (c != '\\') {
+                result.push_back(static_cast<char>(c));
+                continue;
+            }
+
+            if (m_position >= m_source.size()) {
+                return false;
+            }
+
+            char escaped = m_source[m_position++];
+
+            switch (escaped) {
+                case '"': result.push_back('"'); break;
+                case '\\': result.push_back('\\'); break;
+                case '/': result.push_back('/'); break;
+                case 'b': result.push_back('\b'); break;
+                case 'f': result.push_back('\f'); break;
+                case 'n': result.push_back('\n'); break;
+                case 'r': result.push_back('\r'); break;
+                case 't': result.push_back('\t'); break;
+
+                case 'u': {
+                    uint32_t codepoint;
+
+                    if (!ParseHex4(codepoint)) {
+                        return false;
+                    }
+
+                    if (codepoint >= 0xD800 &&
+                        codepoint <= 0xDBFF) {
+                        if (m_position + 2 > m_source.size() ||
+                            m_source[m_position] != '\\' ||
+                            m_source[m_position + 1] != 'u') {
+                            return false;
+                        }
+
+                        m_position += 2;
+
+                        uint32_t low;
+
+                        if (!ParseHex4(low) ||
+                            low < 0xDC00 ||
+                            low > 0xDFFF) {
+                            return false;
+                        }
+
+                        codepoint = 0x10000 +
+                            ((codepoint - 0xD800) << 10) +
+                            (low - 0xDC00);
+                    } else if (codepoint >= 0xDC00 &&
+                               codepoint <= 0xDFFF) {
+                        return false;
+                    }
+
+                    AppendUtf8(result, codepoint);
+                    break;
+                }
+
+                default:
+                    return false;
+            }
+        }
+
+        return false;
+    }
+
+    bool ParseNumber(JsonValue& result) {
+        size_t start = m_position;
+
+        if (m_position < m_source.size() &&
+            m_source[m_position] == '-') {
+            ++m_position;
+        }
+
+        if (m_position >= m_source.size()) {
+            return false;
+        }
+
+        if (m_source[m_position] == '0') {
+            ++m_position;
+        } else {
+            if (m_source[m_position] < '1' ||
+                m_source[m_position] > '9') {
+                return false;
+            }
+
+            while (m_position < m_source.size() &&
+                   m_source[m_position] >= '0' &&
+                   m_source[m_position] <= '9') {
+                ++m_position;
+            }
+        }
+
+        if (m_position < m_source.size() &&
+            m_source[m_position] == '.') {
+            ++m_position;
+
+            size_t fractionStart = m_position;
+
+            while (m_position < m_source.size() &&
+                   m_source[m_position] >= '0' &&
+                   m_source[m_position] <= '9') {
+                ++m_position;
+            }
+
+            if (fractionStart == m_position) {
+                return false;
+            }
+        }
+
+        if (m_position < m_source.size() &&
+            (m_source[m_position] == 'e' ||
+             m_source[m_position] == 'E')) {
+            ++m_position;
+
+            if (m_position < m_source.size() &&
+                (m_source[m_position] == '+' ||
+                 m_source[m_position] == '-')) {
+                ++m_position;
+            }
+
+            size_t exponentStart = m_position;
+
+            while (m_position < m_source.size() &&
+                   m_source[m_position] >= '0' &&
+                   m_source[m_position] <= '9') {
+                ++m_position;
+            }
+
+            if (exponentStart == m_position) {
+                return false;
+            }
+        }
+
+        std::string numberText =
+            m_source.substr(start, m_position - start);
+
+        char* end = nullptr;
+        double value = std::strtod(numberText.c_str(), &end);
+
+        if (end == nullptr ||
+            *end != '\0' ||
+            !std::isfinite(value)) {
+            return false;
+        }
+
+        result.type = JsonValue::Number;
+        result.number = value;
+
+        return true;
+    }
+
+    bool ParseArray(JsonValue& result, int depth) {
+        if (!Consume('[')) {
+            return false;
+        }
+
+        result.type = JsonValue::Array;
+        result.array.clear();
+
+        SkipWhitespace();
+
+        if (Consume(']')) {
+            return true;
+        }
+
+        while (true) {
+            JsonValue item;
+
+            if (!ParseValue(item, depth + 1)) {
+                return false;
+            }
+
+            result.array.push_back(item);
+
+            SkipWhitespace();
+
+            if (Consume(']')) {
+                return true;
+            }
+
+            if (!Consume(',')) {
+                return false;
+            }
+        }
+    }
+
+    bool ParseObject(JsonValue& result, int depth) {
+        if (!Consume('{')) {
+            return false;
+        }
+
+        result.type = JsonValue::Object;
+        result.object.clear();
+
+        SkipWhitespace();
+
+        if (Consume('}')) {
+            return true;
+        }
+
+        while (true) {
+            SkipWhitespace();
+
+            std::string key;
+
+            if (!ParseString(key)) {
+                return false;
+            }
+
+            if (!Consume(':')) {
+                return false;
+            }
+
+            JsonValue value;
+
+            if (!ParseValue(value, depth + 1)) {
+                return false;
+            }
+
+            result.object[key] = value;
+
+            SkipWhitespace();
+
+            if (Consume('}')) {
+                return true;
+            }
+
+            if (!Consume(',')) {
+                return false;
+            }
+        }
+    }
+
+    bool ParseValue(JsonValue& result, int depth) {
+        if (depth > MAX_JSON_DEPTH) {
+            return false;
+        }
+
+        SkipWhitespace();
+
+        if (m_position >= m_source.size()) {
+            return false;
+        }
+
+        char c = m_source[m_position];
+
+        if (c == '{') {
+            return ParseObject(result, depth);
+        }
+
+        if (c == '[') {
+            return ParseArray(result, depth);
+        }
+
+        if (c == '"') {
+            result.type = JsonValue::String;
+            return ParseString(result.string);
+        }
+
+        if (c == 't') {
+            if (!Match("true")) return false;
+            result.type = JsonValue::Boolean;
+            result.boolean = true;
+            return true;
+        }
+
+        if (c == 'f') {
+            if (!Match("false")) return false;
+            result.type = JsonValue::Boolean;
+            result.boolean = false;
+            return true;
+        }
+
+        if (c == 'n') {
+            if (!Match("null")) return false;
+            result.type = JsonValue::Null;
+            return true;
+        }
+
+        if (c == '-' || (c >= '0' && c <= '9')) {
+            return ParseNumber(result);
+        }
+
+        return false;
+    }
+};
+
+static const JsonValue* Find(
+    const JsonValue& object,
+    const char* key
+) {
+    if (object.type != JsonValue::Object) {
+        return nullptr;
+    }
+
+    auto it = object.object.find(key);
+
+    if (it == object.object.end()) {
+        return nullptr;
+    }
+
+    return &it->second;
+}
+
+static bool ReadBool(
+    const JsonValue& object,
+    const char* key,
+    bool& output
+) {
+    const JsonValue* value = Find(object, key);
+
+    if (value == nullptr) {
+        return true;
+    }
+
+    if (value->type != JsonValue::Boolean) {
+        return false;
+    }
+
+    output = value->boolean;
+    return true;
+}
+
+static bool ReadNumber(
+    const JsonValue& object,
+    const char* key,
+    double& output
+) {
+    const JsonValue* value = Find(object, key);
+
+    if (value == nullptr) {
+        return true;
+    }
+
+    if (value->type != JsonValue::Number) {
+        return false;
+    }
+
+    output = value->number;
+    return true;
+}
+
+static bool ReadInt(
+    const JsonValue& object,
+    const char* key,
+    int& output
+) {
+    double value = output;
+
+    if (!ReadNumber(object, key, value)) {
+        return false;
+    }
+
+    if (value < std::numeric_limits<int>::min() ||
+        value > std::numeric_limits<int>::max() ||
+        std::floor(value) != value) {
+        return false;
+    }
+
+    output = static_cast<int>(value);
+    return true;
+}
+
+static bool ReadUInt32(
+    const JsonValue& object,
+    const char* key,
+    uint32_t& output
+) {
+    double value = output;
+
+    if (!ReadNumber(object, key, value)) {
+        return false;
+    }
+
+    if (value < 0 ||
+        value > std::numeric_limits<uint32_t>::max() ||
+        std::floor(value) != value) {
+        return false;
+    }
+
+    output = static_cast<uint32_t>(value);
+    return true;
+}
+
+static bool ReadUInt8(
+    const JsonValue& object,
+    const char* key,
+    uint8_t& output
+) {
+    double value = output;
+
+    if (!ReadNumber(object, key, value)) {
+        return false;
+    }
+
+    if (value < 0 || value > 255 ||
+        std::floor(value) != value) {
+        return false;
+    }
+
+    output = static_cast<uint8_t>(value);
+    return true;
+}
+
+static bool ReadFloat(
+    const JsonValue& object,
+    const char* key,
+    float& output
+) {
+    double value = output;
+
+    if (!ReadNumber(object, key, value)) {
+        return false;
+    }
+
+    if (value < -std::numeric_limits<float>::max() ||
+        value > std::numeric_limits<float>::max()) {
+        return false;
+    }
+
+    output = static_cast<float>(value);
+    return std::isfinite(output);
+}
+
+static bool ReadTransform(
+    const JsonValue& value,
+    LedTransform& transform
+) {
+    if (value.type != JsonValue::Object) {
+        return false;
+    }
+
+    return
+        ReadFloat(value, "x", transform.x) &&
+        ReadFloat(value, "y", transform.y) &&
+        ReadFloat(value, "z", transform.z) &&
+        ReadFloat(value, "rotationX", transform.rotationX) &&
+        ReadFloat(value, "rotationY", transform.rotationY) &&
+        ReadFloat(value, "rotationZ", transform.rotationZ) &&
+        ReadFloat(value, "width", transform.width) &&
+        ReadFloat(value, "height", transform.height);
+}
+
+static bool ReadEffect(
+    const JsonValue& value,
+    LedEffectConfig& effect
+) {
+    if (value.type != JsonValue::Object) {
+        return false;
+    }
+
+    int type = static_cast<int>(effect.type);
+
+    if (!ReadInt(value, "type", type) ||
+        type < 0 ||
+        type > static_cast<int>(LedEffectType::CustomAnimation)) {
+        return false;
+    }
+
+    effect.type = static_cast<LedEffectType>(type);
+
+    return
+        ReadBool(value, "enabled", effect.enabled) &&
+        ReadUInt8(value, "red", effect.red) &&
+        ReadUInt8(value, "green", effect.green) &&
+        ReadUInt8(value, "blue", effect.blue) &&
+        ReadFloat(value, "brightness", effect.brightness) &&
+        ReadFloat(value, "speed", effect.speed);
+}
+
+static bool ReadPlacement(
+    const JsonValue& value,
+    LedPlacement& placement
+) {
+    if (value.type != JsonValue::Object) {
+        return false;
+    }
+
+    if (!ReadUInt32(value, "id", placement.id)) {
+        return false;
+    }
+
+    int zone = static_cast<int>(placement.zone);
+
+    if (!ReadInt(value, "zone", zone) ||
+        zone < 0 ||
+        zone > static_cast<int>(LedZone::Interior)) {
+        return false;
+    }
+
+    placement.zone = static_cast<LedZone>(zone);
+
+    const JsonValue* transform = Find(value, "transform");
+
+    if (transform != nullptr &&
+        !ReadTransform(*transform, placement.transform)) {
+        return false;
+    }
+
+    const JsonValue* effects = Find(value, "effects");
+
+    if (effects != nullptr) {
+        if (effects->type != JsonValue::Array) {
+            return false;
+        }
+
+        for (const JsonValue& item : effects->array) {
+            LedEffectConfig effect;
+
+            if (!ReadEffect(item, effect)) {
+                return false;
+            }
+
+            placement.effects.push_back(effect);
+        }
+    }
+
+    return true;
+}
+
+static bool ReadSequenceStep(
+    const JsonValue& value,
+    EffectSequenceStep& step
+) {
+    if (value.type != JsonValue::Object) {
+        return false;
+    }
+
+    return
+        ReadUInt32(value, "placementId", step.placementId) &&
+        ReadUInt32(value, "effectIndex", step.effectIndex) &&
+        ReadUInt32(value, "durationMs", step.durationMs);
+}
+
+static bool ReadSequence(
+    const JsonValue& value,
+    EffectSequence& sequence
+) {
+    if (value.type != JsonValue::Object) {
+        return false;
+    }
+
+    if (!ReadBool(value, "enabled", sequence.enabled) ||
+        !ReadBool(value, "loop", sequence.loop)) {
+        return false;
+    }
+
+    const JsonValue* steps = Find(value, "steps");
+
+    if (steps != nullptr) {
+        if (steps->type != JsonValue::Array) {
+            return false;
+        }
+
+        for (const JsonValue& item : steps->array) {
+            EffectSequenceStep step;
+
+            if (!ReadSequenceStep(item, step)) {
+                return false;
+            }
+
+            sequence.steps.push_back(step);
+        }
+    }
+
+    return true;
+}
+
+static bool AppendFloat(
+    std::string& output,
+    float value
+) {
+    if (!std::isfinite(value)) {
+        return false;
+    }
+
+    char buffer[48];
+
+    int length = std::snprintf(
+        buffer,
+        sizeof(buffer),
+        "%.9g",
+        static_cast<double>(value)
+    );
+
+    if (length <= 0 ||
+        static_cast<size_t>(length) >= sizeof(buffer)) {
+        return false;
+    }
+
+    output.append(buffer, static_cast<size_t>(length));
+    return true;
+}
+
+static void AppendUInt(
+    std::string& output,
+    uint32_t value
+) {
+    output += std::to_string(value);
+}
+
+static void AppendInt(
+    std::string& output,
+    int value
+) {
+    output += std::to_string(value);
+}
+
+static bool AppendTransform(
+    std::string& output,
+    const LedTransform& transform
+) {
+    output += "{\"x\":";
+
+    if (!AppendFloat(output, transform.x)) return false;
+
+    output += ",\"y\":";
+    if (!AppendFloat(output, transform.y)) return false;
+
+    output += ",\"z\":";
+    if (!AppendFloat(output, transform.z)) return false;
+
+    output += ",\"rotationX\":";
+    if (!AppendFloat(output, transform.rotationX)) return false;
+
+    output += ",\"rotationY\":";
+    if (!AppendFloat(output, transform.rotationY)) return false;
+
+    output += ",\"rotationZ\":";
+    if (!AppendFloat(output, transform.rotationZ)) return false;
+
+    output += ",\"width\":";
+    if (!AppendFloat(output, transform.width)) return false;
+
+    output += ",\"height\":";
+    if (!AppendFloat(output, transform.height)) return false;
+
+    output += "}";
+    return true;
+}
+
+static bool AppendEffect(
+    std::string& output,
+    const LedEffectConfig& effect
+) {
+    if (static_cast<int>(effect.type) < 0 ||
+        static_cast<int>(effect.type) >
+            static_cast<int>(LedEffectType::CustomAnimation)) {
+        return false;
+    }
+
+    output += "{\"type\":";
+    AppendInt(output, static_cast<int>(effect.type));
+
+    output += ",\"enabled\":";
+    output += effect.enabled ? "true" : "false";
+
+    output += ",\"red\":";
+    AppendUInt(output, effect.red);
+
+    output += ",\"green\":";
+    AppendUInt(output, effect.green);
+
+    output += ",\"blue\":";
+    AppendUInt(output, effect.blue);
+
+    output += ",\"brightness\":";
+    if (!AppendFloat(output, effect.brightness)) return false;
+
+    output += ",\"speed\":";
+    if (!AppendFloat(output, effect.speed)) return false;
+
+    output += "}";
+    return true;
+}
+
+static bool AppendPlacement(
+    std::string& output,
+    const LedPlacement& placement
+) {
+    if (static_cast<int>(placement.zone) < 0 ||
+        static_cast<int>(placement.zone) >
+            static_cast<int>(LedZone::Interior)) {
+        return false;
+    }
+
+    output += "{\"id\":";
+    AppendUInt(output, placement.id);
+
+    output += ",\"zone\":";
+    AppendInt(output, static_cast<int>(placement.zone));
+
+    output += ",\"transform\":";
+
+    if (!AppendTransform(output, placement.transform)) {
+        return false;
+    }
+
+    output += ",\"effects\":[";
+
+    for (size_t i = 0; i < placement.effects.size(); ++i) {
+        if (i > 0) {
+            output += ",";
+        }
+
+        if (!AppendEffect(output, placement.effects[i])) {
+            return false;
+        }
+    }
+
+    output += "]}";
+    return true;
+}
+
+static bool AppendSequenceStep(
+    std::string& output,
+    const EffectSequenceStep& step
+) {
+    output += "{\"placementId\":";
+    AppendUInt(output, step.placementId);
+
+    output += ",\"effectIndex\":";
+    AppendUInt(output, step.effectIndex);
+
+    output += ",\"durationMs\":";
+    AppendUInt(output, step.durationMs);
+
+    output += "}";
+
+    return true;
+}
+
+static bool AppendSequence(
+    std::string& output,
+    const EffectSequence& sequence
+) {
+    output += "{\"enabled\":";
+    output += sequence.enabled ? "true" : "false";
+
+    output += ",\"loop\":";
+    output += sequence.loop ? "true" : "false";
+
+    output += ",\"steps\":[";
+
+    for (size_t i = 0; i < sequence.steps.size(); ++i) {
+        if (i > 0) {
+            output += ",";
+        }
+
+        if (!AppendSequenceStep(output, sequence.steps[i])) {
+            return false;
+        }
+    }
+
+    output += "]}";
+    return true;
+}
+
+} // namespace
+
+bool Serialize(
+    const VehicleProfile& profile,
+    std::string& json
+) {
+    json.clear();
+
+    json += "{\"modelId\":";
+    AppendInt(json, profile.modelId);
+
+    json += ",\"enabled\":";
+    json += profile.enabled ? "true" : "false";
+
+    json += ",\"placements\":[";
+
+    for (size_t i = 0; i < profile.placements.size(); ++i) {
+        if (i > 0) {
+            json += ",";
+        }
+
+        if (!AppendPlacement(json, profile.placements[i])) {
+            json.clear();
+            return false;
+        }
+
+        if (json.size() > MAX_JSON_SIZE) {
+            json.clear();
+            return false;
+        }
+    }
+
+    json += "],\"sequences\":[";
+
+    for (size_t i = 0; i < profile.sequences.size(); ++i) {
+        if (i > 0) {
+            json += ",";
+        }
+
+        if (!AppendSequence(json, profile.sequences[i])) {
+            json.clear();
+            return false;
+        }
+
+        if (json.size() > MAX_JSON_SIZE) {
+            json.clear();
+            return false;
+        }
+    }
+
+    json += "]}";
+
+    if (json.size() > MAX_JSON_SIZE) {
+        json.clear();
+        return false;
+    }
+
+    return true;
+}
+
+bool Deserialize(
+    const std::string& json,
+    VehicleProfile& profile
+) {
+    if (json.empty() || json.size() > MAX_JSON_SIZE) {
+        return false;
+    }
+
+    JsonParser parser(json);
+    JsonValue root;
+
+    if (!parser.Parse(root) ||
+        root.type != JsonValue::Object) {
+        return false;
+    }
+
+    VehicleProfile result;
+
+    if (!ReadInt(root, "modelId", result.modelId) ||
+        !ReadBool(root, "enabled", result.enabled)) {
+        return false;
+    }
+
+    const JsonValue* placements = Find(root, "placements");
+
+    if (placements != nullptr) {
+        if (placements->type != JsonValue::Array) {
+            return false;
+        }
+
+        for (const JsonValue& item : placements->array) {
+            LedPlacement placement;
+
+            if (!ReadPlacement(item, placement)) {
+                return false;
+            }
+
+            result.placements.push_back(placement);
+        }
+    }
+
+    const JsonValue* sequences = Find(root, "sequences");
+
+    if (sequences != nullptr) {
+        if (sequences->type != JsonValue::Array) {
+            return false;
+        }
+
+        for (const JsonValue& item : sequences->array) {
+            EffectSequence sequence;
+
+            if (!ReadSequence(item, sequence)) {
+                return false;
+            }
+
+            result.sequences.push_back(sequence);
+        }
+    }
+
+    profile = result;
+    return true;
+}
+
+} // namespace ProfileJson
+} // namespace VLS
