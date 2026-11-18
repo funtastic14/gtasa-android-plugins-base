@@ -15,6 +15,7 @@ VehicleProfile& VehicleProfileManager::GetOrCreate(int modelId) {
 
     if (result.second) {
         profile.modelId = modelId;
+        MarkDirty(modelId);
     }
 
     return profile;
@@ -57,7 +58,27 @@ void VehicleProfileManager::SetDefaultProfile(
 ) {
     m_defaultProfile = profile;
     m_defaultProfile.modelId = -1;
+
     m_hasDefaultProfile = true;
+    m_defaultDirty = true;
+}
+
+void VehicleProfileManager::MarkDirty(int modelId) {
+    if (modelId < 0) {
+        m_hasDefaultProfile = true;
+        m_defaultDirty = true;
+        return;
+    }
+
+    m_dirtyProfiles.insert(modelId);
+}
+
+bool VehicleProfileManager::IsDirty(int modelId) const {
+    if (modelId < 0) {
+        return m_defaultDirty;
+    }
+
+    return m_dirtyProfiles.find(modelId) != m_dirtyProfiles.end();
 }
 
 bool VehicleProfileManager::Load(int modelId) {
@@ -82,20 +103,27 @@ bool VehicleProfileManager::Load(int modelId) {
     if (storageModelId < 0) {
         m_defaultProfile = profile;
         m_defaultProfile.modelId = -1;
+
         m_hasDefaultProfile = true;
+        m_defaultDirty = false;
     } else {
         m_profiles[storageModelId] = profile;
+        m_dirtyProfiles.erase(storageModelId);
     }
 
     return true;
 }
 
-bool VehicleProfileManager::Save(int modelId) const {
+bool VehicleProfileManager::Save(int modelId) {
     const int storageModelId = modelId < 0 ? -1 : modelId;
 
     const VehicleProfile* profile = nullptr;
 
     if (storageModelId < 0) {
+        if (!m_hasDefaultProfile) {
+            return false;
+        }
+
         profile = &m_defaultProfile;
     } else {
         profile = Find(storageModelId);
@@ -114,22 +142,39 @@ bool VehicleProfileManager::Save(int modelId) const {
         return false;
     }
 
-    return ProfileStorage::SaveProfileJson(storageModelId, json);
+    if (!ProfileStorage::SaveProfileJson(storageModelId, json)) {
+        return false;
+    }
+
+    // Hapus penanda perubahan hanya setelah penyimpanan berhasil.
+    if (storageModelId < 0) {
+        m_defaultDirty = false;
+    } else {
+        m_dirtyProfiles.erase(storageModelId);
+    }
+
+    return true;
 }
 
-bool VehicleProfileManager::SaveAll() const {
+bool VehicleProfileManager::SaveAll() {
     bool success = true;
 
-    // Simpan profil default hanya jika pernah dimuat atau diatur.
-    if (m_hasDefaultProfile) {
+    // Simpan profil default hanya jika berubah.
+    if (m_defaultDirty) {
         if (!Save(-1)) {
             success = false;
         }
     }
 
-    // Simpan seluruh profil kendaraan yang ada di dalam manager.
+    // Simpan hanya profil kendaraan yang berubah.
     for (const auto& entry : m_profiles) {
-        if (!Save(entry.first)) {
+        const int modelId = entry.first;
+
+        if (m_dirtyProfiles.find(modelId) == m_dirtyProfiles.end()) {
+            continue;
+        }
+
+        if (!Save(modelId)) {
             success = false;
         }
     }
@@ -138,11 +183,14 @@ bool VehicleProfileManager::SaveAll() const {
 }
 
 bool VehicleProfileManager::Remove(int modelId) {
+    m_dirtyProfiles.erase(modelId);
+
     return m_profiles.erase(modelId) > 0;
 }
 
 void VehicleProfileManager::Clear() {
     m_profiles.clear();
+    m_dirtyProfiles.clear();
 }
 
 } // namespace VLS
