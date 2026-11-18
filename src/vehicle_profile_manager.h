@@ -34,10 +34,10 @@ public:
     bool Load(int modelId);
 
     // Menyimpan satu profil.
-    bool Save(int modelId) const;
+    bool Save(int modelId);
 
     // Menyimpan seluruh profil yang berubah.
-    bool SaveAll() const;
+    bool SaveAll();
 
     // Menghapus profil kendaraan.
     bool Remove(int modelId);
