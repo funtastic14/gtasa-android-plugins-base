@@ -1,295 +1,202 @@
-
-#include "profile_sequence_manager.h"
+#include "profile_sequence_runtime.h"
 
 #include <cstddef>
-#include <limits>
+#include <cstdint>
 
 namespace VLS {
+namespace {
 
-ProfileSequenceManager::ProfileSequenceManager(
-    VehicleProfileManager& profileManager,
-    int modelId
-)
-    : m_profileManager(profileManager),
-      m_modelId(modelId) {
-}
-
-VehicleProfile* ProfileSequenceManager::GetEditableProfile() {
-    if (m_modelId < 0) {
-        return m_profileManager.GetEditableDefault();
-    }
-
-    return m_profileManager.GetEditable(m_modelId);
-}
-
-const VehicleProfile*
-ProfileSequenceManager::GetReadableProfile() const {
-    if (m_modelId < 0) {
-        return &m_profileManager.GetProfileOrDefault(-1);
-    }
-
-    return m_profileManager.Find(m_modelId);
-}
-
-int ProfileSequenceManager::AddSequence() {
-    VehicleProfile* profile = GetEditableProfile();
-
-    if (profile == nullptr) {
-        return -1;
-    }
-
-    if (profile->sequences.size() >=
-        static_cast<std::size_t>(
-            std::numeric_limits<int>::max()
-        )) {
-        return -1;
-    }
-
-    EffectSequence sequence;
-    sequence.enabled = false;
-    sequence.loop = true;
-
-    const int sequenceIndex =
-        static_cast<int>(profile->sequences.size());
-
-    profile->sequences.push_back(sequence);
-
-    return sequenceIndex;
-}
-
-bool ProfileSequenceManager::RemoveSequence(
-    uint32_t sequenceIndex
+bool IsStepReferenceValid(
+    const VehicleProfile& profile,
+    const EffectSequenceStep& step
 ) {
-    const VehicleProfile* readable =
-        GetReadableProfile();
-
-    if (readable == nullptr ||
-        sequenceIndex >= readable->sequences.size()) {
+    if (step.placementId == 0 || step.durationMs == 0) {
         return false;
     }
 
-    VehicleProfile* profile = GetEditableProfile();
-
-    if (profile == nullptr ||
-        sequenceIndex >= profile->sequences.size()) {
-        return false;
-    }
-
-    profile->sequences.erase(
-        profile->sequences.begin() + sequenceIndex
-    );
-
-    return true;
-}
-
-const EffectSequence* ProfileSequenceManager::FindSequence(
-    uint32_t sequenceIndex
-) const {
-    const VehicleProfile* profile =
-        GetReadableProfile();
-
-    if (profile == nullptr ||
-        sequenceIndex >= profile->sequences.size()) {
-        return nullptr;
-    }
-
-    return &profile->sequences[sequenceIndex];
-}
-
-bool ProfileSequenceManager::SetSequenceEnabled(
-    uint32_t sequenceIndex,
-    bool enabled
-) {
-    const EffectSequence* current =
-        FindSequence(sequenceIndex);
-
-    if (current == nullptr) {
-        return false;
-    }
-
-    if (current->enabled == enabled) {
-        return true;
-    }
-
-    VehicleProfile* profile = GetEditableProfile();
-
-    if (profile == nullptr ||
-        sequenceIndex >= profile->sequences.size()) {
-        return false;
-    }
-
-    profile->sequences[sequenceIndex].enabled = enabled;
-
-    return true;
-}
-
-bool ProfileSequenceManager::SetSequenceLoop(
-    uint32_t sequenceIndex,
-    bool loop
-) {
-    const EffectSequence* current =
-        FindSequence(sequenceIndex);
-
-    if (current == nullptr) {
-        return false;
-    }
-
-    if (current->loop == loop) {
-        return true;
-    }
-
-    VehicleProfile* profile = GetEditableProfile();
-
-    if (profile == nullptr ||
-        sequenceIndex >= profile->sequences.size()) {
-        return false;
-    }
-
-    profile->sequences[sequenceIndex].loop = loop;
-
-    return true;
-}
-
-int ProfileSequenceManager::AddStep(
-    uint32_t sequenceIndex,
-    uint32_t placementId,
-    uint32_t effectIndex,
-    uint32_t durationMs
-) {
-    if (placementId == 0 || durationMs == 0) {
-        return -1;
-    }
-
-    const VehicleProfile* readable =
-        GetReadableProfile();
-
-    if (readable == nullptr ||
-        sequenceIndex >= readable->sequences.size()) {
-        return -1;
-    }
-
-    bool effectExists = false;
-
-    for (const LedPlacement& placement :
-         readable->placements) {
-        if (placement.id != placementId) {
+    for (const LedPlacement& placement : profile.placements) {
+        if (placement.id != step.placementId) {
             continue;
         }
 
-        if (effectIndex < placement.effects.size()) {
-            effectExists = true;
+        return step.effectIndex < placement.effects.size();
+    }
+
+    return false;
+}
+
+bool IsSequenceValid(const EffectSequence& sequence) {
+    if (!sequence.enabled || sequence.steps.empty()) {
+        return false;
+    }
+
+    return true;
+}
+
+} // namespace
+
+bool ProfileSequenceRuntime::Start(
+    const VehicleProfile& profile,
+    uint32_t sequenceIndex,
+    uint32_t nowMs
+) {
+    Stop();
+
+    if (sequenceIndex >= profile.sequences.size()) {
+        return false;
+    }
+
+    const EffectSequence& sequence =
+        profile.sequences[sequenceIndex];
+
+    if (!IsSequenceValid(sequence)) {
+        return false;
+    }
+
+    for (const EffectSequenceStep& step : sequence.steps) {
+        if (!IsStepReferenceValid(profile, step)) {
+            return false;
+        }
+    }
+
+    m_sequenceIndex = sequenceIndex;
+    m_stepIndex = 0;
+    m_stepStartTimeMs = nowMs;
+    m_running = true;
+    m_finished = false;
+
+    return true;
+}
+
+void ProfileSequenceRuntime::Stop() {
+    m_running = false;
+    m_finished = false;
+    m_sequenceIndex = 0;
+    m_stepIndex = 0;
+    m_stepStartTimeMs = 0;
+}
+
+bool ProfileSequenceRuntime::Update(
+    const VehicleProfile& profile,
+    uint32_t nowMs
+) {
+    if (!m_running) {
+        return false;
+    }
+
+    if (m_sequenceIndex >= profile.sequences.size()) {
+        Stop();
+        return false;
+    }
+
+    const EffectSequence& sequence =
+        profile.sequences[m_sequenceIndex];
+
+    if (!IsSequenceValid(sequence) ||
+        m_stepIndex >= sequence.steps.size()) {
+        Stop();
+        return false;
+    }
+
+    for (const EffectSequenceStep& step : sequence.steps) {
+        if (!IsStepReferenceValid(profile, step)) {
+            Stop();
+            return false;
+        }
+    }
+
+    // Pengurangan unsigned tetap aman ketika timer melewati UINT32_MAX.
+    uint32_t elapsedMs = nowMs - m_stepStartTimeMs;
+
+    if (sequence.loop) {
+        uint64_t cycleDurationMs = 0;
+
+        for (const EffectSequenceStep& step : sequence.steps) {
+            cycleDurationMs += step.durationMs;
         }
 
-        break;
+        if (cycleDurationMs == 0) {
+            Stop();
+            return false;
+        }
+
+        if (static_cast<uint64_t>(elapsedMs) >= cycleDurationMs) {
+            elapsedMs = static_cast<uint32_t>(
+                static_cast<uint64_t>(elapsedMs) % cycleDurationMs
+            );
+
+            m_stepStartTimeMs = nowMs - elapsedMs;
+        }
     }
 
-    if (!effectExists) {
-        return -1;
+    while (m_running) {
+        const EffectSequenceStep& currentStep =
+            sequence.steps[m_stepIndex];
+
+        if (elapsedMs < currentStep.durationMs) {
+            break;
+        }
+
+        elapsedMs -= currentStep.durationMs;
+        m_stepStartTimeMs += currentStep.durationMs;
+
+        if (m_stepIndex + 1 < sequence.steps.size()) {
+            ++m_stepIndex;
+            continue;
+        }
+
+        if (sequence.loop) {
+            m_stepIndex = 0;
+            continue;
+        }
+
+        // Sequence non-loop selesai setelah langkah terakhir berakhir.
+        m_running = false;
+        m_finished = true;
+        return false;
     }
 
-    if (readable->sequences[sequenceIndex].steps.size() >=
-        static_cast<std::size_t>(
-            std::numeric_limits<int>::max()
-        )) {
-        return -1;
-    }
-
-    VehicleProfile* profile = GetEditableProfile();
-
-    if (profile == nullptr ||
-        sequenceIndex >= profile->sequences.size()) {
-        return -1;
-    }
-
-    EffectSequenceStep step;
-    step.placementId = placementId;
-    step.effectIndex = effectIndex;
-    step.durationMs = durationMs;
-
-    auto& steps = profile->sequences[sequenceIndex].steps;
-
-    const int stepIndex =
-        static_cast<int>(steps.size());
-
-    steps.push_back(step);
-
-    return stepIndex;
+    return m_running;
 }
 
-bool ProfileSequenceManager::RemoveStep(
-    uint32_t sequenceIndex,
-    uint32_t stepIndex
-) {
-    const VehicleProfile* readable =
-        GetReadableProfile();
-
-    if (readable == nullptr ||
-        sequenceIndex >= readable->sequences.size() ||
-        stepIndex >=
-            readable->sequences[sequenceIndex].steps.size()) {
-        return false;
+const EffectSequenceStep* ProfileSequenceRuntime::GetCurrentStep(
+    const VehicleProfile& profile
+) const {
+    if (!m_running ||
+        m_sequenceIndex >= profile.sequences.size()) {
+        return nullptr;
     }
 
-    VehicleProfile* profile = GetEditableProfile();
+    const EffectSequence& sequence =
+        profile.sequences[m_sequenceIndex];
 
-    if (profile == nullptr ||
-        sequenceIndex >= profile->sequences.size()) {
-        return false;
+    if (m_stepIndex >= sequence.steps.size()) {
+        return nullptr;
     }
 
-    auto& steps = profile->sequences[sequenceIndex].steps;
+    const EffectSequenceStep& step = sequence.steps[m_stepIndex];
 
-    if (stepIndex >= steps.size()) {
-        return false;
+    if (!IsStepReferenceValid(profile, step)) {
+        return nullptr;
     }
 
-    steps.erase(steps.begin() + stepIndex);
-
-    return true;
+    return &step;
 }
 
-bool ProfileSequenceManager::SetStepDuration(
-    uint32_t sequenceIndex,
-    uint32_t stepIndex,
-    uint32_t durationMs
-) {
-    if (durationMs == 0) {
-        return false;
-    }
+bool ProfileSequenceRuntime::IsRunning() const {
+    return m_running;
+}
 
-    const VehicleProfile* readable =
-        GetReadableProfile();
+bool ProfileSequenceRuntime::IsFinished() const {
+    return m_finished;
+}
 
-    if (readable == nullptr ||
-        sequenceIndex >= readable->sequences.size() ||
-        stepIndex >=
-            readable->sequences[sequenceIndex].steps.size()) {
-        return false;
-    }
+uint32_t ProfileSequenceRuntime::GetSequenceIndex() const {
+    return m_sequenceIndex;
+}
 
-    const EffectSequenceStep& current =
-        readable->sequences[sequenceIndex].steps[stepIndex];
-
-    if (current.durationMs == durationMs) {
-        return true;
-    }
-
-    VehicleProfile* profile = GetEditableProfile();
-
-    if (profile == nullptr ||
-        sequenceIndex >= profile->sequences.size()) {
-        return false;
-    }
-
-    auto& steps = profile->sequences[sequenceIndex].steps;
-
-    if (stepIndex >= steps.size()) {
-        return false;
-    }
-
-    steps[stepIndex].durationMs = durationMs;
-
-    return true;
+uint32_t ProfileSequenceRuntime::GetStepIndex() const {
+    return m_stepIndex;
 }
 
 } // namespace VLS
