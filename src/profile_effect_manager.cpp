@@ -1,7 +1,9 @@
 
 #include "profile_effect_manager.h"
 
+#include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <limits>
 
 namespace VLS {
@@ -39,6 +41,13 @@ int ProfileEffectManager::AddEffect(
         return -1;
     }
 
+    const uint8_t typeValue = static_cast<uint8_t>(type);
+
+    if (typeValue >
+        static_cast<uint8_t>(LedEffectType::CustomAnimation)) {
+        return -1;
+    }
+
     const VehicleProfile* readableProfile =
         GetReadableProfile();
 
@@ -72,7 +81,9 @@ int ProfileEffectManager::AddEffect(
         }
 
         if (placement.effects.size() >=
-            static_cast<size_t>(std::numeric_limits<int>::max())) {
+            static_cast<std::size_t>(
+                std::numeric_limits<int>::max()
+            )) {
             return -1;
         }
 
@@ -135,9 +146,39 @@ bool ProfileEffectManager::RemoveEffect(
             return false;
         }
 
+        // Hapus efek dari placement.
         placement.effects.erase(
             placement.effects.begin() + effectIndex
         );
+
+        // Sinkronkan seluruh sequence yang menggunakan
+        // placement dan indeks efek ini.
+        for (EffectSequence& sequence : profile->sequences) {
+            auto& steps = sequence.steps;
+
+            steps.erase(
+                std::remove_if(
+                    steps.begin(),
+                    steps.end(),
+                    [placementId, effectIndex](
+                        const EffectSequenceStep& step
+                    ) {
+                        return step.placementId == placementId &&
+                               step.effectIndex == effectIndex;
+                    }
+                ),
+                steps.end()
+            );
+
+            // Indeks efek setelah efek yang dihapus
+            // harus dikurangi satu.
+            for (EffectSequenceStep& step : steps) {
+                if (step.placementId == placementId &&
+                    step.effectIndex > effectIndex) {
+                    --step.effectIndex;
+                }
+            }
+        }
 
         return true;
     }
