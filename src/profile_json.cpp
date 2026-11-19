@@ -752,6 +752,86 @@ static bool ReadSequence(
     return true;
 }
 
+static bool ValidateProfileReferences(
+    const VehicleProfile& profile
+) {
+    // Setiap placement harus memiliki ID unik dan data transformasi valid.
+    for (size_t i = 0; i < profile.placements.size(); ++i) {
+        const LedPlacement& placement = profile.placements[i];
+
+        if (placement.id == 0) {
+            return false;
+        }
+
+        for (size_t j = i + 1; j < profile.placements.size(); ++j) {
+            if (profile.placements[j].id == placement.id) {
+                return false;
+            }
+        }
+
+        const int zone = static_cast<int>(placement.zone);
+
+        if (zone < 0 ||
+            zone > static_cast<int>(LedZone::Interior)) {
+            return false;
+        }
+
+        const LedTransform& transform = placement.transform;
+
+        if (!std::isfinite(transform.x) ||
+            !std::isfinite(transform.y) ||
+            !std::isfinite(transform.z) ||
+            !std::isfinite(transform.rotationX) ||
+            !std::isfinite(transform.rotationY) ||
+            !std::isfinite(transform.rotationZ) ||
+            !std::isfinite(transform.width) ||
+            !std::isfinite(transform.height) ||
+            transform.width <= 0.0f ||
+            transform.height <= 0.0f) {
+            return false;
+        }
+
+        for (const LedEffectConfig& effect : placement.effects) {
+            const int type = static_cast<int>(effect.type);
+
+            if (type < 0 ||
+                type > static_cast<int>(LedEffectType::CustomAnimation) ||
+                !std::isfinite(effect.brightness) ||
+                effect.brightness < 0.0f ||
+                effect.brightness > 1.0f ||
+                !std::isfinite(effect.speed) ||
+                effect.speed <= 0.0f) {
+                return false;
+            }
+        }
+    }
+
+    // Setiap step harus menunjuk placement dan efek yang benar-benar ada.
+    for (const EffectSequence& sequence : profile.sequences) {
+        for (const EffectSequenceStep& step : sequence.steps) {
+            if (step.placementId == 0 || step.durationMs == 0) {
+                return false;
+            }
+
+            const LedPlacement* targetPlacement = nullptr;
+
+            for (const LedPlacement& placement : profile.placements) {
+                if (placement.id == step.placementId) {
+                    targetPlacement = &placement;
+                    break;
+                }
+            }
+
+            if (targetPlacement == nullptr ||
+                step.effectIndex >= targetPlacement->effects.size()) {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
 static bool AppendFloat(
     std::string& output,
     float value
@@ -950,6 +1030,10 @@ bool Serialize(
 ) {
     json.clear();
 
+    if (!ValidateProfileReferences(profile)) {
+        return false;
+    }
+
     json += "{\"modelId\":";
     AppendInt(json, profile.modelId);
 
@@ -1059,6 +1143,10 @@ bool Deserialize(
 
             result.sequences.push_back(sequence);
         }
+    }
+
+    if (!ValidateProfileReferences(result)) {
+        return false;
     }
 
     profile = result;
