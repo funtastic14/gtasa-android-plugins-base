@@ -5,11 +5,16 @@
 #include "vehicle_profile_manager.h"
 #include "profile_storage.h"
 #include "profile_sequence_runtime.h"
+#include "profile_renderer.h"
 
 #include <mod/config.h>
 #include <mod/logger.h>
+
 #include <plugin-sdk/game_sa/Events.h>
 #include <plugin-sdk/game_sa/base/Timer.h>
+#include <plugin-sdk/game_sa/entity/PlayerPed.h>
+
+#include <unordered_set>
 
 namespace Logic {
 
@@ -26,12 +31,95 @@ static VLS::VehicleProfileManager g_profileManager;
 static VLS::ProfileSequenceRuntime g_sequenceRuntime;
 
 static const VLS::VehicleProfile* g_currentProfile = nullptr;
+
 static int g_lastLoggedModelId = -2;
 static bool g_sequenceSelectionAttempted = false;
+
+// Model yang sudah pernah dicoba dimuat.
+static std::unordered_set<int> g_profileLoadAttempted;
+
+// Model yang menunggu proses pemuatan profil.
+static std::unordered_set<int> g_pendingProfileLoads;
 
 static void ResetSequenceRuntime() {
     g_sequenceRuntime.Stop();
     g_sequenceSelectionAttempted = false;
+}
+
+static void EnsureProfileLoaded(int modelId) {
+    if (modelId < 0) {
+        return;
+    }
+
+    const auto result = g_profileLoadAttempted.insert(modelId);
+
+    if (!result.second) {
+        return;
+    }
+
+    if (g_profileManager.Find(modelId) != nullptr) {
+        return;
+    }
+
+    if (g_profileManager.Load(modelId)) {
+        logger->Info(
+            "Vehicle profile loaded: Model ID %d",
+            modelId
+        );
+    } else {
+        logger->Info(
+            "No saved profile for model ID %d; using default profile.",
+            modelId
+        );
+    }
+}
+
+static void ProcessPendingProfileLoads() {
+    for (const int modelId : g_pendingProfileLoads) {
+        EnsureProfileLoaded(modelId);
+    }
+
+    g_pendingProfileLoads.clear();
+}
+
+// Dipanggil sebelum CVehicle::Render().
+static void OnVehicleRender(CVehicle* vehicle) {
+    if (!g_enabled || vehicle == nullptr) {
+        return;
+    }
+
+    if (!IsVehiclePointerValid(vehicle)) {
+        return;
+    }
+
+    const int modelId = vehicle->m_nModelIndex;
+
+    if (modelId < 0) {
+        return;
+    }
+
+    // Jangan melakukan pemuatan JSON di render callback.
+    if (g_profileManager.Find(modelId) == nullptr &&
+        g_profileLoadAttempted.find(modelId) ==
+            g_profileLoadAttempted.end()) {
+
+        g_pendingProfileLoads.insert(modelId);
+    }
+
+    const VLS::VehicleProfile& profile =
+        g_profileManager.GetProfileOrDefault(modelId);
+
+    if (!profile.enabled) {
+        return;
+    }
+
+    const uint32_t rendered =
+        VLS::ProfileRenderer::RenderVehicleProfile(
+            vehicle,
+            profile
+        );
+
+    (void)rendered;
 }
 
 static void UpdateSequenceRuntime() {
@@ -46,7 +134,6 @@ static void UpdateSequenceRuntime() {
             *g_currentProfile,
             nowMs
         );
-
         return;
     }
 
@@ -81,7 +168,6 @@ static void UpdateSequenceRuntime() {
                 "Vehicle sequence started: Index %u",
                 static_cast<unsigned int>(i)
             );
-
             return;
         }
     }
@@ -98,12 +184,15 @@ static void OnGameProcess() {
 
     g_vehicleManager.Update();
 
+    // Pemuatan profil dilakukan di game process,
+    // bukan di callback rendering.
+    ProcessPendingProfileLoads();
+
     const int modelId =
         g_vehicleManager.GetCurrentModelId();
 
     if (modelId != g_lastLoggedModelId) {
         g_lastLoggedModelId = modelId;
-
         ResetSequenceRuntime();
 
         if (modelId < 0) {
@@ -116,50 +205,27 @@ static void OnGameProcess() {
             return;
         }
 
-        if (g_profileManager.Find(modelId) == nullptr) {
-            if (g_profileManager.Load(modelId)) {
-                logger->Info(
-                    "Vehicle profile loaded: Model ID %d",
-                    modelId
-                );
-            } else {
-                logger->Info(
-                    "No saved profile for model ID %d; using default profile.",
-                    modelId
-                );
-            }
-        }
-
-        const VLS::VehicleProfile* customProfile =
-            g_profileManager.Find(modelId);
-
-        const VLS::VehicleProfile& profile =
-            g_profileManager.GetProfileOrDefault(modelId);
-
-        g_currentProfile = &profile;
-
-        if (customProfile != nullptr) {
-            logger->Info(
-                "Custom vehicle profile selected: Model ID %d, Placements: %d",
-                modelId,
-                static_cast<int>(profile.placements.size())
-            );
-        } else {
-            logger->Info(
-                "Default vehicle profile selected: Model ID %d, Placements: %d",
-                modelId,
-                static_cast<int>(profile.placements.size())
-            );
-        }
+        EnsureProfileLoaded(modelId);
     }
+
+    if (modelId < 0) {
+        g_currentProfile = nullptr;
+        return;
+    }
+
+    // Ambil ulang pointer setiap game process.
+    // Ini menghindari penggunaan pointer lama
+    // setelah unordered_map mengalami rehash.
+    const VLS::VehicleProfile& profile =
+        g_profileManager.GetProfileOrDefault(modelId);
+
+    g_currentProfile = &profile;
 
     UpdateSequenceRuntime();
 }
 
 void Init() {
-    logger->Info(
-        "Initializing VLS configuration..."
-    );
+    logger->Info("Initializing VLS configuration...");
 
     g_enabled = cfg->GetBool(
         "Enabled",
@@ -173,15 +239,15 @@ void Init() {
         "Effects"
     );
 
-    g_strobo = cfg->GetBool(
-        "Strobo",
-        false,
-        "Effects"
-    );
-
     g_rgbLighting = cfg->GetBool(
         "RGBLighting",
         true,
+        "Effects"
+    );
+
+    g_strobo = cfg->GetBool(
+        "Strobo",
+        false,
         "Effects"
     );
 
@@ -242,6 +308,11 @@ void Init() {
 
     if (g_enabled) {
         Events::gameProcessEvent += OnGameProcess;
+        Events::vehicleRenderEvent += OnVehicleRender;
+
+        logger->Info(
+            "Vehicle render callback registered."
+        );
     }
 
     logger->Info(
@@ -250,9 +321,7 @@ void Init() {
 }
 
 void Shutdown() {
-    logger->Info(
-        "Saving VLS profiles..."
-    );
+    logger->Info("Saving VLS profiles...");
 
     ResetSequenceRuntime();
 
@@ -267,6 +336,10 @@ void Shutdown() {
     }
 
     g_currentProfile = nullptr;
+
+    g_pendingProfileLoads.clear();
+    g_profileLoadAttempted.clear();
+
     g_lastLoggedModelId = -2;
 
     logger->Info(
