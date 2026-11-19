@@ -1,22 +1,4 @@
-
-LOCAL_PATH := $(call my-dir)
-
-include $(CLEAR_VARS)
-
-LOCAL_CPP_EXTENSION := .cpp .cc
-
-LOCAL_MODULE := VehicleLEDSystem
-
-LOCAL_SRC_FILES := main.cpp \
-    src/logic.cpp \
-    src/vehicle_manager.cpp \
-    src/vehicle_profile_manager.cpp \
-    src/profile_placement_manager.cpp \
-    src/profile_effect_manager.cpp \
-    src/profile_sequence_manager.cpp \
-    src/profile_storage.cpp \
-    src/profile_json.cpp \
-    mod/logger.cpp \
+  mod/logger.cpp \
     mod/config.cpp \
     mod/texture_loader.cpp \
     mod/music_player.cpp \
