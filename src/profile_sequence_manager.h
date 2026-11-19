@@ -1,64 +1,48 @@
-
 #pragma once
 
-#include "vehicle_profile_manager.h"
+#include "vehicle_profile.h"
 
 #include <cstdint>
 
 namespace VLS {
 
-class ProfileSequenceManager {
+class ProfileSequenceRuntime {
 public:
-    ProfileSequenceManager(
-        VehicleProfileManager& profileManager,
-        int modelId
+    // Memulai sequence yang aktif pada profil kendaraan.
+    bool Start(
+        const VehicleProfile& profile,
+        uint32_t sequenceIndex,
+        uint32_t nowMs
     );
 
-    int AddSequence();
+    // Menghentikan sequence secara manual.
+    void Stop();
 
-    bool RemoveSequence(
-        uint32_t sequenceIndex
+    // Memperbarui langkah aktif berdasarkan waktu dalam milidetik.
+    // Mengembalikan true jika sequence masih berjalan.
+    bool Update(
+        const VehicleProfile& profile,
+        uint32_t nowMs
     );
 
-    const EffectSequence* FindSequence(
-        uint32_t sequenceIndex
+    // Mengambil langkah yang sedang aktif.
+    const EffectSequenceStep* GetCurrentStep(
+        const VehicleProfile& profile
     ) const;
 
-    bool SetSequenceEnabled(
-        uint32_t sequenceIndex,
-        bool enabled
-    );
+    bool IsRunning() const;
+    bool IsFinished() const;
 
-    bool SetSequenceLoop(
-        uint32_t sequenceIndex,
-        bool loop
-    );
-
-    int AddStep(
-        uint32_t sequenceIndex,
-        uint32_t placementId,
-        uint32_t effectIndex,
-        uint32_t durationMs
-    );
-
-    bool RemoveStep(
-        uint32_t sequenceIndex,
-        uint32_t stepIndex
-    );
-
-    bool SetStepDuration(
-        uint32_t sequenceIndex,
-        uint32_t stepIndex,
-        uint32_t durationMs
-    );
+    uint32_t GetSequenceIndex() const;
+    uint32_t GetStepIndex() const;
 
 private:
-    VehicleProfileManager& m_profileManager;
-    int m_modelId;
+    bool m_running = false;
+    bool m_finished = false;
 
-    VehicleProfile* GetEditableProfile();
-
-    const VehicleProfile* GetReadableProfile() const;
+    uint32_t m_sequenceIndex = 0;
+    uint32_t m_stepIndex = 0;
+    uint32_t m_stepStartTimeMs = 0;
 };
 
 } // namespace VLS
