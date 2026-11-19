@@ -116,7 +116,24 @@ bool ProfilePlacementManager::RemovePlacement(
         return false;
     }
 
+    // Hapus placement.
     profile->placements.erase(it);
+
+    // Hapus seluruh step sequence yang menggunakan placement ini.
+    for (EffectSequence& sequence : profile->sequences) {
+        auto& steps = sequence.steps;
+
+        steps.erase(
+            std::remove_if(
+                steps.begin(),
+                steps.end(),
+                [placementId](const EffectSequenceStep& step) {
+                    return step.placementId == placementId;
+                }
+            ),
+            steps.end()
+        );
+    }
 
     return true;
 }
