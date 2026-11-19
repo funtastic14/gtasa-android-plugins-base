@@ -9,7 +9,7 @@
 #include <mod/config.h>
 #include <mod/logger.h>
 #include <plugin-sdk/game_sa/Events.h>
-#include <plugin-sdk/game_sa/CTimer.h>
+#include <plugin-sdk/game_sa/base/Timer.h>
 
 namespace Logic {
 
@@ -41,7 +41,6 @@ static void UpdateSequenceRuntime() {
 
     const uint32_t nowMs = CTimer::GetTimeMS();
 
-    // Perbarui sequence yang sedang berjalan.
     if (g_sequenceRuntime.IsRunning()) {
         g_sequenceRuntime.Update(
             *g_currentProfile,
@@ -51,19 +50,16 @@ static void UpdateSequenceRuntime() {
         return;
     }
 
-    // Sequence non-loop sudah selesai.
     if (g_sequenceRuntime.IsFinished()) {
         return;
     }
 
-    // Jangan mencoba memulai sequence berulang kali.
     if (g_sequenceSelectionAttempted) {
         return;
     }
 
     g_sequenceSelectionAttempted = true;
 
-    // Pilih sequence aktif pertama yang valid.
     for (
         uint32_t i = 0;
         i < g_currentProfile->sequences.size();
@@ -105,11 +101,9 @@ static void OnGameProcess() {
     const int modelId =
         g_vehicleManager.GetCurrentModelId();
 
-    // Deteksi pergantian kendaraan.
     if (modelId != g_lastLoggedModelId) {
         g_lastLoggedModelId = modelId;
 
-        // Hentikan sequence kendaraan sebelumnya.
         ResetSequenceRuntime();
 
         if (modelId < 0) {
@@ -122,7 +116,6 @@ static void OnGameProcess() {
             return;
         }
 
-        // Muat profil kendaraan jika belum tersedia di memory.
         if (g_profileManager.Find(modelId) == nullptr) {
             if (g_profileManager.Load(modelId)) {
                 logger->Info(
@@ -160,8 +153,6 @@ static void OnGameProcess() {
         }
     }
 
-    // Runtime harus diperbarui setiap frame,
-    // bukan hanya ketika kendaraan berganti.
     UpdateSequenceRuntime();
 }
 
@@ -239,7 +230,6 @@ void Init() {
         );
     }
 
-    // Muat profil default saat inisialisasi.
     if (g_profileManager.Load(-1)) {
         logger->Info(
             "Default vehicle profile loaded."
