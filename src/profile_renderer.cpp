@@ -18,74 +18,68 @@ constexpr uint32_t SEGMENTS = 12;
 class RenderStateGuard {
 public:
     RenderStateGuard() {
-        m_hasTexture = RwRenderStateGet(
-            rwRENDERSTATETEXTURERASTER, &m_texture
-        );
-        m_hasVertexAlpha = RwRenderStateGet(
-            rwRENDERSTATEVERTEXALPHAENABLE, &m_vertexAlpha
-        );
-        m_hasSrcBlend = RwRenderStateGet(
-            rwRENDERSTATESRCBLEND, &m_srcBlend
-        );
-        m_hasDestBlend = RwRenderStateGet(
-            rwRENDERSTATEDESTBLEND, &m_destBlend
-        );
+        Save(rwRENDERSTATETEXTURERASTER, m_texture, m_hasTexture);
+        Save(rwRENDERSTATEVERTEXALPHAENABLE, m_vertexAlpha, m_hasVertexAlpha);
+        Save(rwRENDERSTATESRCBLEND, m_srcBlend, m_hasSrcBlend);
+        Save(rwRENDERSTATEDESTBLEND, m_destBlend, m_hasDestBlend);
+        Save(rwRENDERSTATEZTESTENABLE, m_zTest, m_hasZTest);
+        Save(rwRENDERSTATEZWRITEENABLE, m_zWrite, m_hasZWrite);
+        Save(rwRENDERSTATECULLMODE, m_cullMode, m_hasCullMode);
 
-        if (m_hasTexture)
-            RwRenderStateSet(rwRENDERSTATETEXTURERASTER, nullptr);
+        RwRenderStateSet(rwRENDERSTATETEXTURERASTER, nullptr);
+        RwRenderStateSet(rwRENDERSTATEVERTEXALPHAENABLE, Value(1));
+        RwRenderStateSet(rwRENDERSTATESRCBLEND, Value(rwBLENDSRCALPHA));
+        RwRenderStateSet(rwRENDERSTATEDESTBLEND, Value(rwBLENDINVSRCALPHA));
 
-        if (m_hasVertexAlpha)
-            RwRenderStateSet(
-                rwRENDERSTATEVERTEXALPHAENABLE,
-                StateValue(1)
-            );
-
-        if (m_hasSrcBlend)
-            RwRenderStateSet(
-                rwRENDERSTATESRCBLEND,
-                StateValue(rwBLENDSRCALPHA)
-            );
-
-        if (m_hasDestBlend)
-            RwRenderStateSet(
-                rwRENDERSTATEDESTBLEND,
-                StateValue(rwBLENDINVSRCALPHA)
-            );
+        // Mode diagnostik: tampilkan LED di atas bodi,
+        // meskipun bidang LED berada di dalam kendaraan.
+        RwRenderStateSet(rwRENDERSTATEZTESTENABLE, Value(0));
+        RwRenderStateSet(rwRENDERSTATEZWRITEENABLE, Value(0));
+        RwRenderStateSet(rwRENDERSTATECULLMODE, Value(rwCULLMODECULLNONE));
     }
 
     ~RenderStateGuard() {
-        if (m_hasTexture)
-            RwRenderStateSet(rwRENDERSTATETEXTURERASTER, m_texture);
-
-        if (m_hasVertexAlpha)
-            RwRenderStateSet(
-                rwRENDERSTATEVERTEXALPHAENABLE, m_vertexAlpha
-            );
-
-        if (m_hasSrcBlend)
-            RwRenderStateSet(rwRENDERSTATESRCBLEND, m_srcBlend);
-
-        if (m_hasDestBlend)
-            RwRenderStateSet(rwRENDERSTATEDESTBLEND, m_destBlend);
+        Restore(rwRENDERSTATETEXTURERASTER, m_texture, m_hasTexture);
+        Restore(rwRENDERSTATEVERTEXALPHAENABLE, m_vertexAlpha, m_hasVertexAlpha);
+        Restore(rwRENDERSTATESRCBLEND, m_srcBlend, m_hasSrcBlend);
+        Restore(rwRENDERSTATEDESTBLEND, m_destBlend, m_hasDestBlend);
+        Restore(rwRENDERSTATEZTESTENABLE, m_zTest, m_hasZTest);
+        Restore(rwRENDERSTATEZWRITEENABLE, m_zWrite, m_hasZWrite);
+        Restore(rwRENDERSTATECULLMODE, m_cullMode, m_hasCullMode);
     }
 
     RenderStateGuard(const RenderStateGuard&) = delete;
     RenderStateGuard& operator=(const RenderStateGuard&) = delete;
 
 private:
-    static void* StateValue(uintptr_t value) {
+    static void* Value(uintptr_t value) {
         return reinterpret_cast<void*>(value);
+    }
+
+    static void Save(RwRenderState state, void*& value, bool& valid) {
+        valid = RwRenderStateGet(state, &value);
+    }
+
+    static void Restore(RwRenderState state, void* value, bool valid) {
+        if (valid)
+            RwRenderStateSet(state, value);
     }
 
     void* m_texture = nullptr;
     void* m_vertexAlpha = nullptr;
     void* m_srcBlend = nullptr;
     void* m_destBlend = nullptr;
+    void* m_zTest = nullptr;
+    void* m_zWrite = nullptr;
+    void* m_cullMode = nullptr;
 
     bool m_hasTexture = false;
     bool m_hasVertexAlpha = false;
     bool m_hasSrcBlend = false;
     bool m_hasDestBlend = false;
+    bool m_hasZTest = false;
+    bool m_hasZWrite = false;
+    bool m_hasCullMode = false;
 };
 
 static uint8_t ClampColor(float value) {
@@ -105,9 +99,7 @@ static void HSVtoRGB(
 
     const float c = 1.0f;
     const float x = c * (
-        1.0f - std::fabs(
-            std::fmod(hue / 60.0f, 2.0f) - 1.0f
-        )
+        1.0f - std::fabs(std::fmod(hue / 60.0f, 2.0f) - 1.0f)
     );
 
     float r = 0.0f;
@@ -145,8 +137,8 @@ static void SetVertex(
     vertex.z = position.z;
 
     vertex.normal.x = 0.0f;
-    vertex.normal.y = 0.0f;
-    vertex.normal.z = 1.0f;
+    vertex.normal.y = -1.0f;
+    vertex.normal.z = 0.0f;
 
     vertex.r = red;
     vertex.g = green;
@@ -190,15 +182,14 @@ static bool RenderEffect(
     if (brightness > 1.0f)
         brightness = 1.0f;
 
-    const uint32_t now = CTimer::GetTimeMS();
-    const double time = static_cast<double>(now) *
-                        static_cast<double>(effect.speed);
+    const double time =
+        static_cast<double>(CTimer::GetTimeMS()) *
+        static_cast<double>(effect.speed);
 
     const double cycle = std::fmod(time / 1000.0, 1.0);
 
-    const uint32_t head = static_cast<uint32_t>(
-        cycle * SEGMENTS
-    ) % SEGMENTS;
+    const uint32_t head =
+        static_cast<uint32_t>(cycle * SEGMENTS) % SEGMENTS;
 
     const float segmentWidth = t.width / SEGMENTS;
     const float halfHeight = t.height * 0.5f;
@@ -208,10 +199,12 @@ static bool RenderEffect(
 
     uint32_t indexCount = 0;
 
-    bool strobeOn = std::fmod(time / 250.0, 1.0) < 0.5;
+    const bool strobeOn =
+        std::fmod(time / 250.0, 1.0) < 0.5;
 
     for (uint32_t i = 0; i < SEGMENTS; ++i) {
         float intensity = 1.0f;
+
         uint8_t red = effect.red;
         uint8_t green = effect.green;
         uint8_t blue = effect.blue;
@@ -233,15 +226,20 @@ static bool RenderEffect(
             const uint32_t distance =
                 (head + SEGMENTS - i) % SEGMENTS;
 
-            intensity = (distance < 3 && strobeOn) ? 1.0f : 0.0f;
+            intensity =
+                (distance < 3 && strobeOn) ? 1.0f : 0.0f;
+
             break;
         }
 
         case LedEffectType::StroboEyes: {
             const bool firstHalf = i < SEGMENTS / 2;
-            const bool alternate = std::fmod(time / 180.0, 1.0) < 0.5;
+            const bool alternate =
+                std::fmod(time / 180.0, 1.0) < 0.5;
 
-            intensity = (firstHalf == alternate) ? 1.0f : 0.0f;
+            intensity =
+                (firstHalf == alternate) ? 1.0f : 0.0f;
+
             break;
         }
 
@@ -254,6 +252,7 @@ static bool RenderEffect(
                 green,
                 blue
             );
+
             break;
         }
 
@@ -268,17 +267,21 @@ static bool RenderEffect(
         const float left =
             t.x - t.width * 0.5f + i * segmentWidth;
 
-        const float right = left + segmentWidth * 0.88f;
+        const float right =
+            left + segmentWidth * 0.88f;
 
+        // Bidang LED sekarang XZ, bukan XY.
+        // X = lebar kendaraan, Z = tinggi kendaraan,
+        // Y = posisi depan/belakang kendaraan.
         CVector local[4];
 
-        local[0] = {left, t.y - halfHeight, t.z};
-        local[1] = {right, t.y - halfHeight, t.z};
-        local[2] = {right, t.y + halfHeight, t.z};
-        local[3] = {left, t.y + halfHeight, t.z};
+        local[0] = {left,  t.y, t.z - halfHeight};
+        local[1] = {right, t.y, t.z - halfHeight};
+        local[2] = {right, t.y, t.z + halfHeight};
+        local[3] = {left,  t.y, t.z + halfHeight};
 
         for (uint32_t v = 0; v < 4; ++v) {
-            const CVector world = matrix->TransformPoint(local[v]);
+            CVector world = matrix->TransformPoint(local[v]);
 
             SetVertex(
                 vertices[i * 4 + v],
