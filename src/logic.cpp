@@ -6,23 +6,23 @@
 #include "profile_storage.h"
 #include "profile_sequence_runtime.h"
 #include "profile_renderer.h"
+#include "vehicle_profile.h"
 
 #include <mod/config.h>
 #include <mod/logger.h>
 
 #include <plugin-sdk/game_sa/Events.h>
 #include <plugin-sdk/game_sa/base/Timer.h>
+#include <plugin-sdk/renderware/imgui/imgui_impl_renderware.h>
 
 #include <unordered_set>
 #include <vector>
+#include <cstdint>
 
 namespace Logic {
 
 static bool g_enabled = true;
-static bool g_runningLED = true;
-static bool g_strobo = false;
-static bool g_rgbLighting = true;
-static bool g_runningText = false;
+static bool g_imguiInitialized = false;
 
 static int g_brightness = 100;
 static float g_animationSpeed = 1.0f;
@@ -31,7 +31,6 @@ static VLS::VehicleManager g_vehicleManager;
 static VLS::VehicleProfileManager g_profileManager;
 static VLS::ProfileSequenceRuntime g_sequenceRuntime;
 
-static VLS::VehicleProfile g_testProfile;
 static const VLS::VehicleProfile* g_currentProfile = nullptr;
 
 static int g_lastLoggedModelId = -2;
@@ -43,79 +42,14 @@ static std::unordered_set<int> g_pendingProfileLoads;
 static std::vector<CVehicle*> g_frameVehicles;
 static std::unordered_set<CVehicle*> g_frameVehicleSet;
 
+
+// ---------------------------------------------------------
+// Profile helpers
+// ---------------------------------------------------------
+
 static void ResetSequenceRuntime() {
     g_sequenceRuntime.Stop();
     g_sequenceSelectionAttempted = false;
-}
-
-static void BuildTestProfile() {
-    g_testProfile.modelId = -1;
-    g_testProfile.enabled = true;
-    g_testProfile.placements.clear();
-
-    VLS::LedPlacement placement;
-    placement.id = 1;
-    placement.zone = VLS::LedZone::ExteriorBody;
-
-    // Koordinat awal perkiraan untuk pengujian.
-    // Sumbu Z diarahkan ke bagian depan kendaraan.
-    placement.transform.x = 0.0f;
-    placement.transform.y = -0.35f;
-    placement.transform.z = 1.65f;
-    placement.transform.width = 1.6f;
-    placement.transform.height = 0.10f;
-
-    const float brightness =
-        static_cast<float>(g_brightness) / 100.0f;
-
-    if (g_runningLED) {
-        VLS::LedEffectConfig effect;
-        effect.type = VLS::LedEffectType::RunningLED;
-        effect.enabled = true;
-        effect.red = 0;
-        effect.green = 180;
-        effect.blue = 255;
-        effect.brightness = brightness;
-        effect.speed = g_animationSpeed;
-
-        placement.effects.push_back(effect);
-    }
-
-    if (g_strobo) {
-        VLS::LedEffectConfig effect;
-        effect.type = VLS::LedEffectType::StroboWave;
-        effect.enabled = true;
-        effect.red = 255;
-        effect.green = 255;
-        effect.blue = 255;
-        effect.brightness = brightness;
-        effect.speed = g_animationSpeed;
-
-        placement.effects.push_back(effect);
-    }
-
-    if (g_rgbLighting) {
-        VLS::LedEffectConfig effect;
-        effect.type = VLS::LedEffectType::RGB;
-        effect.enabled = true;
-        effect.red = 255;
-        effect.green = 255;
-        effect.blue = 255;
-        effect.brightness = brightness;
-        effect.speed = g_animationSpeed;
-
-        placement.effects.push_back(effect);
-    }
-
-    if (!placement.effects.empty())
-        g_testProfile.placements.push_back(placement);
-
-    logger->Info(
-        "VLS test profile prepared: RunningLED=%d Strobo=%d RGB=%d",
-        g_runningLED,
-        g_strobo,
-        g_rgbLighting
-    );
 }
 
 static void EnsureProfileLoaded(int modelId) {
@@ -135,7 +69,7 @@ static void EnsureProfileLoaded(int modelId) {
         );
     } else {
         logger->Info(
-            "No saved profile for model ID %d; using default profile.",
+            "No saved profile for model ID %d.",
             modelId
         );
     }
@@ -147,6 +81,284 @@ static void ProcessPendingProfileLoads() {
 
     g_pendingProfileLoads.clear();
 }
+
+// Membuat profil dan placement awal jika belum tersedia.
+// Posisi awal X, Y, Z semuanya 0.
+static VLS::VehicleProfile* EnsureEditorProfile(int modelId) {
+    if (modelId < 0)
+        return nullptr;
+
+    VLS::VehicleProfile* profile =
+        g_profileManager.Find(modelId);
+
+    if (profile == nullptr) {
+        profile = &g_profileManager.GetOrCreate(modelId);
+    }
+
+    if (profile->placements.empty()) {
+        VLS::LedPlacement placement;
+
+        placement.id = 1;
+        placement.zone = VLS::LedZone::ExteriorBody;
+
+        placement.transform.x = 0.0f;
+        placement.transform.y = 0.0f;
+        placement.transform.z = 0.0f;
+
+        placement.transform.rotationX = 0.0f;
+        placement.transform.rotationY = 0.0f;
+        placement.transform.rotationZ = 0.0f;
+
+        placement.transform.width = 2.5f;
+        placement.transform.height = 0.18f;
+
+        VLS::LedEffectConfig effect;
+        effect.type = VLS::LedEffectType::RunningLED;
+        effect.enabled = true;
+
+        effect.red = 0;
+        effect.green = 180;
+        effect.blue = 255;
+
+        effect.brightness =
+            static_cast<float>(g_brightness) / 100.0f;
+
+        effect.speed = g_animationSpeed;
+
+        placement.effects.push_back(effect);
+        profile->placements.push_back(placement);
+
+        g_profileManager.MarkDirty(modelId);
+    }
+
+    // Pastikan placement pertama memiliki minimal satu efek.
+    VLS::LedPlacement& placement = profile->placements[0];
+
+    if (placement.effects.empty()) {
+        VLS::LedEffectConfig effect;
+
+        effect.type = VLS::LedEffectType::RunningLED;
+        effect.enabled = true;
+        effect.red = 0;
+        effect.green = 180;
+        effect.blue = 255;
+        effect.brightness = 1.0f;
+        effect.speed = 1.0f;
+
+        placement.effects.push_back(effect);
+        g_profileManager.MarkDirty(modelId);
+    }
+
+    return profile;
+}
+
+
+// ---------------------------------------------------------
+// ImGui editor
+// ---------------------------------------------------------
+
+static const char* g_patternNames[] = {
+    "Running LED",
+    "RGB",
+    "Strobo Wave",
+    "Strobo Eyes"
+};
+
+static const VLS::LedEffectType g_patternTypes[] = {
+    VLS::LedEffectType::RunningLED,
+    VLS::LedEffectType::RGB,
+    VLS::LedEffectType::StroboWave,
+    VLS::LedEffectType::StroboEyes
+};
+
+static int GetPatternIndex(VLS::LedEffectType type) {
+    for (int i = 0; i < 4; ++i) {
+        if (g_patternTypes[i] == type)
+            return i;
+    }
+
+    return 0;
+}
+
+static void RenderEditor() {
+    ImGui::SetNextWindowSize(
+        ImVec2(480.0f, 600.0f),
+        ImGuiCond_FirstUseEver
+    );
+
+    ImGui::Begin("Vehicle LED System");
+
+    ImGui::Text("Vehicle LED System - Editor");
+    ImGui::Separator();
+
+    ImGui::Checkbox("LED System Enabled", &g_enabled);
+
+    const int modelId =
+        g_vehicleManager.GetCurrentModelId();
+
+    if (modelId < 0) {
+        ImGui::Spacing();
+        ImGui::Text("Enter a vehicle to edit its profile.");
+        ImGui::End();
+        return;
+    }
+
+    ImGui::Text("Vehicle Model ID: %d", modelId);
+
+    VLS::VehicleProfile* profile =
+        EnsureEditorProfile(modelId);
+
+    if (profile == nullptr ||
+        profile->placements.empty()) {
+        ImGui::Text("Profile is not available.");
+        ImGui::End();
+        return;
+    }
+
+    VLS::LedPlacement& placement =
+        profile->placements[0];
+
+    if (placement.effects.empty()) {
+        ImGui::Text("No LED effect available.");
+        ImGui::End();
+        return;
+    }
+
+    VLS::LedEffectConfig& effect =
+        placement.effects[0];
+
+    bool changed = false;
+
+    ImGui::Separator();
+    ImGui::Text("LED Placement");
+
+    changed |= ImGui::SliderFloat(
+        "Position X",
+        &placement.transform.x,
+        -3.0f,
+        3.0f
+    );
+
+    changed |= ImGui::SliderFloat(
+        "Position Y",
+        &placement.transform.y,
+        -3.0f,
+        3.0f
+    );
+
+    changed |= ImGui::SliderFloat(
+        "Position Z",
+        &placement.transform.z,
+        -1.0f,
+        3.0f
+    );
+
+    changed |= ImGui::SliderFloat(
+        "Width",
+        &placement.transform.width,
+        0.1f,
+        6.0f
+    );
+
+    changed |= ImGui::SliderFloat(
+        "Height",
+        &placement.transform.height,
+        0.02f,
+        1.0f
+    );
+
+    ImGui::Separator();
+    ImGui::Text("Animation");
+
+    changed |= ImGui::Checkbox(
+        "Animation ON",
+        &effect.enabled
+    );
+
+    int patternIndex = GetPatternIndex(effect.type);
+
+    if (ImGui::Combo(
+            "Pattern",
+            &patternIndex,
+            g_patternNames,
+            4
+        )) {
+        effect.type = g_patternTypes[patternIndex];
+        changed = true;
+    }
+
+    float brightness = effect.brightness;
+
+    if (ImGui::SliderFloat(
+            "Brightness",
+            &brightness,
+            0.0f,
+            1.0f
+        )) {
+        effect.brightness = brightness;
+        changed = true;
+    }
+
+    float speed = effect.speed;
+
+    if (ImGui::SliderFloat(
+            "Speed",
+            &speed,
+            0.1f,
+            10.0f
+        )) {
+        effect.speed = speed;
+        changed = true;
+    }
+
+    if (changed)
+        g_profileManager.MarkDirty(modelId);
+
+    ImGui::Separator();
+
+    if (ImGui::Button("Save Profile")) {
+        g_profileManager.MarkDirty(modelId);
+
+        if (g_profileManager.Save(modelId)) {
+            logger->Info(
+                "Profile saved for vehicle model %d.",
+                modelId
+            );
+        } else {
+            logger->Info(
+                "Failed to save profile for vehicle model %d.",
+                modelId
+            );
+        }
+    }
+
+    ImGui::SameLine();
+
+    if (ImGui::Button("Reset Position")) {
+        placement.transform.x = 0.0f;
+        placement.transform.y = 0.0f;
+        placement.transform.z = 0.0f;
+
+        g_profileManager.MarkDirty(modelId);
+    }
+
+    ImGui::Separator();
+
+    ImGui::Text(
+        "Changes are applied immediately."
+    );
+
+    ImGui::Text(
+        "Save Profile stores settings for this vehicle model."
+    );
+
+    ImGui::End();
+}
+
+
+// ---------------------------------------------------------
+// Vehicle rendering
+// ---------------------------------------------------------
 
 static void OnVehicleRender(CVehicle* vehicle) {
     if (!g_enabled || vehicle == nullptr)
@@ -179,32 +391,47 @@ static void OnFrameEnd(bool fromIdle) {
         return;
     }
 
-    const int playerModelId =
+    CVehicle* currentVehicle =
+        g_vehicleManager.GetCurrentVehicle();
+
+    if (currentVehicle == nullptr ||
+        !IsVehiclePointerValid(currentVehicle)) {
+        g_frameVehicles.clear();
+        g_frameVehicleSet.clear();
+        return;
+    }
+
+    const int modelId =
         g_vehicleManager.GetCurrentModelId();
 
-    for (CVehicle* vehicle : g_frameVehicles) {
-        if (vehicle == nullptr ||
-            !IsVehiclePointerValid(vehicle))
-            continue;
+    if (modelId >= 0) {
+        const VLS::VehicleProfile* profile =
+            g_profileManager.Find(modelId);
 
-        const int modelId = vehicle->m_nModelIndex;
+        if (profile != nullptr && profile->enabled) {
+            for (CVehicle* vehicle : g_frameVehicles) {
+                if (vehicle != currentVehicle)
+                    continue;
 
-        if (modelId < 0 || modelId != playerModelId)
-            continue;
+                if (!IsVehiclePointerValid(vehicle))
+                    continue;
 
-        // Mode pengujian: hanya render pada model kendaraan
-        // yang sedang digunakan pemain.
-        if (!g_testProfile.placements.empty()) {
-            VLS::ProfileRenderer::RenderVehicleProfile(
-                vehicle,
-                g_testProfile
-            );
+                VLS::ProfileRenderer::RenderVehicleProfile(
+                    vehicle,
+                    *profile
+                );
+            }
         }
     }
 
     g_frameVehicles.clear();
     g_frameVehicleSet.clear();
 }
+
+
+// ---------------------------------------------------------
+// Sequence runtime
+// ---------------------------------------------------------
 
 static void UpdateSequenceRuntime() {
     if (g_currentProfile == nullptr)
@@ -246,14 +473,17 @@ static void UpdateSequenceRuntime() {
     }
 }
 
-static void OnGameProcess() {
-    if (!g_enabled)
-        return;
 
+// ---------------------------------------------------------
+// Game process
+// ---------------------------------------------------------
+
+static void OnGameProcess() {
     g_frameVehicles.clear();
     g_frameVehicleSet.clear();
 
     g_vehicleManager.Update();
+
     ProcessPendingProfileLoads();
 
     const int modelId =
@@ -261,11 +491,16 @@ static void OnGameProcess() {
 
     if (modelId != g_lastLoggedModelId) {
         g_lastLoggedModelId = modelId;
+
         ResetSequenceRuntime();
 
         if (modelId < 0) {
             g_currentProfile = nullptr;
-            logger->Info("Player is not using a valid vehicle.");
+
+            logger->Info(
+                "Player is not using a valid vehicle."
+            );
+
             return;
         }
 
@@ -285,33 +520,32 @@ static void OnGameProcess() {
     UpdateSequenceRuntime();
 }
 
+
+// ---------------------------------------------------------
+// Initialization
+// ---------------------------------------------------------
+
 void Init() {
-    logger->Info("Initializing VLS configuration...");
-
-    g_enabled = cfg->GetBool("Enabled", true, "General");
-
-    g_runningLED = cfg->GetBool(
-        "RunningLED", true, "Effects"
+    logger->Info(
+        "Initializing Vehicle LED System..."
     );
 
-    g_rgbLighting = cfg->GetBool(
-        "RGBLighting", true, "Effects"
-    );
-
-    g_strobo = cfg->GetBool(
-        "Strobo", false, "Effects"
-    );
-
-    g_runningText = cfg->GetBool(
-        "RunningText", false, "Effects"
+    g_enabled = cfg->GetBool(
+        "Enabled",
+        true,
+        "General"
     );
 
     g_brightness = cfg->GetInt(
-        "Brightness", 100, "Animation"
+        "Brightness",
+        100,
+        "Animation"
     );
 
     g_animationSpeed = cfg->GetFloat(
-        "Speed", 1.0f, "Animation"
+        "Speed",
+        1.0f,
+        "Animation"
     );
 
     if (g_brightness < 0)
@@ -327,7 +561,9 @@ void Init() {
         g_animationSpeed = 10.0f;
 
     if (!VLS::ProfileStorage::Init()) {
-        logger->Info("VLS profile storage initialization failed.");
+        logger->Info(
+            "VLS profile storage initialization failed."
+        );
     } else {
         logger->Info(
             "VLS profile storage initialized: %s",
@@ -336,55 +572,76 @@ void Init() {
     }
 
     if (g_profileManager.Load(-1)) {
-        logger->Info("Default vehicle profile loaded.");
+        logger->Info(
+            "Default vehicle profile loaded."
+        );
+    }
+
+    if (!ImGui_ImplRenderWare_Init(RenderEditor)) {
+        logger->Info(
+            "VLS ImGui initialization failed."
+        );
     } else {
+        g_imguiInitialized = true;
+
         logger->Info(
-            "No saved default profile found; using built-in defaults."
+            "VLS ImGui editor initialized."
         );
     }
 
-    BuildTestProfile();
+    Events::gameProcessEvent += OnGameProcess;
+    Events::vehicleRenderEvent += OnVehicleRender;
+    Events::frameEndEvent += OnFrameEnd;
 
-    if (g_runningText) {
-        logger->Info(
-            "RunningText is enabled in config but not implemented yet."
-        );
-    }
+    logger->Info(
+        "VLS render callbacks registered."
+    );
 
-    if (g_enabled) {
-        Events::gameProcessEvent += OnGameProcess;
-        Events::vehicleRenderEvent += OnVehicleRender;
-        Events::frameEndEvent += OnFrameEnd;
-
-        logger->Info("VLS render callbacks registered.");
-    }
-
-    logger->Info("VLS initialization completed.");
+    logger->Info(
+        "Vehicle LED System initialization completed."
+    );
 }
 
+
+// ---------------------------------------------------------
+// Shutdown
+// ---------------------------------------------------------
+
 void Shutdown() {
-    logger->Info("Saving VLS profiles...");
+    logger->Info(
+        "Saving Vehicle LED System profiles..."
+    );
 
     ResetSequenceRuntime();
 
     if (g_profileManager.SaveAll()) {
-        logger->Info("VLS profiles saved successfully.");
+        logger->Info(
+            "VLS profiles saved successfully."
+        );
     } else {
-        logger->Info("Some VLS profiles could not be saved.");
+        logger->Info(
+            "Some VLS profiles could not be saved."
+        );
+    }
+
+    if (g_imguiInitialized) {
+        ImGui_ImplRenderWare_Shutdown();
+        g_imguiInitialized = false;
     }
 
     g_currentProfile = nullptr;
 
     g_frameVehicles.clear();
     g_frameVehicleSet.clear();
+
     g_pendingProfileLoads.clear();
     g_profileLoadAttempted.clear();
 
-    g_testProfile.placements.clear();
-
     g_lastLoggedModelId = -2;
 
-    logger->Info("VLS shutdown completed.");
+    logger->Info(
+        "Vehicle LED System shutdown completed."
+    );
 }
 
 const VLS::VehicleProfile* GetCurrentProfile() {
