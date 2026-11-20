@@ -13,89 +13,60 @@ namespace VLS {
 
 namespace {
 
-constexpr uint32_t RUNNING_LED_SEGMENTS = 12;
-constexpr uint32_t RUNNING_LED_TRAIL = 4;
+constexpr uint32_t SEGMENTS = 12;
 
 class RenderStateGuard {
 public:
     RenderStateGuard() {
         m_hasTexture = RwRenderStateGet(
-            rwRENDERSTATETEXTURERASTER,
-            &m_texture
+            rwRENDERSTATETEXTURERASTER, &m_texture
         );
-
         m_hasVertexAlpha = RwRenderStateGet(
-            rwRENDERSTATEVERTEXALPHAENABLE,
-            &m_vertexAlpha
+            rwRENDERSTATEVERTEXALPHAENABLE, &m_vertexAlpha
         );
-
         m_hasSrcBlend = RwRenderStateGet(
-            rwRENDERSTATESRCBLEND,
-            &m_srcBlend
+            rwRENDERSTATESRCBLEND, &m_srcBlend
         );
-
         m_hasDestBlend = RwRenderStateGet(
-            rwRENDERSTATEDESTBLEND,
-            &m_destBlend
+            rwRENDERSTATEDESTBLEND, &m_destBlend
         );
 
-        if (m_hasTexture) {
-            RwRenderStateSet(
-                rwRENDERSTATETEXTURERASTER,
-                nullptr
-            );
-        }
+        if (m_hasTexture)
+            RwRenderStateSet(rwRENDERSTATETEXTURERASTER, nullptr);
 
-        if (m_hasVertexAlpha) {
+        if (m_hasVertexAlpha)
             RwRenderStateSet(
                 rwRENDERSTATEVERTEXALPHAENABLE,
                 StateValue(1)
             );
-        }
 
-        if (m_hasSrcBlend) {
+        if (m_hasSrcBlend)
             RwRenderStateSet(
                 rwRENDERSTATESRCBLEND,
                 StateValue(rwBLENDSRCALPHA)
             );
-        }
 
-        if (m_hasDestBlend) {
+        if (m_hasDestBlend)
             RwRenderStateSet(
                 rwRENDERSTATEDESTBLEND,
                 StateValue(rwBLENDINVSRCALPHA)
             );
-        }
     }
 
     ~RenderStateGuard() {
-        if (m_hasTexture) {
-            RwRenderStateSet(
-                rwRENDERSTATETEXTURERASTER,
-                m_texture
-            );
-        }
+        if (m_hasTexture)
+            RwRenderStateSet(rwRENDERSTATETEXTURERASTER, m_texture);
 
-        if (m_hasVertexAlpha) {
+        if (m_hasVertexAlpha)
             RwRenderStateSet(
-                rwRENDERSTATEVERTEXALPHAENABLE,
-                m_vertexAlpha
+                rwRENDERSTATEVERTEXALPHAENABLE, m_vertexAlpha
             );
-        }
 
-        if (m_hasSrcBlend) {
-            RwRenderStateSet(
-                rwRENDERSTATESRCBLEND,
-                m_srcBlend
-            );
-        }
+        if (m_hasSrcBlend)
+            RwRenderStateSet(rwRENDERSTATESRCBLEND, m_srcBlend);
 
-        if (m_hasDestBlend) {
-            RwRenderStateSet(
-                rwRENDERSTATEDESTBLEND,
-                m_destBlend
-            );
-        }
+        if (m_hasDestBlend)
+            RwRenderStateSet(rwRENDERSTATEDESTBLEND, m_destBlend);
     }
 
     RenderStateGuard(const RenderStateGuard&) = delete;
@@ -117,21 +88,49 @@ private:
     bool m_hasDestBlend = false;
 };
 
-static uint8_t ApplyBrightness(
-    uint8_t color,
-    float brightness
+static uint8_t ClampColor(float value) {
+    if (value < 0.0f) value = 0.0f;
+    if (value > 255.0f) value = 255.0f;
+    return static_cast<uint8_t>(value);
+}
+
+static void HSVtoRGB(
+    float hue,
+    uint8_t& red,
+    uint8_t& green,
+    uint8_t& blue
 ) {
-    float result = static_cast<float>(color) * brightness;
+    while (hue < 0.0f) hue += 360.0f;
+    while (hue >= 360.0f) hue -= 360.0f;
 
-    if (result < 0.0f) {
-        result = 0.0f;
+    const float c = 1.0f;
+    const float x = c * (
+        1.0f - std::fabs(
+            std::fmod(hue / 60.0f, 2.0f) - 1.0f
+        )
+    );
+
+    float r = 0.0f;
+    float g = 0.0f;
+    float b = 0.0f;
+
+    if (hue < 60.0f) {
+        r = c; g = x;
+    } else if (hue < 120.0f) {
+        r = x; g = c;
+    } else if (hue < 180.0f) {
+        g = c; b = x;
+    } else if (hue < 240.0f) {
+        g = x; b = c;
+    } else if (hue < 300.0f) {
+        r = x; b = c;
+    } else {
+        r = c; b = x;
     }
 
-    if (result > 255.0f) {
-        result = 255.0f;
-    }
-
-    return static_cast<uint8_t>(result);
+    red = ClampColor(r * 255.0f);
+    green = ClampColor(g * 255.0f);
+    blue = ClampColor(b * 255.0f);
 }
 
 static void SetVertex(
@@ -158,146 +157,132 @@ static void SetVertex(
     vertex.v = 0.0f;
 }
 
-static bool RenderRunningLED(
+static bool RenderEffect(
     CVehicle* vehicle,
     const LedPlacement& placement,
     const LedEffectConfig& effect
 ) {
-    if (vehicle == nullptr || !effect.enabled) {
+    if (vehicle == nullptr || !effect.enabled)
         return false;
-    }
 
     CMatrix* matrix = vehicle->GetMatrix();
-
-    if (matrix == nullptr) {
+    if (matrix == nullptr)
         return false;
-    }
 
-    const LedTransform& transform = placement.transform;
+    const LedTransform& t = placement.transform;
 
-    if (!std::isfinite(transform.x) ||
-        !std::isfinite(transform.y) ||
-        !std::isfinite(transform.z) ||
-        !std::isfinite(transform.width) ||
-        !std::isfinite(transform.height) ||
+    if (!std::isfinite(t.x) ||
+        !std::isfinite(t.y) ||
+        !std::isfinite(t.z) ||
+        !std::isfinite(t.width) ||
+        !std::isfinite(t.height) ||
         !std::isfinite(effect.brightness) ||
-        !std::isfinite(effect.speed)) {
+        !std::isfinite(effect.speed))
         return false;
-    }
 
-    if (transform.width <= 0.0f ||
-        transform.height <= 0.0f ||
-        effect.speed <= 0.0f ||
-        effect.brightness <= 0.0f) {
+    if (t.width <= 0.0f ||
+        t.height <= 0.0f ||
+        effect.brightness <= 0.0f ||
+        effect.speed <= 0.0f)
         return false;
-    }
 
     float brightness = effect.brightness;
-
-    if (brightness > 1.0f) {
+    if (brightness > 1.0f)
         brightness = 1.0f;
-    }
 
-    const float speed = effect.speed;
+    const uint32_t now = CTimer::GetTimeMS();
+    const double time = static_cast<double>(now) *
+                        static_cast<double>(effect.speed);
 
-    const uint32_t nowMs = CTimer::GetTimeMS();
-
-    // Satu putaran animasi dasar berlangsung satu detik
-    // pada speed 1.0.
-    const double elapsed =
-        static_cast<double>(nowMs) *
-        static_cast<double>(speed) /
-        1000.0;
-
-    const double cycle = elapsed -
-        std::floor(elapsed);
+    const double cycle = std::fmod(time / 1000.0, 1.0);
 
     const uint32_t head = static_cast<uint32_t>(
-        cycle * RUNNING_LED_SEGMENTS
-    ) % RUNNING_LED_SEGMENTS;
+        cycle * SEGMENTS
+    ) % SEGMENTS;
 
-    const float segmentWidth =
-        transform.width /
-        static_cast<float>(RUNNING_LED_SEGMENTS);
+    const float segmentWidth = t.width / SEGMENTS;
+    const float halfHeight = t.height * 0.5f;
 
-    const float halfHeight = transform.height * 0.5f;
-
-    RwIm3DVertex vertices[RUNNING_LED_SEGMENTS * 4];
-    RwImVertexIndex indices[RUNNING_LED_SEGMENTS * 6];
+    RwIm3DVertex vertices[SEGMENTS * 4];
+    RwImVertexIndex indices[SEGMENTS * 6];
 
     uint32_t indexCount = 0;
 
-    for (uint32_t i = 0; i < RUNNING_LED_SEGMENTS; ++i) {
-        const uint32_t distance =
-            (head + RUNNING_LED_SEGMENTS - i) %
-            RUNNING_LED_SEGMENTS;
+    bool strobeOn = std::fmod(time / 250.0, 1.0) < 0.5;
 
-        float intensity = 0.08f;
+    for (uint32_t i = 0; i < SEGMENTS; ++i) {
+        float intensity = 1.0f;
+        uint8_t red = effect.red;
+        uint8_t green = effect.green;
+        uint8_t blue = effect.blue;
 
-        if (distance < RUNNING_LED_TRAIL) {
-            intensity = 1.0f -
-                static_cast<float>(distance) * 0.22f;
+        switch (effect.type) {
+        case LedEffectType::RunningLED: {
+            const uint32_t distance =
+                (head + SEGMENTS - i) % SEGMENTS;
+
+            intensity = 0.08f;
+
+            if (distance < 4)
+                intensity = 1.0f - distance * 0.22f;
+
+            break;
         }
 
-        const float segmentBrightness =
-            brightness * intensity;
+        case LedEffectType::StroboWave: {
+            const uint32_t distance =
+                (head + SEGMENTS - i) % SEGMENTS;
 
-        const uint8_t red = ApplyBrightness(
-            effect.red,
-            segmentBrightness
-        );
+            intensity = (distance < 3 && strobeOn) ? 1.0f : 0.0f;
+            break;
+        }
 
-        const uint8_t green = ApplyBrightness(
-            effect.green,
-            segmentBrightness
-        );
+        case LedEffectType::StroboEyes: {
+            const bool firstHalf = i < SEGMENTS / 2;
+            const bool alternate = std::fmod(time / 180.0, 1.0) < 0.5;
 
-        const uint8_t blue = ApplyBrightness(
-            effect.blue,
-            segmentBrightness
-        );
+            intensity = (firstHalf == alternate) ? 1.0f : 0.0f;
+            break;
+        }
+
+        case LedEffectType::RGB: {
+            HSVtoRGB(
+                static_cast<float>(
+                    std::fmod(time * 0.06 + i * 30.0, 360.0)
+                ),
+                red,
+                green,
+                blue
+            );
+            break;
+        }
+
+        default:
+            return false;
+        }
+
+        red = ClampColor(red * brightness * intensity);
+        green = ClampColor(green * brightness * intensity);
+        blue = ClampColor(blue * brightness * intensity);
 
         const float left =
-            transform.x - transform.width * 0.5f +
-            static_cast<float>(i) * segmentWidth;
+            t.x - t.width * 0.5f + i * segmentWidth;
 
         const float right = left + segmentWidth * 0.88f;
 
-        CVector localPositions[4];
+        CVector local[4];
 
-        localPositions[0] = {
-            left,
-            transform.y - halfHeight,
-            transform.z
-        };
+        local[0] = {left, t.y - halfHeight, t.z};
+        local[1] = {right, t.y - halfHeight, t.z};
+        local[2] = {right, t.y + halfHeight, t.z};
+        local[3] = {left, t.y + halfHeight, t.z};
 
-        localPositions[1] = {
-            right,
-            transform.y - halfHeight,
-            transform.z
-        };
-
-        localPositions[2] = {
-            right,
-            transform.y + halfHeight,
-            transform.z
-        };
-
-        localPositions[3] = {
-            left,
-            transform.y + halfHeight,
-            transform.z
-        };
-
-        for (uint32_t vertexIndex = 0; vertexIndex < 4; ++vertexIndex) {
-            const CVector worldPosition =
-                matrix->TransformPoint(
-                    localPositions[vertexIndex]
-                );
+        for (uint32_t v = 0; v < 4; ++v) {
+            const CVector world = matrix->TransformPoint(local[v]);
 
             SetVertex(
-                vertices[i * 4 + vertexIndex],
-                worldPosition,
+                vertices[i * 4 + v],
+                world,
                 red,
                 green,
                 blue
@@ -319,17 +304,15 @@ static bool RenderRunningLED(
     RenderStateGuard stateGuard;
 
     const RwUInt32 flags =
-        rwIM3D_VERTEXXYZ |
-        rwIM3D_VERTEXRGBA;
+        rwIM3D_VERTEXXYZ | rwIM3D_VERTEXRGBA;
 
     if (RwIm3DTransform(
             vertices,
-            RUNNING_LED_SEGMENTS * 4,
+            SEGMENTS * 4,
             nullptr,
             flags
-        ) == nullptr) {
+        ) == nullptr)
         return false;
-    }
 
     const bool rendered = RwIm3DRenderIndexedPrimitive(
         rwPRIMTYPETRILIST,
@@ -348,27 +331,19 @@ uint32_t ProfileRenderer::RenderVehicleProfile(
     CVehicle* vehicle,
     const VehicleProfile& profile
 ) {
-    if (vehicle == nullptr || !profile.enabled) {
+    if (vehicle == nullptr || !profile.enabled)
         return 0;
-    }
 
-    uint32_t renderedCount = 0;
+    uint32_t rendered = 0;
 
     for (const LedPlacement& placement : profile.placements) {
         for (const LedEffectConfig& effect : placement.effects) {
-            if (effect.type == LedEffectType::RunningLED) {
-                if (RenderRunningLED(
-                        vehicle,
-                        placement,
-                        effect
-                    )) {
-                    ++renderedCount;
-                }
-            }
+            if (RenderEffect(vehicle, placement, effect))
+                ++rendered;
         }
     }
 
-    return renderedCount;
+    return rendered;
 }
 
 } // namespace VLS
