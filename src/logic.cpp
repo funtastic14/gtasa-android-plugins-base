@@ -22,6 +22,7 @@
 namespace Logic {
 
 static bool g_enabled = true;
+static bool g_editorOpen = false;
 static bool g_imguiInitialized = false;
 
 static int g_brightness = 100;
@@ -82,8 +83,6 @@ static void ProcessPendingProfileLoads() {
     g_pendingProfileLoads.clear();
 }
 
-// Membuat profil dan placement awal jika belum tersedia.
-// Posisi awal X, Y, Z semuanya 0.
 static VLS::VehicleProfile* EnsureEditorProfile(int modelId) {
     if (modelId < 0)
         return nullptr;
@@ -113,6 +112,7 @@ static VLS::VehicleProfile* EnsureEditorProfile(int modelId) {
         placement.transform.height = 0.18f;
 
         VLS::LedEffectConfig effect;
+
         effect.type = VLS::LedEffectType::RunningLED;
         effect.enabled = true;
 
@@ -120,10 +120,8 @@ static VLS::VehicleProfile* EnsureEditorProfile(int modelId) {
         effect.green = 180;
         effect.blue = 255;
 
-        effect.brightness =
-            static_cast<float>(g_brightness) / 100.0f;
-
-        effect.speed = g_animationSpeed;
+        effect.brightness = 1.0f;
+        effect.speed = 1.0f;
 
         placement.effects.push_back(effect);
         profile->placements.push_back(placement);
@@ -131,8 +129,8 @@ static VLS::VehicleProfile* EnsureEditorProfile(int modelId) {
         g_profileManager.MarkDirty(modelId);
     }
 
-    // Pastikan placement pertama memiliki minimal satu efek.
-    VLS::LedPlacement& placement = profile->placements[0];
+    VLS::LedPlacement& placement =
+        profile->placements[0];
 
     if (placement.effects.empty()) {
         VLS::LedEffectConfig effect;
@@ -154,7 +152,7 @@ static VLS::VehicleProfile* EnsureEditorProfile(int modelId) {
 
 
 // ---------------------------------------------------------
-// ImGui editor
+// ImGui pattern definitions
 // ---------------------------------------------------------
 
 static const char* g_patternNames[] = {
@@ -180,37 +178,89 @@ static int GetPatternIndex(VLS::LedEffectType type) {
     return 0;
 }
 
+
+// ---------------------------------------------------------
+// ImGui launcher and editor
+// ---------------------------------------------------------
+
 static void RenderEditor() {
-    ImGui::SetNextWindowSize(
-        ImVec2(480.0f, 600.0f),
+
+    // Launcher selalu ditampilkan meskipun panel ditutup.
+    ImGui::SetNextWindowPos(
+        ImVec2(20.0f, 100.0f),
         ImGuiCond_FirstUseEver
     );
 
-    ImGui::Begin("Vehicle LED System");
+    const ImGuiWindowFlags launcherFlags =
+        ImGuiWindowFlags_NoTitleBar |
+        ImGuiWindowFlags_NoResize |
+        ImGuiWindowFlags_NoMove |
+        ImGuiWindowFlags_AlwaysAutoResize |
+        ImGuiWindowFlags_NoSavedSettings;
 
-    ImGui::Text("Vehicle LED System - Editor");
+    ImGui::Begin(
+        "VLS Launcher",
+        nullptr,
+        launcherFlags
+    );
+
+    if (ImGui::Button(
+            g_editorOpen ? "LED Editor: OPEN" : "LED",
+            ImVec2(110.0f, 42.0f)
+        )) {
+        g_editorOpen = !g_editorOpen;
+    }
+
+    ImGui::End();
+
+    if (!g_editorOpen)
+        return;
+
+    ImGui::SetNextWindowSize(
+        ImVec2(460.0f, 580.0f),
+        ImGuiCond_FirstUseEver
+    );
+
+    if (!ImGui::Begin(
+            "Vehicle LED System",
+            &g_editorOpen
+        )) {
+        ImGui::End();
+        return;
+    }
+
+    ImGui::Text("Vehicle LED System");
     ImGui::Separator();
 
-    ImGui::Checkbox("LED System Enabled", &g_enabled);
+    ImGui::Checkbox(
+        "LED System Enabled",
+        &g_enabled
+    );
 
     const int modelId =
         g_vehicleManager.GetCurrentModelId();
 
     if (modelId < 0) {
         ImGui::Spacing();
-        ImGui::Text("Enter a vehicle to edit its profile.");
+        ImGui::Text(
+            "Enter a vehicle to edit its profile."
+        );
+
         ImGui::End();
         return;
     }
 
-    ImGui::Text("Vehicle Model ID: %d", modelId);
+    ImGui::Text(
+        "Vehicle Model ID: %d",
+        modelId
+    );
 
     VLS::VehicleProfile* profile =
         EnsureEditorProfile(modelId);
 
     if (profile == nullptr ||
         profile->placements.empty()) {
-        ImGui::Text("Profile is not available.");
+        ImGui::Text("Profile unavailable.");
         ImGui::End();
         return;
     }
@@ -229,6 +279,7 @@ static void RenderEditor() {
 
     bool changed = false;
 
+    // Placement
     ImGui::Separator();
     ImGui::Text("LED Placement");
 
@@ -267,15 +318,17 @@ static void RenderEditor() {
         1.0f
     );
 
+    // Effect
     ImGui::Separator();
-    ImGui::Text("Animation");
+    ImGui::Text("LED Effect");
 
     changed |= ImGui::Checkbox(
-        "Animation ON",
+        "Effect Enabled",
         &effect.enabled
     );
 
-    int patternIndex = GetPatternIndex(effect.type);
+    int patternIndex =
+        GetPatternIndex(effect.type);
 
     if (ImGui::Combo(
             "Pattern",
@@ -311,22 +364,27 @@ static void RenderEditor() {
         changed = true;
     }
 
+    // Mark profile dirty only when values change.
     if (changed)
         g_profileManager.MarkDirty(modelId);
 
+    // Save
     ImGui::Separator();
 
-    if (ImGui::Button("Save Profile")) {
+    if (ImGui::Button(
+            "Save Profile",
+            ImVec2(160.0f, 40.0f)
+        )) {
         g_profileManager.MarkDirty(modelId);
 
         if (g_profileManager.Save(modelId)) {
             logger->Info(
-                "Profile saved for vehicle model %d.",
+                "Profile saved: Model ID %d",
                 modelId
             );
         } else {
             logger->Info(
-                "Failed to save profile for vehicle model %d.",
+                "Profile save failed: Model ID %d",
                 modelId
             );
         }
@@ -334,7 +392,10 @@ static void RenderEditor() {
 
     ImGui::SameLine();
 
-    if (ImGui::Button("Reset Position")) {
+    if (ImGui::Button(
+            "Reset Position",
+            ImVec2(160.0f, 40.0f)
+        )) {
         placement.transform.x = 0.0f;
         placement.transform.y = 0.0f;
         placement.transform.z = 0.0f;
@@ -342,14 +403,14 @@ static void RenderEditor() {
         g_profileManager.MarkDirty(modelId);
     }
 
-    ImGui::Separator();
+    ImGui::Spacing();
 
     ImGui::Text(
         "Changes are applied immediately."
     );
 
     ImGui::Text(
-        "Save Profile stores settings for this vehicle model."
+        "Close this window without disabling LED."
     );
 
     ImGui::End();
@@ -440,7 +501,10 @@ static void UpdateSequenceRuntime() {
     const uint32_t nowMs = CTimer::GetTimeMS();
 
     if (g_sequenceRuntime.IsRunning()) {
-        g_sequenceRuntime.Update(*g_currentProfile, nowMs);
+        g_sequenceRuntime.Update(
+            *g_currentProfile,
+            nowMs
+        );
         return;
     }
 
@@ -453,6 +517,7 @@ static void UpdateSequenceRuntime() {
     for (uint32_t i = 0;
          i < g_currentProfile->sequences.size();
          ++i) {
+
         const VLS::EffectSequence& sequence =
             g_currentProfile->sequences[i];
 
@@ -594,11 +659,7 @@ void Init() {
     Events::frameEndEvent += OnFrameEnd;
 
     logger->Info(
-        "VLS render callbacks registered."
-    );
-
-    logger->Info(
-        "Vehicle LED System initialization completed."
+        "VLS callbacks registered."
     );
 }
 
