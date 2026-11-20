@@ -1,3 +1,4 @@
+
 #include "profile_renderer.h"
 #include "matrix_animation_engine.h"
 
@@ -497,4 +498,30 @@ uint32_t ProfileRenderer::RenderVehicleProfile(
     return rendered;
 }
 
-} // namespace VLS
+bool ProfileRenderer::RenderSelectedEffect(
+    CVehicle* vehicle,
+    const VehicleProfile& profile,
+    uint32_t placementId,
+    uint32_t effectIndex
+) {
+    if (vehicle == nullptr || !profile.enabled)
+        return false;
+
+    for (const LedPlacement& placement : profile.placements) {
+        if (placement.id != placementId)
+            continue;
+
+        if (effectIndex >= placement.effects.size())
+            return false;
+
+        return RenderEffect(
+            vehicle,
+            placement,
+            placement.effects[effectIndex]
+        );
+    }
+
+    return false;
+}
+
+}
