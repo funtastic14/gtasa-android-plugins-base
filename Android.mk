@@ -9,6 +9,7 @@ LOCAL_MODULE := VehicleLEDSystem
 LOCAL_SRC_FILES := main.cpp \
     src/logic.cpp \
     src/vehicle_manager.cpp \
+    src/vehicle_geometry_reader.cpp \
     src/vehicle_profile_manager.cpp \
     src/profile_placement_manager.cpp \
     src/profile_effect_manager.cpp \
@@ -32,7 +33,6 @@ LOCAL_SRC_FILES := main.cpp \
     plugin-sdk/renderware/imgui/imgui_shared.cpp
 
 LOCAL_CFLAGS += -O2 -DNDEBUG -std=c++17
-
 LOCAL_CPPFLAGS += -Wall -Wextra -Wno-unused-parameter -fvisibility=hidden -fvisibility-inlines-hidden
 
 ifeq ($(TARGET_ARCH_ABI),armeabi-v7a)
@@ -42,7 +42,6 @@ endif
 LOCAL_C_INCLUDES += $(LOCAL_PATH) $(LOCAL_PATH)/plugin-sdk $(LOCAL_PATH)/mod/thirdparty
 
 LOCAL_LDLIBS += -llog
-
 LOCAL_LDFLAGS += -Wl,--exclude-libs,ALL
 
 include $(BUILD_SHARED_LIBRARY)
