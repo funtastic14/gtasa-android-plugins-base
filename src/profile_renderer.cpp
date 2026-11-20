@@ -5,12 +5,16 @@
 #include <cstdint>
 
 #include <plugin-sdk/game_sa/base/Matrix.h>
+#include <plugin-sdk/game_sa/base/Timer.h>
 #include <plugin-sdk/gta_base/DrawVertices.h>
 #include <plugin-sdk/renderware/RwRender.h>
 
 namespace VLS {
 
 namespace {
+
+constexpr uint32_t RUNNING_LED_SEGMENTS = 12;
+constexpr uint32_t RUNNING_LED_TRAIL = 4;
 
 class RenderStateGuard {
 public:
@@ -154,16 +158,12 @@ static void SetVertex(
     vertex.v = 0.0f;
 }
 
-static bool RenderPlacement(
+static bool RenderRunningLED(
     CVehicle* vehicle,
     const LedPlacement& placement,
     const LedEffectConfig& effect
 ) {
-    if (vehicle == nullptr) {
-        return false;
-    }
-
-    if (!effect.enabled || effect.type != LedEffectType::RunningLED) {
+    if (vehicle == nullptr || !effect.enabled) {
         return false;
     }
 
@@ -180,92 +180,141 @@ static bool RenderPlacement(
         !std::isfinite(transform.z) ||
         !std::isfinite(transform.width) ||
         !std::isfinite(transform.height) ||
-        !std::isfinite(effect.brightness)) {
+        !std::isfinite(effect.brightness) ||
+        !std::isfinite(effect.speed)) {
         return false;
     }
 
     if (transform.width <= 0.0f ||
-        transform.height <= 0.0f) {
+        transform.height <= 0.0f ||
+        effect.speed <= 0.0f ||
+        effect.brightness <= 0.0f) {
         return false;
     }
 
     float brightness = effect.brightness;
 
-    if (brightness < 0.0f) {
-        brightness = 0.0f;
-    }
-
     if (brightness > 1.0f) {
         brightness = 1.0f;
     }
 
-    if (brightness <= 0.0f) {
-        return false;
-    }
+    const float speed = effect.speed;
 
-    const uint8_t red = ApplyBrightness(
-        effect.red,
-        brightness
-    );
+    const uint32_t nowMs = CTimer::GetTimeMS();
 
-    const uint8_t green = ApplyBrightness(
-        effect.green,
-        brightness
-    );
+    // Satu putaran animasi dasar berlangsung satu detik
+    // pada speed 1.0.
+    const double elapsed =
+        static_cast<double>(nowMs) *
+        static_cast<double>(speed) /
+        1000.0;
 
-    const uint8_t blue = ApplyBrightness(
-        effect.blue,
-        brightness
-    );
+    const double cycle = elapsed -
+        std::floor(elapsed);
 
-    const float halfWidth = transform.width * 0.5f;
+    const uint32_t head = static_cast<uint32_t>(
+        cycle * RUNNING_LED_SEGMENTS
+    ) % RUNNING_LED_SEGMENTS;
+
+    const float segmentWidth =
+        transform.width /
+        static_cast<float>(RUNNING_LED_SEGMENTS);
+
     const float halfHeight = transform.height * 0.5f;
 
-    CVector localPositions[4];
+    RwIm3DVertex vertices[RUNNING_LED_SEGMENTS * 4];
+    RwImVertexIndex indices[RUNNING_LED_SEGMENTS * 6];
 
-    localPositions[0] = {
-        transform.x - halfWidth,
-        transform.y - halfHeight,
-        transform.z
-    };
+    uint32_t indexCount = 0;
 
-    localPositions[1] = {
-        transform.x + halfWidth,
-        transform.y - halfHeight,
-        transform.z
-    };
+    for (uint32_t i = 0; i < RUNNING_LED_SEGMENTS; ++i) {
+        const uint32_t distance =
+            (head + RUNNING_LED_SEGMENTS - i) %
+            RUNNING_LED_SEGMENTS;
 
-    localPositions[2] = {
-        transform.x + halfWidth,
-        transform.y + halfHeight,
-        transform.z
-    };
+        float intensity = 0.08f;
 
-    localPositions[3] = {
-        transform.x - halfWidth,
-        transform.y + halfHeight,
-        transform.z
-    };
+        if (distance < RUNNING_LED_TRAIL) {
+            intensity = 1.0f -
+                static_cast<float>(distance) * 0.22f;
+        }
 
-    RwIm3DVertex vertices[4];
+        const float segmentBrightness =
+            brightness * intensity;
 
-    for (int i = 0; i < 4; ++i) {
-        const CVector worldPosition =
-            matrix->TransformPoint(localPositions[i]);
-
-        SetVertex(
-            vertices[i],
-            worldPosition,
-            red,
-            green,
-            blue
+        const uint8_t red = ApplyBrightness(
+            effect.red,
+            segmentBrightness
         );
-    }
 
-    static RwImVertexIndex indices[6] = {
-        0, 1, 2,
-        0, 2, 3
-    };
+        const uint8_t green = ApplyBrightness(
+            effect.green,
+            segmentBrightness
+        );
+
+        const uint8_t blue = ApplyBrightness(
+            effect.blue,
+            segmentBrightness
+        );
+
+        const float left =
+            transform.x - transform.width * 0.5f +
+            static_cast<float>(i) * segmentWidth;
+
+        const float right = left + segmentWidth * 0.88f;
+
+        CVector localPositions[4];
+
+        localPositions[0] = {
+            left,
+            transform.y - halfHeight,
+            transform.z
+        };
+
+        localPositions[1] = {
+            right,
+            transform.y - halfHeight,
+            transform.z
+        };
+
+        localPositions[2] = {
+            right,
+            transform.y + halfHeight,
+            transform.z
+        };
+
+        localPositions[3] = {
+            left,
+            transform.y + halfHeight,
+            transform.z
+        };
+
+        for (uint32_t vertexIndex = 0; vertexIndex < 4; ++vertexIndex) {
+            const CVector worldPosition =
+                matrix->TransformPoint(
+                    localPositions[vertexIndex]
+                );
+
+            SetVertex(
+                vertices[i * 4 + vertexIndex],
+                worldPosition,
+                red,
+                green,
+                blue
+            );
+        }
+
+        const RwImVertexIndex base =
+            static_cast<RwImVertexIndex>(i * 4);
+
+        indices[indexCount++] = base;
+        indices[indexCount++] = base + 1;
+        indices[indexCount++] = base + 2;
+
+        indices[indexCount++] = base;
+        indices[indexCount++] = base + 2;
+        indices[indexCount++] = base + 3;
+    }
 
     RenderStateGuard stateGuard;
 
@@ -273,12 +322,9 @@ static bool RenderPlacement(
         rwIM3D_VERTEXXYZ |
         rwIM3D_VERTEXRGBA;
 
-    // Vertices have already been transformed into world coordinates.
-    // A null local-to-world matrix prevents applying the vehicle
-    // transformation a second time.
     if (RwIm3DTransform(
             vertices,
-            4,
+            RUNNING_LED_SEGMENTS * 4,
             nullptr,
             flags
         ) == nullptr) {
@@ -288,7 +334,7 @@ static bool RenderPlacement(
     const bool rendered = RwIm3DRenderIndexedPrimitive(
         rwPRIMTYPETRILIST,
         indices,
-        6
+        indexCount
     );
 
     RwIm3DEnd();
@@ -310,12 +356,14 @@ uint32_t ProfileRenderer::RenderVehicleProfile(
 
     for (const LedPlacement& placement : profile.placements) {
         for (const LedEffectConfig& effect : placement.effects) {
-            if (RenderPlacement(
-                    vehicle,
-                    placement,
-                    effect
-                )) {
-                ++renderedCount;
+            if (effect.type == LedEffectType::RunningLED) {
+                if (RenderRunningLED(
+                        vehicle,
+                        placement,
+                        effect
+                    )) {
+                    ++renderedCount;
+                }
             }
         }
     }
