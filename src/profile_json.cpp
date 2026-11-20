@@ -18,16 +18,10 @@ namespace {
 
 static const size_t MAX_JSON_SIZE = 1024 * 1024;
 static const int MAX_JSON_DEPTH = 64;
+static const uint32_t MAX_MATRIX_PIXELS = 4096;
 
 struct JsonValue {
-    enum Type {
-        Null,
-        Boolean,
-        Number,
-        String,
-        Array,
-        Object
-    };
+    enum Type { Null, Boolean, Number, String, Array, Object };
 
     Type type = Null;
     bool boolean = false;
@@ -40,18 +34,15 @@ struct JsonValue {
 class JsonParser {
 public:
     explicit JsonParser(const std::string& source)
-        : m_source(source), m_position(0) {
-    }
+        : m_source(source), m_position(0) {}
 
     bool Parse(JsonValue& result) {
         SkipWhitespace();
 
-        if (!ParseValue(result, 0)) {
+        if (!ParseValue(result, 0))
             return false;
-        }
 
         SkipWhitespace();
-
         return m_position == m_source.size();
     }
 
@@ -61,8 +52,8 @@ private:
 
     void SkipWhitespace() {
         while (m_position < m_source.size() &&
-               std::isspace(
-                   static_cast<unsigned char>(m_source[m_position]))) {
+               std::isspace(static_cast<unsigned char>(
+                   m_source[m_position]))) {
             ++m_position;
         }
     }
@@ -82,17 +73,14 @@ private:
     bool Match(const char* text) {
         size_t length = 0;
 
-        while (text[length] != '\0') {
+        while (text[length] != '\0')
             ++length;
-        }
 
-        if (m_position + length > m_source.size()) {
+        if (m_position + length > m_source.size())
             return false;
-        }
 
-        if (m_source.compare(m_position, length, text) != 0) {
+        if (m_source.compare(m_position, length, text) != 0)
             return false;
-        }
 
         m_position += length;
         return true;
@@ -105,42 +93,29 @@ private:
         if (codepoint <= 0x7F) {
             output.push_back(static_cast<char>(codepoint));
         } else if (codepoint <= 0x7FF) {
-            output.push_back(
-                static_cast<char>(0xC0 | (codepoint >> 6))
-            );
-            output.push_back(
-                static_cast<char>(0x80 | (codepoint & 0x3F))
-            );
+            output.push_back(static_cast<char>(0xC0 | (codepoint >> 6)));
+            output.push_back(static_cast<char>(
+                0x80 | (codepoint & 0x3F)));
         } else if (codepoint <= 0xFFFF) {
-            output.push_back(
-                static_cast<char>(0xE0 | (codepoint >> 12))
-            );
-            output.push_back(
-                static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F))
-            );
-            output.push_back(
-                static_cast<char>(0x80 | (codepoint & 0x3F))
-            );
+            output.push_back(static_cast<char>(0xE0 | (codepoint >> 12)));
+            output.push_back(static_cast<char>(
+                0x80 | ((codepoint >> 6) & 0x3F)));
+            output.push_back(static_cast<char>(
+                0x80 | (codepoint & 0x3F)));
         } else {
-            output.push_back(
-                static_cast<char>(0xF0 | (codepoint >> 18))
-            );
-            output.push_back(
-                static_cast<char>(0x80 | ((codepoint >> 12) & 0x3F))
-            );
-            output.push_back(
-                static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F))
-            );
-            output.push_back(
-                static_cast<char>(0x80 | (codepoint & 0x3F))
-            );
+            output.push_back(static_cast<char>(0xF0 | (codepoint >> 18)));
+            output.push_back(static_cast<char>(
+                0x80 | ((codepoint >> 12) & 0x3F)));
+            output.push_back(static_cast<char>(
+                0x80 | ((codepoint >> 6) & 0x3F)));
+            output.push_back(static_cast<char>(
+                0x80 | (codepoint & 0x3F)));
         }
     }
 
     bool ParseHex4(uint32_t& result) {
-        if (m_position + 4 > m_source.size()) {
+        if (m_position + 4 > m_source.size())
             return false;
-        }
 
         result = 0;
 
@@ -148,15 +123,14 @@ private:
             char c = m_source[m_position++];
             result <<= 4;
 
-            if (c >= '0' && c <= '9') {
+            if (c >= '0' && c <= '9')
                 result |= static_cast<uint32_t>(c - '0');
-            } else if (c >= 'a' && c <= 'f') {
+            else if (c >= 'a' && c <= 'f')
                 result |= static_cast<uint32_t>(c - 'a' + 10);
-            } else if (c >= 'A' && c <= 'F') {
+            else if (c >= 'A' && c <= 'F')
                 result |= static_cast<uint32_t>(c - 'A' + 10);
-            } else {
+            else
                 return false;
-            }
         }
 
         return true;
@@ -175,22 +149,19 @@ private:
             unsigned char c =
                 static_cast<unsigned char>(m_source[m_position++]);
 
-            if (c == '"') {
+            if (c == '"')
                 return true;
-            }
 
-            if (c < 0x20) {
+            if (c < 0x20)
                 return false;
-            }
 
             if (c != '\\') {
                 result.push_back(static_cast<char>(c));
                 continue;
             }
 
-            if (m_position >= m_source.size()) {
+            if (m_position >= m_source.size())
                 return false;
-            }
 
             char escaped = m_source[m_position++];
 
@@ -207,9 +178,8 @@ private:
                 case 'u': {
                     uint32_t codepoint;
 
-                    if (!ParseHex4(codepoint)) {
+                    if (!ParseHex4(codepoint))
                         return false;
-                    }
 
                     if (codepoint >= 0xD800 &&
                         codepoint <= 0xDBFF) {
@@ -257,9 +227,8 @@ private:
             ++m_position;
         }
 
-        if (m_position >= m_source.size()) {
+        if (m_position >= m_source.size())
             return false;
-        }
 
         if (m_source[m_position] == '0') {
             ++m_position;
@@ -279,7 +248,6 @@ private:
         if (m_position < m_source.size() &&
             m_source[m_position] == '.') {
             ++m_position;
-
             size_t fractionStart = m_position;
 
             while (m_position < m_source.size() &&
@@ -288,9 +256,8 @@ private:
                 ++m_position;
             }
 
-            if (fractionStart == m_position) {
+            if (fractionStart == m_position)
                 return false;
-            }
         }
 
         if (m_position < m_source.size() &&
@@ -312,9 +279,8 @@ private:
                 ++m_position;
             }
 
-            if (exponentStart == m_position) {
+            if (exponentStart == m_position)
                 return false;
-            }
         }
 
         std::string numberText =
@@ -323,120 +289,100 @@ private:
         char* end = nullptr;
         double value = std::strtod(numberText.c_str(), &end);
 
-        if (end == nullptr ||
-            *end != '\0' ||
-            !std::isfinite(value)) {
+        if (end == nullptr || *end != '\0' || !std::isfinite(value))
             return false;
-        }
 
         result.type = JsonValue::Number;
         result.number = value;
-
         return true;
     }
 
     bool ParseArray(JsonValue& result, int depth) {
-        if (!Consume('[')) {
+        if (!Consume('['))
             return false;
-        }
 
         result.type = JsonValue::Array;
         result.array.clear();
 
         SkipWhitespace();
 
-        if (Consume(']')) {
+        if (Consume(']'))
             return true;
-        }
 
         while (true) {
             JsonValue item;
 
-            if (!ParseValue(item, depth + 1)) {
+            if (!ParseValue(item, depth + 1))
                 return false;
-            }
 
             result.array.push_back(item);
 
+            if (result.array.size() > MAX_MATRIX_PIXELS + 10000)
+                return false;
+
             SkipWhitespace();
 
-            if (Consume(']')) {
+            if (Consume(']'))
                 return true;
-            }
 
-            if (!Consume(',')) {
+            if (!Consume(','))
                 return false;
-            }
         }
     }
 
     bool ParseObject(JsonValue& result, int depth) {
-        if (!Consume('{')) {
+        if (!Consume('{'))
             return false;
-        }
 
         result.type = JsonValue::Object;
         result.object.clear();
 
         SkipWhitespace();
 
-        if (Consume('}')) {
+        if (Consume('}'))
             return true;
-        }
 
         while (true) {
             SkipWhitespace();
 
             std::string key;
 
-            if (!ParseString(key)) {
+            if (!ParseString(key) || !Consume(':'))
                 return false;
-            }
-
-            if (!Consume(':')) {
-                return false;
-            }
 
             JsonValue value;
 
-            if (!ParseValue(value, depth + 1)) {
+            if (!ParseValue(value, depth + 1))
                 return false;
-            }
 
             result.object[key] = value;
 
             SkipWhitespace();
 
-            if (Consume('}')) {
+            if (Consume('}'))
                 return true;
-            }
 
-            if (!Consume(',')) {
+            if (!Consume(','))
                 return false;
-            }
         }
     }
 
     bool ParseValue(JsonValue& result, int depth) {
-        if (depth > MAX_JSON_DEPTH) {
+        if (depth > MAX_JSON_DEPTH)
             return false;
-        }
 
         SkipWhitespace();
 
-        if (m_position >= m_source.size()) {
+        if (m_position >= m_source.size())
             return false;
-        }
 
         char c = m_source[m_position];
 
-        if (c == '{') {
+        if (c == '{')
             return ParseObject(result, depth);
-        }
 
-        if (c == '[') {
+        if (c == '[')
             return ParseArray(result, depth);
-        }
 
         if (c == '"') {
             result.type = JsonValue::String;
@@ -444,28 +390,30 @@ private:
         }
 
         if (c == 't') {
-            if (!Match("true")) return false;
+            if (!Match("true"))
+                return false;
             result.type = JsonValue::Boolean;
             result.boolean = true;
             return true;
         }
 
         if (c == 'f') {
-            if (!Match("false")) return false;
+            if (!Match("false"))
+                return false;
             result.type = JsonValue::Boolean;
             result.boolean = false;
             return true;
         }
 
         if (c == 'n') {
-            if (!Match("null")) return false;
+            if (!Match("null"))
+                return false;
             result.type = JsonValue::Null;
             return true;
         }
 
-        if (c == '-' || (c >= '0' && c <= '9')) {
+        if (c == '-' || (c >= '0' && c <= '9'))
             return ParseNumber(result);
-        }
 
         return false;
     }
@@ -475,17 +423,12 @@ static const JsonValue* Find(
     const JsonValue& object,
     const char* key
 ) {
-    if (object.type != JsonValue::Object) {
+    if (object.type != JsonValue::Object)
         return nullptr;
-    }
 
     auto it = object.object.find(key);
 
-    if (it == object.object.end()) {
-        return nullptr;
-    }
-
-    return &it->second;
+    return it == object.object.end() ? nullptr : &it->second;
 }
 
 static bool ReadBool(
@@ -495,13 +438,11 @@ static bool ReadBool(
 ) {
     const JsonValue* value = Find(object, key);
 
-    if (value == nullptr) {
+    if (value == nullptr)
         return true;
-    }
 
-    if (value->type != JsonValue::Boolean) {
+    if (value->type != JsonValue::Boolean)
         return false;
-    }
 
     output = value->boolean;
     return true;
@@ -514,13 +455,11 @@ static bool ReadNumber(
 ) {
     const JsonValue* value = Find(object, key);
 
-    if (value == nullptr) {
+    if (value == nullptr)
         return true;
-    }
 
-    if (value->type != JsonValue::Number) {
+    if (value->type != JsonValue::Number)
         return false;
-    }
 
     output = value->number;
     return true;
@@ -533,9 +472,8 @@ static bool ReadInt(
 ) {
     double value = output;
 
-    if (!ReadNumber(object, key, value)) {
+    if (!ReadNumber(object, key, value))
         return false;
-    }
 
     if (value < std::numeric_limits<int>::min() ||
         value > std::numeric_limits<int>::max() ||
@@ -554,9 +492,8 @@ static bool ReadUInt32(
 ) {
     double value = output;
 
-    if (!ReadNumber(object, key, value)) {
+    if (!ReadNumber(object, key, value))
         return false;
-    }
 
     if (value < 0 ||
         value > std::numeric_limits<uint32_t>::max() ||
@@ -568,6 +505,25 @@ static bool ReadUInt32(
     return true;
 }
 
+static bool ReadUInt16(
+    const JsonValue& object,
+    const char* key,
+    uint16_t& output
+) {
+    double value = output;
+
+    if (!ReadNumber(object, key, value))
+        return false;
+
+    if (value < 0 || value > 65535 ||
+        std::floor(value) != value) {
+        return false;
+    }
+
+    output = static_cast<uint16_t>(value);
+    return true;
+}
+
 static bool ReadUInt8(
     const JsonValue& object,
     const char* key,
@@ -575,9 +531,8 @@ static bool ReadUInt8(
 ) {
     double value = output;
 
-    if (!ReadNumber(object, key, value)) {
+    if (!ReadNumber(object, key, value))
         return false;
-    }
 
     if (value < 0 || value > 255 ||
         std::floor(value) != value) {
@@ -595,9 +550,8 @@ static bool ReadFloat(
 ) {
     double value = output;
 
-    if (!ReadNumber(object, key, value)) {
+    if (!ReadNumber(object, key, value))
         return false;
-    }
 
     if (value < -std::numeric_limits<float>::max() ||
         value > std::numeric_limits<float>::max()) {
@@ -612,9 +566,8 @@ static bool ReadTransform(
     const JsonValue& value,
     LedTransform& transform
 ) {
-    if (value.type != JsonValue::Object) {
+    if (value.type != JsonValue::Object)
         return false;
-    }
 
     return
         ReadFloat(value, "x", transform.x) &&
@@ -627,13 +580,88 @@ static bool ReadTransform(
         ReadFloat(value, "height", transform.height);
 }
 
+static bool ReadMatrixPixel(
+    const JsonValue& value,
+    LedMatrixPixel& pixel
+) {
+    if (value.type != JsonValue::Object)
+        return false;
+
+    int direction = static_cast<int>(pixel.direction);
+
+    if (!ReadBool(value, "enabled", pixel.enabled) ||
+        !ReadInt(value, "direction", direction) ||
+        direction < 0 ||
+        direction > static_cast<int>(LedDirection::CustomAngle)) {
+        return false;
+    }
+
+    pixel.direction = static_cast<LedDirection>(direction);
+
+    return
+        ReadFloat(value, "customAngle", pixel.customAngle) &&
+        ReadUInt8(value, "red", pixel.red) &&
+        ReadUInt8(value, "green", pixel.green) &&
+        ReadUInt8(value, "blue", pixel.blue) &&
+        ReadFloat(value, "brightness", pixel.brightness) &&
+        ReadFloat(value, "speed", pixel.speed);
+}
+
+static bool ReadMatrix(
+    const JsonValue& value,
+    LedMatrixConfig& matrix
+) {
+    if (value.type != JsonValue::Object)
+        return false;
+
+    if (!ReadBool(value, "enabled", matrix.enabled) ||
+        !ReadUInt16(value, "columns", matrix.columns) ||
+        !ReadUInt16(value, "rows", matrix.rows)) {
+        return false;
+    }
+
+    if (matrix.columns == 0 || matrix.rows == 0)
+        return false;
+
+    uint32_t total =
+        static_cast<uint32_t>(matrix.columns) *
+        static_cast<uint32_t>(matrix.rows);
+
+    if (total > MAX_MATRIX_PIXELS)
+        return false;
+
+    const JsonValue* pixels = Find(value, "pixels");
+
+    if (pixels != nullptr) {
+        if (pixels->type != JsonValue::Array ||
+            pixels->array.size() > MAX_MATRIX_PIXELS) {
+            return false;
+        }
+
+        for (const JsonValue& item : pixels->array) {
+            LedMatrixPixel pixel;
+
+            if (!ReadMatrixPixel(item, pixel))
+                return false;
+
+            matrix.pixels.push_back(pixel);
+        }
+
+        if (!matrix.pixels.empty() &&
+            matrix.pixels.size() != total) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 static bool ReadEffect(
     const JsonValue& value,
     LedEffectConfig& effect
 ) {
-    if (value.type != JsonValue::Object) {
+    if (value.type != JsonValue::Object)
         return false;
-    }
 
     int type = static_cast<int>(effect.type);
 
@@ -645,26 +673,34 @@ static bool ReadEffect(
 
     effect.type = static_cast<LedEffectType>(type);
 
-    return
-        ReadBool(value, "enabled", effect.enabled) &&
-        ReadUInt8(value, "red", effect.red) &&
-        ReadUInt8(value, "green", effect.green) &&
-        ReadUInt8(value, "blue", effect.blue) &&
-        ReadFloat(value, "brightness", effect.brightness) &&
-        ReadFloat(value, "speed", effect.speed);
+    if (!ReadBool(value, "enabled", effect.enabled) ||
+        !ReadUInt8(value, "red", effect.red) ||
+        !ReadUInt8(value, "green", effect.green) ||
+        !ReadUInt8(value, "blue", effect.blue) ||
+        !ReadFloat(value, "brightness", effect.brightness) ||
+        !ReadFloat(value, "speed", effect.speed)) {
+        return false;
+    }
+
+    const JsonValue* matrix = Find(value, "matrix");
+
+    if (matrix != nullptr &&
+        !ReadMatrix(*matrix, effect.matrix)) {
+        return false;
+    }
+
+    return true;
 }
 
 static bool ReadPlacement(
     const JsonValue& value,
     LedPlacement& placement
 ) {
-    if (value.type != JsonValue::Object) {
+    if (value.type != JsonValue::Object)
         return false;
-    }
 
-    if (!ReadUInt32(value, "id", placement.id)) {
+    if (!ReadUInt32(value, "id", placement.id))
         return false;
-    }
 
     int zone = static_cast<int>(placement.zone);
 
@@ -686,16 +722,14 @@ static bool ReadPlacement(
     const JsonValue* effects = Find(value, "effects");
 
     if (effects != nullptr) {
-        if (effects->type != JsonValue::Array) {
+        if (effects->type != JsonValue::Array)
             return false;
-        }
 
         for (const JsonValue& item : effects->array) {
             LedEffectConfig effect;
 
-            if (!ReadEffect(item, effect)) {
+            if (!ReadEffect(item, effect))
                 return false;
-            }
 
             placement.effects.push_back(effect);
         }
@@ -708,9 +742,8 @@ static bool ReadSequenceStep(
     const JsonValue& value,
     EffectSequenceStep& step
 ) {
-    if (value.type != JsonValue::Object) {
+    if (value.type != JsonValue::Object)
         return false;
-    }
 
     return
         ReadUInt32(value, "placementId", step.placementId) &&
@@ -722,9 +755,8 @@ static bool ReadSequence(
     const JsonValue& value,
     EffectSequence& sequence
 ) {
-    if (value.type != JsonValue::Object) {
+    if (value.type != JsonValue::Object)
         return false;
-    }
 
     if (!ReadBool(value, "enabled", sequence.enabled) ||
         !ReadBool(value, "loop", sequence.loop)) {
@@ -734,16 +766,14 @@ static bool ReadSequence(
     const JsonValue* steps = Find(value, "steps");
 
     if (steps != nullptr) {
-        if (steps->type != JsonValue::Array) {
+        if (steps->type != JsonValue::Array)
             return false;
-        }
 
         for (const JsonValue& item : steps->array) {
             EffectSequenceStep step;
 
-            if (!ReadSequenceStep(item, step)) {
+            if (!ReadSequenceStep(item, step))
                 return false;
-            }
 
             sequence.steps.push_back(step);
         }
@@ -752,24 +782,35 @@ static bool ReadSequence(
     return true;
 }
 
+static bool ValidatePixel(const LedMatrixPixel& pixel) {
+    int direction = static_cast<int>(pixel.direction);
+
+    return
+        direction >= 0 &&
+        direction <= static_cast<int>(LedDirection::CustomAngle) &&
+        std::isfinite(pixel.customAngle) &&
+        std::isfinite(pixel.brightness) &&
+        pixel.brightness >= 0.0f &&
+        pixel.brightness <= 1.0f &&
+        std::isfinite(pixel.speed) &&
+        pixel.speed > 0.0f;
+}
+
 static bool ValidateProfileReferences(
     const VehicleProfile& profile
 ) {
-    // Setiap placement harus memiliki ID unik dan data transformasi valid.
     for (size_t i = 0; i < profile.placements.size(); ++i) {
         const LedPlacement& placement = profile.placements[i];
 
-        if (placement.id == 0) {
+        if (placement.id == 0)
             return false;
-        }
 
         for (size_t j = i + 1; j < profile.placements.size(); ++j) {
-            if (profile.placements[j].id == placement.id) {
+            if (profile.placements[j].id == placement.id)
                 return false;
-            }
         }
 
-        const int zone = static_cast<int>(placement.zone);
+        int zone = static_cast<int>(placement.zone);
 
         if (zone < 0 ||
             zone > static_cast<int>(LedZone::Interior)) {
@@ -792,7 +833,7 @@ static bool ValidateProfileReferences(
         }
 
         for (const LedEffectConfig& effect : placement.effects) {
-            const int type = static_cast<int>(effect.type);
+            int type = static_cast<int>(effect.type);
 
             if (type < 0 ||
                 type > static_cast<int>(LedEffectType::CustomAnimation) ||
@@ -803,15 +844,37 @@ static bool ValidateProfileReferences(
                 effect.speed <= 0.0f) {
                 return false;
             }
+
+            const LedMatrixConfig& matrix = effect.matrix;
+
+            if (matrix.columns == 0 || matrix.rows == 0)
+                return false;
+
+            uint32_t total =
+                static_cast<uint32_t>(matrix.columns) *
+                static_cast<uint32_t>(matrix.rows);
+
+            if (total > MAX_MATRIX_PIXELS ||
+                matrix.pixels.size() > MAX_MATRIX_PIXELS) {
+                return false;
+            }
+
+            if (!matrix.pixels.empty() &&
+                matrix.pixels.size() != total) {
+                return false;
+            }
+
+            for (const LedMatrixPixel& pixel : matrix.pixels) {
+                if (!ValidatePixel(pixel))
+                    return false;
+            }
         }
     }
 
-    // Setiap step harus menunjuk placement dan efek yang benar-benar ada.
     for (const EffectSequence& sequence : profile.sequences) {
         for (const EffectSequenceStep& step : sequence.steps) {
-            if (step.placementId == 0 || step.durationMs == 0) {
+            if (step.placementId == 0 || step.durationMs == 0)
                 return false;
-            }
 
             const LedPlacement* targetPlacement = nullptr;
 
@@ -832,13 +895,9 @@ static bool ValidateProfileReferences(
     return true;
 }
 
-static bool AppendFloat(
-    std::string& output,
-    float value
-) {
-    if (!std::isfinite(value)) {
+static bool AppendFloat(std::string& output, float value) {
+    if (!std::isfinite(value))
         return false;
-    }
 
     char buffer[48];
 
@@ -858,17 +917,11 @@ static bool AppendFloat(
     return true;
 }
 
-static void AppendUInt(
-    std::string& output,
-    uint32_t value
-) {
+static void AppendUInt(std::string& output, uint32_t value) {
     output += std::to_string(value);
 }
 
-static void AppendInt(
-    std::string& output,
-    int value
-) {
+static void AppendInt(std::string& output, int value) {
     output += std::to_string(value);
 }
 
@@ -905,6 +958,68 @@ static bool AppendTransform(
     return true;
 }
 
+static bool AppendMatrixPixel(
+    std::string& output,
+    const LedMatrixPixel& pixel
+) {
+    if (!ValidatePixel(pixel))
+        return false;
+
+    output += "{\"enabled\":";
+    output += pixel.enabled ? "true" : "false";
+
+    output += ",\"direction\":";
+    AppendInt(output, static_cast<int>(pixel.direction));
+
+    output += ",\"customAngle\":";
+    if (!AppendFloat(output, pixel.customAngle)) return false;
+
+    output += ",\"red\":";
+    AppendUInt(output, pixel.red);
+
+    output += ",\"green\":";
+    AppendUInt(output, pixel.green);
+
+    output += ",\"blue\":";
+    AppendUInt(output, pixel.blue);
+
+    output += ",\"brightness\":";
+    if (!AppendFloat(output, pixel.brightness)) return false;
+
+    output += ",\"speed\":";
+    if (!AppendFloat(output, pixel.speed)) return false;
+
+    output += "}";
+    return true;
+}
+
+static bool AppendMatrix(
+    std::string& output,
+    const LedMatrixConfig& matrix
+) {
+    output += "{\"enabled\":";
+    output += matrix.enabled ? "true" : "false";
+
+    output += ",\"columns\":";
+    AppendUInt(output, matrix.columns);
+
+    output += ",\"rows\":";
+    AppendUInt(output, matrix.rows);
+
+    output += ",\"pixels\":[";
+
+    for (size_t i = 0; i < matrix.pixels.size(); ++i) {
+        if (i > 0)
+            output += ",";
+
+        if (!AppendMatrixPixel(output, matrix.pixels[i]))
+            return false;
+    }
+
+    output += "]}";
+    return true;
+}
+
 static bool AppendEffect(
     std::string& output,
     const LedEffectConfig& effect
@@ -936,6 +1051,11 @@ static bool AppendEffect(
     output += ",\"speed\":";
     if (!AppendFloat(output, effect.speed)) return false;
 
+    output += ",\"matrix\":";
+
+    if (!AppendMatrix(output, effect.matrix))
+        return false;
+
     output += "}";
     return true;
 }
@@ -958,20 +1078,17 @@ static bool AppendPlacement(
 
     output += ",\"transform\":";
 
-    if (!AppendTransform(output, placement.transform)) {
+    if (!AppendTransform(output, placement.transform))
         return false;
-    }
 
     output += ",\"effects\":[";
 
     for (size_t i = 0; i < placement.effects.size(); ++i) {
-        if (i > 0) {
+        if (i > 0)
             output += ",";
-        }
 
-        if (!AppendEffect(output, placement.effects[i])) {
+        if (!AppendEffect(output, placement.effects[i]))
             return false;
-        }
     }
 
     output += "]}";
@@ -992,7 +1109,6 @@ static bool AppendSequenceStep(
     AppendUInt(output, step.durationMs);
 
     output += "}";
-
     return true;
 }
 
@@ -1009,13 +1125,11 @@ static bool AppendSequence(
     output += ",\"steps\":[";
 
     for (size_t i = 0; i < sequence.steps.size(); ++i) {
-        if (i > 0) {
+        if (i > 0)
             output += ",";
-        }
 
-        if (!AppendSequenceStep(output, sequence.steps[i])) {
+        if (!AppendSequenceStep(output, sequence.steps[i]))
             return false;
-        }
     }
 
     output += "]}";
@@ -1030,9 +1144,8 @@ bool Serialize(
 ) {
     json.clear();
 
-    if (!ValidateProfileReferences(profile)) {
+    if (!ValidateProfileReferences(profile))
         return false;
-    }
 
     json += "{\"modelId\":";
     AppendInt(json, profile.modelId);
@@ -1043,9 +1156,8 @@ bool Serialize(
     json += ",\"placements\":[";
 
     for (size_t i = 0; i < profile.placements.size(); ++i) {
-        if (i > 0) {
+        if (i > 0)
             json += ",";
-        }
 
         if (!AppendPlacement(json, profile.placements[i])) {
             json.clear();
@@ -1061,9 +1173,8 @@ bool Serialize(
     json += "],\"sequences\":[";
 
     for (size_t i = 0; i < profile.sequences.size(); ++i) {
-        if (i > 0) {
+        if (i > 0)
             json += ",";
-        }
 
         if (!AppendSequence(json, profile.sequences[i])) {
             json.clear();
@@ -1090,9 +1201,8 @@ bool Deserialize(
     const std::string& json,
     VehicleProfile& profile
 ) {
-    if (json.empty() || json.size() > MAX_JSON_SIZE) {
+    if (json.empty() || json.size() > MAX_JSON_SIZE)
         return false;
-    }
 
     JsonParser parser(json);
     JsonValue root;
@@ -1112,16 +1222,14 @@ bool Deserialize(
     const JsonValue* placements = Find(root, "placements");
 
     if (placements != nullptr) {
-        if (placements->type != JsonValue::Array) {
+        if (placements->type != JsonValue::Array)
             return false;
-        }
 
         for (const JsonValue& item : placements->array) {
             LedPlacement placement;
 
-            if (!ReadPlacement(item, placement)) {
+            if (!ReadPlacement(item, placement))
                 return false;
-            }
 
             result.placements.push_back(placement);
         }
@@ -1130,24 +1238,21 @@ bool Deserialize(
     const JsonValue* sequences = Find(root, "sequences");
 
     if (sequences != nullptr) {
-        if (sequences->type != JsonValue::Array) {
+        if (sequences->type != JsonValue::Array)
             return false;
-        }
 
         for (const JsonValue& item : sequences->array) {
             EffectSequence sequence;
 
-            if (!ReadSequence(item, sequence)) {
+            if (!ReadSequence(item, sequence))
                 return false;
-            }
 
             result.sequences.push_back(sequence);
         }
     }
 
-    if (!ValidateProfileReferences(result)) {
+    if (!ValidateProfileReferences(result))
         return false;
-    }
 
     profile = result;
     return true;
