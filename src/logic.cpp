@@ -443,8 +443,7 @@ static void OnVehicleRender(CVehicle* vehicle) {
         g_frameVehicles.push_back(vehicle);
 }
 
-static void OnFrameEnd(bool fromIdle) {
-    (void)fromIdle;
+static void OnRenderEffects() {
 
     if (!g_enabled) {
         g_frameVehicles.clear();
@@ -656,7 +655,7 @@ void Init() {
 
     Events::gameProcessEvent += OnGameProcess;
     Events::vehicleRenderEvent += OnVehicleRender;
-    Events::frameEndEvent += OnFrameEnd;
+    Events::renderEffectsEvent += OnRenderEffects;
 
     logger->Info(
         "VLS callbacks registered."
