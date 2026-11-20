@@ -1,8 +1,9 @@
-
 #include "profile_renderer.h"
+#include "matrix_animation_engine.h"
 
 #include <cmath>
 #include <cstdint>
+#include <vector>
 
 #include <plugin-sdk/game_sa/base/Matrix.h>
 #include <plugin-sdk/game_sa/base/Timer.h>
@@ -31,8 +32,6 @@ public:
         RwRenderStateSet(rwRENDERSTATESRCBLEND, Value(rwBLENDSRCALPHA));
         RwRenderStateSet(rwRENDERSTATEDESTBLEND, Value(rwBLENDINVSRCALPHA));
 
-        // Mode diagnostik: tampilkan LED di atas bodi,
-        // meskipun bidang LED berada di dalam kendaraan.
         RwRenderStateSet(rwRENDERSTATEZTESTENABLE, Value(0));
         RwRenderStateSet(rwRENDERSTATEZWRITEENABLE, Value(0));
         RwRenderStateSet(rwRENDERSTATECULLMODE, Value(rwCULLMODECULLNONE));
@@ -149,6 +148,155 @@ static void SetVertex(
     vertex.v = 0.0f;
 }
 
+static bool RenderMatrixEffect(
+    CVehicle* vehicle,
+    const LedPlacement& placement,
+    const LedEffectConfig& effect
+) {
+    if (vehicle == nullptr || !effect.matrix.enabled)
+        return false;
+
+    CMatrix* matrix = vehicle->GetMatrix();
+    if (matrix == nullptr)
+        return false;
+
+    const uint32_t columns = effect.matrix.columns;
+    const uint32_t rows = effect.matrix.rows;
+
+    if (columns == 0 || rows == 0)
+        return false;
+
+    const uint32_t pixelCount = columns * rows;
+
+    if (pixelCount > 4096)
+        return false;
+
+    const LedTransform& t = placement.transform;
+
+    if (!std::isfinite(t.x) ||
+        !std::isfinite(t.y) ||
+        !std::isfinite(t.z) ||
+        !std::isfinite(t.width) ||
+        !std::isfinite(t.height) ||
+        t.width <= 0.0f ||
+        t.height <= 0.0f)
+        return false;
+
+    const float cellWidth = t.width / static_cast<float>(columns);
+    const float cellHeight = t.height / static_cast<float>(rows);
+
+    const float gapX = cellWidth * 0.12f;
+    const float gapZ = cellHeight * 0.12f;
+
+    const float pixelWidth = cellWidth - gapX;
+    const float pixelHeight = cellHeight - gapZ;
+
+    if (pixelWidth <= 0.0f || pixelHeight <= 0.0f)
+        return false;
+
+    std::vector<RwIm3DVertex> vertices;
+    std::vector<RwImVertexIndex> indices;
+
+    vertices.resize(pixelCount * 4);
+    indices.resize(pixelCount * 6);
+
+    const uint32_t timeMs = CTimer::GetTimeMS();
+
+    for (uint32_t row = 0; row < rows; ++row) {
+        for (uint32_t column = 0; column < columns; ++column) {
+            MatrixPixelOutput output;
+
+            if (!MatrixAnimationEngine::EvaluatePixel(
+                    effect,
+                    static_cast<uint16_t>(column),
+                    static_cast<uint16_t>(row),
+                    timeMs,
+                    output
+                ))
+                return false;
+
+            const uint32_t pixelIndex = row * columns + column;
+            const uint32_t vertexBase = pixelIndex * 4;
+            const uint32_t indexBase = pixelIndex * 6;
+
+            const float left =
+                t.x - t.width * 0.5f +
+                static_cast<float>(column) * cellWidth +
+                gapX * 0.5f;
+
+            const float right = left + pixelWidth;
+
+            const float top =
+                t.z + t.height * 0.5f -
+                static_cast<float>(row) * cellHeight -
+                gapZ * 0.5f;
+
+            const float bottom = top - pixelHeight;
+
+            const uint8_t red =
+                ClampColor(output.red * output.intensity);
+
+            const uint8_t green =
+                ClampColor(output.green * output.intensity);
+
+            const uint8_t blue =
+                ClampColor(output.blue * output.intensity);
+
+            CVector local[4];
+
+            local[0] = {left,  t.y, bottom};
+            local[1] = {right, t.y, bottom};
+            local[2] = {right, t.y, top};
+            local[3] = {left,  t.y, top};
+
+            for (uint32_t v = 0; v < 4; ++v) {
+                CVector world = matrix->TransformPoint(local[v]);
+
+                SetVertex(
+                    vertices[vertexBase + v],
+                    world,
+                    red,
+                    green,
+                    blue
+                );
+            }
+
+            const RwImVertexIndex base =
+                static_cast<RwImVertexIndex>(vertexBase);
+
+            indices[indexBase]     = base;
+            indices[indexBase + 1] = base + 1;
+            indices[indexBase + 2] = base + 2;
+            indices[indexBase + 3] = base;
+            indices[indexBase + 4] = base + 2;
+            indices[indexBase + 5] = base + 3;
+        }
+    }
+
+    RenderStateGuard stateGuard;
+
+    const RwUInt32 flags =
+        rwIM3D_VERTEXXYZ | rwIM3D_VERTEXRGBA;
+
+    if (RwIm3DTransform(
+            vertices.data(),
+            static_cast<RwUInt32>(vertices.size()),
+            nullptr,
+            flags
+        ) == nullptr)
+        return false;
+
+    const bool rendered = RwIm3DRenderIndexedPrimitive(
+        rwPRIMTYPETRILIST,
+        indices.data(),
+        static_cast<RwUInt32>(indices.size())
+    );
+
+    RwIm3DEnd();
+
+    return rendered;
+}
+
 static bool RenderEffect(
     CVehicle* vehicle,
     const LedPlacement& placement,
@@ -156,6 +304,9 @@ static bool RenderEffect(
 ) {
     if (vehicle == nullptr || !effect.enabled)
         return false;
+
+    if (effect.matrix.enabled)
+        return RenderMatrixEffect(vehicle, placement, effect);
 
     CMatrix* matrix = vehicle->GetMatrix();
     if (matrix == nullptr)
@@ -270,9 +421,6 @@ static bool RenderEffect(
         const float right =
             left + segmentWidth * 0.88f;
 
-        // Bidang LED sekarang XZ, bukan XY.
-        // X = lebar kendaraan, Z = tinggi kendaraan,
-        // Y = posisi depan/belakang kendaraan.
         CVector local[4];
 
         local[0] = {left,  t.y, t.z - halfHeight};
