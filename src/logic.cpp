@@ -1,4 +1,3 @@
-
 #include "logic.h"
 
 #include "vehicle_manager.h"
@@ -6,6 +5,7 @@
 #include "profile_storage.h"
 #include "profile_sequence_runtime.h"
 #include "profile_renderer.h"
+#include "vehicle_geometry_reader.h"
 #include "animation_controller.h"
 #include "vehicle_profile.h"
 
@@ -54,6 +54,16 @@ static std::vector<CVehicle*> g_frameVehicles;
 static std::unordered_set<CVehicle*> g_frameVehicleSet;
 
 static constexpr uint32_t MAX_MATRIX_PIXELS = 4096;
+
+
+// ---------------------------------------------------------
+// Vehicle geometry scan state
+// ---------------------------------------------------------
+
+static CVehicle* g_geometryScanVehicle = nullptr;
+static int g_geometryScanModelId = -1;
+static uint32_t g_nextGeometryScanTimeMs = 0;
+static bool g_geometryScanSucceeded = false;
 
 
 // ---------------------------------------------------------
@@ -974,6 +984,68 @@ static void OnRenderEffects() {
 
 
 // ---------------------------------------------------------
+// Vehicle geometry scan
+// ---------------------------------------------------------
+
+static void ResetVehicleGeometryScan() {
+    g_geometryScanVehicle = nullptr;
+    g_geometryScanModelId = -1;
+    g_nextGeometryScanTimeMs = 0;
+    g_geometryScanSucceeded = false;
+}
+
+static void UpdateVehicleGeometryScan() {
+    CVehicle* vehicle =
+        g_vehicleManager.GetCurrentVehicle();
+
+    const int modelId =
+        g_vehicleManager.GetCurrentModelId();
+
+    if (vehicle == nullptr ||
+        !IsVehiclePointerValid(vehicle) ||
+        modelId < 0) {
+
+        ResetVehicleGeometryScan();
+        return;
+    }
+
+    // Kendaraan atau model berubah: mulai scan baru.
+    if (vehicle != g_geometryScanVehicle ||
+        modelId != g_geometryScanModelId) {
+
+        g_geometryScanVehicle = vehicle;
+        g_geometryScanModelId = modelId;
+        g_geometryScanSucceeded = false;
+        g_nextGeometryScanTimeMs = 0;
+    }
+
+    if (g_geometryScanSucceeded)
+        return;
+
+    const uint32_t nowMs = CTimer::GetTimeMS();
+
+    // Perbandingan ini aman terhadap rollover timer uint32_t.
+    if (static_cast<int32_t>(
+            nowMs - g_nextGeometryScanTimeMs
+        ) < 0) {
+        return;
+    }
+
+    // Jika clump belum tersedia, coba lagi setelah 2 detik.
+    g_nextGeometryScanTimeMs = nowMs + 2000;
+
+    VLS::GeometryScanStats stats;
+
+    g_geometryScanSucceeded =
+        VLS::VehicleGeometryReader::Scan(
+            vehicle,
+            modelId,
+            stats
+        );
+}
+
+
+// ---------------------------------------------------------
 // Sequence runtime
 // ---------------------------------------------------------
 
@@ -1039,6 +1111,9 @@ static void OnGameProcess() {
     g_frameVehicleSet.clear();
 
     g_vehicleManager.Update();
+
+    // Scan geometri kendaraan pemain.
+    UpdateVehicleGeometryScan();
 
     ProcessPendingProfileLoads();
 
@@ -1171,6 +1246,7 @@ void Shutdown() {
     );
 
     ResetAnimationRuntime();
+    ResetVehicleGeometryScan();
 
     if (g_profileManager.SaveAll()) {
         logger->Info(
