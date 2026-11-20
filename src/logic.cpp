@@ -18,6 +18,7 @@
 #include <unordered_set>
 #include <vector>
 #include <cstdint>
+#include <cstddef>
 
 namespace Logic {
 
@@ -27,6 +28,8 @@ static bool g_imguiInitialized = false;
 
 static int g_brightness = 100;
 static float g_animationSpeed = 1.0f;
+
+static int g_selectedPixel = 0;
 
 static VLS::VehicleManager g_vehicleManager;
 static VLS::VehicleProfileManager g_profileManager;
@@ -42,6 +45,8 @@ static std::unordered_set<int> g_pendingProfileLoads;
 
 static std::vector<CVehicle*> g_frameVehicles;
 static std::unordered_set<CVehicle*> g_frameVehicleSet;
+
+static constexpr uint32_t MAX_MATRIX_PIXELS = 4096;
 
 
 // ---------------------------------------------------------
@@ -90,15 +95,14 @@ static VLS::VehicleProfile* EnsureEditorProfile(int modelId) {
     VLS::VehicleProfile* profile =
         g_profileManager.Find(modelId);
 
-    if (profile == nullptr) {
+    if (profile == nullptr)
         profile = &g_profileManager.GetOrCreate(modelId);
-    }
 
     if (profile->placements.empty()) {
         VLS::LedPlacement placement;
 
         placement.id = 1;
-        placement.zone = VLS::LedZone::ExteriorBody;
+        placement.zone = VLS::LedZone::Windshield;
 
         placement.transform.x = 0.0f;
         placement.transform.y = 0.0f;
@@ -137,9 +141,11 @@ static VLS::VehicleProfile* EnsureEditorProfile(int modelId) {
 
         effect.type = VLS::LedEffectType::RunningLED;
         effect.enabled = true;
+
         effect.red = 0;
         effect.green = 180;
         effect.blue = 255;
+
         effect.brightness = 1.0f;
         effect.speed = 1.0f;
 
@@ -152,7 +158,52 @@ static VLS::VehicleProfile* EnsureEditorProfile(int modelId) {
 
 
 // ---------------------------------------------------------
-// ImGui pattern definitions
+// Matrix helpers
+// ---------------------------------------------------------
+
+static bool SyncMatrixPixels(
+    VLS::LedEffectConfig& effect
+) {
+    VLS::LedMatrixConfig& matrix = effect.matrix;
+
+    if (matrix.columns == 0 || matrix.rows == 0)
+        return false;
+
+    uint32_t count =
+        static_cast<uint32_t>(matrix.columns) *
+        static_cast<uint32_t>(matrix.rows);
+
+    if (count == 0 || count > MAX_MATRIX_PIXELS)
+        return false;
+
+    const size_t oldSize = matrix.pixels.size();
+
+    if (oldSize == count)
+        return true;
+
+    matrix.pixels.resize(count);
+
+    for (size_t i = oldSize; i < matrix.pixels.size(); ++i) {
+        VLS::LedMatrixPixel& pixel = matrix.pixels[i];
+
+        pixel.enabled = true;
+        pixel.direction = VLS::LedDirection::LeftToRight;
+        pixel.customAngle = 0.0f;
+
+        pixel.red = effect.red;
+        pixel.green = effect.green;
+        pixel.blue = effect.blue;
+
+        pixel.brightness = 1.0f;
+        pixel.speed = 1.0f;
+    }
+
+    return true;
+}
+
+
+// ---------------------------------------------------------
+// ImGui definitions
 // ---------------------------------------------------------
 
 static const char* g_patternNames[] = {
@@ -169,9 +220,59 @@ static const VLS::LedEffectType g_patternTypes[] = {
     VLS::LedEffectType::StroboEyes
 };
 
+static const char* g_zoneNames[] = {
+    "Windshield",
+    "Exterior Body",
+    "Headlight",
+    "Taillight",
+    "Interior"
+};
+
+static const VLS::LedZone g_zoneTypes[] = {
+    VLS::LedZone::Windshield,
+    VLS::LedZone::ExteriorBody,
+    VLS::LedZone::Headlight,
+    VLS::LedZone::Taillight,
+    VLS::LedZone::Interior
+};
+
+static const char* g_directionNames[] = {
+    "Left to Right",
+    "Right to Left",
+    "Top to Bottom",
+    "Bottom to Top",
+    "Custom Angle"
+};
+
+static const VLS::LedDirection g_directionTypes[] = {
+    VLS::LedDirection::LeftToRight,
+    VLS::LedDirection::RightToLeft,
+    VLS::LedDirection::TopToBottom,
+    VLS::LedDirection::BottomToTop,
+    VLS::LedDirection::CustomAngle
+};
+
 static int GetPatternIndex(VLS::LedEffectType type) {
     for (int i = 0; i < 4; ++i) {
         if (g_patternTypes[i] == type)
+            return i;
+    }
+
+    return 0;
+}
+
+static int GetZoneIndex(VLS::LedZone zone) {
+    for (int i = 0; i < 5; ++i) {
+        if (g_zoneTypes[i] == zone)
+            return i;
+    }
+
+    return 0;
+}
+
+static int GetDirectionIndex(VLS::LedDirection direction) {
+    for (int i = 0; i < 5; ++i) {
+        if (g_directionTypes[i] == direction)
             return i;
     }
 
@@ -185,7 +286,6 @@ static int GetPatternIndex(VLS::LedEffectType type) {
 
 static void RenderEditor() {
 
-    // Launcher selalu ditampilkan meskipun panel ditutup.
     ImGui::SetNextWindowPos(
         ImVec2(20.0f, 100.0f),
         ImGuiCond_FirstUseEver
@@ -279,7 +379,29 @@ static void RenderEditor() {
 
     bool changed = false;
 
+    // -----------------------------------------------------
+    // LED Zone
+    // -----------------------------------------------------
+
+    ImGui::Separator();
+    ImGui::Text("LED Zone");
+
+    int zoneIndex = GetZoneIndex(placement.zone);
+
+    if (ImGui::Combo(
+            "Placement Zone",
+            &zoneIndex,
+            g_zoneNames,
+            5
+        )) {
+        placement.zone = g_zoneTypes[zoneIndex];
+        changed = true;
+    }
+
+    // -----------------------------------------------------
     // Placement
+    // -----------------------------------------------------
+
     ImGui::Separator();
     ImGui::Text("LED Placement");
 
@@ -318,7 +440,10 @@ static void RenderEditor() {
         1.0f
     );
 
+    // -----------------------------------------------------
     // Effect
+    // -----------------------------------------------------
+
     ImGui::Separator();
     ImGui::Text("LED Effect");
 
@@ -364,11 +489,201 @@ static void RenderEditor() {
         changed = true;
     }
 
-    // Mark profile dirty only when values change.
+    // -----------------------------------------------------
+    // Matrix Configuration
+    // -----------------------------------------------------
+
+    ImGui::Separator();
+    ImGui::Text("LED Matrix");
+
+    changed |= ImGui::Checkbox(
+        "Matrix Enabled",
+        &effect.matrix.enabled
+    );
+
+    if (effect.matrix.enabled) {
+
+        int columns = effect.matrix.columns;
+        int rows = effect.matrix.rows;
+
+        bool dimensionsChanged = false;
+
+        if (ImGui::SliderInt(
+                "Matrix Columns",
+                &columns,
+                1,
+                64
+            )) {
+            dimensionsChanged = true;
+        }
+
+        if (ImGui::SliderInt(
+                "Matrix Rows",
+                &rows,
+                1,
+                64
+            )) {
+            dimensionsChanged = true;
+        }
+
+        if (dimensionsChanged) {
+            if (columns < 1) columns = 1;
+            if (rows < 1) rows = 1;
+
+            if (columns * rows >
+                static_cast<int>(MAX_MATRIX_PIXELS)) {
+                rows =
+                    static_cast<int>(MAX_MATRIX_PIXELS) /
+                    columns;
+
+                if (rows < 1)
+                    rows = 1;
+            }
+
+            effect.matrix.columns =
+                static_cast<uint16_t>(columns);
+
+            effect.matrix.rows =
+                static_cast<uint16_t>(rows);
+
+            if (SyncMatrixPixels(effect)) {
+                g_selectedPixel = 0;
+                changed = true;
+            }
+        }
+
+        if (SyncMatrixPixels(effect)) {
+
+            const int pixelCount =
+                static_cast<int>(effect.matrix.pixels.size());
+
+            ImGui::Text(
+                "Total Matrix Pixels: %d",
+                pixelCount
+            );
+
+            if (g_selectedPixel >= pixelCount)
+                g_selectedPixel = pixelCount - 1;
+
+            if (g_selectedPixel < 0)
+                g_selectedPixel = 0;
+
+            ImGui::Separator();
+            ImGui::Text("Individual Pixel Editor");
+
+            ImGui::SliderInt(
+                "Selected Pixel",
+                &g_selectedPixel,
+                0,
+                pixelCount - 1
+            );
+
+            const int pixelColumn =
+                g_selectedPixel %
+                effect.matrix.columns;
+
+            const int pixelRow =
+                g_selectedPixel /
+                effect.matrix.columns;
+
+            ImGui::Text(
+                "Pixel: %d | Column: %d | Row: %d",
+                g_selectedPixel,
+                pixelColumn,
+                pixelRow
+            );
+
+            VLS::LedMatrixPixel& pixel =
+                effect.matrix.pixels[g_selectedPixel];
+
+            changed |= ImGui::Checkbox(
+                "Pixel Enabled",
+                &pixel.enabled
+            );
+
+            int directionIndex =
+                GetDirectionIndex(pixel.direction);
+
+            if (ImGui::Combo(
+                    "Pixel Direction",
+                    &directionIndex,
+                    g_directionNames,
+                    5
+                )) {
+                pixel.direction =
+                    g_directionTypes[directionIndex];
+
+                changed = true;
+            }
+
+            if (pixel.direction ==
+                VLS::LedDirection::CustomAngle) {
+
+                changed |= ImGui::SliderFloat(
+                    "Custom Angle",
+                    &pixel.customAngle,
+                    0.0f,
+                    360.0f
+                );
+            }
+
+            float pixelColor[3] = {
+                pixel.red / 255.0f,
+                pixel.green / 255.0f,
+                pixel.blue / 255.0f
+            };
+
+            if (ImGui::ColorEdit3(
+                    "Pixel Color",
+                    pixelColor
+                )) {
+                pixel.red = static_cast<uint8_t>(
+                    pixelColor[0] * 255.0f
+                );
+
+                pixel.green = static_cast<uint8_t>(
+                    pixelColor[1] * 255.0f
+                );
+
+                pixel.blue = static_cast<uint8_t>(
+                    pixelColor[2] * 255.0f
+                );
+
+                changed = true;
+            }
+
+            changed |= ImGui::SliderFloat(
+                "Pixel Brightness",
+                &pixel.brightness,
+                0.0f,
+                1.0f
+            );
+
+            changed |= ImGui::SliderFloat(
+                "Pixel Speed",
+                &pixel.speed,
+                0.1f,
+                10.0f
+            );
+
+        } else {
+            ImGui::Text(
+                "Invalid matrix configuration."
+            );
+        }
+    }
+
+    // -----------------------------------------------------
+    // Dirty state
+    // -----------------------------------------------------
+
     if (changed)
         g_profileManager.MarkDirty(modelId);
 
+    // -----------------------------------------------------
     // Save
+    // -----------------------------------------------------
+
     ImGui::Separator();
 
     if (ImGui::Button(
