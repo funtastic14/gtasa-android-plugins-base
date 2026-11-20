@@ -15,6 +15,7 @@
 #include <plugin-sdk/game_sa/entity/PlayerPed.h>
 
 #include <unordered_set>
+#include <vector>
 
 namespace Logic {
 
@@ -40,6 +41,10 @@ static std::unordered_set<int> g_profileLoadAttempted;
 
 // Model yang menunggu proses pemuatan profil.
 static std::unordered_set<int> g_pendingProfileLoads;
+
+// Kendaraan yang akan dirender setelah proses render kendaraan selesai.
+static std::vector<CVehicle*> g_frameVehicles;
+static std::unordered_set<CVehicle*> g_frameVehicleSet;
 
 static void ResetSequenceRuntime() {
     g_sequenceRuntime.Stop();
@@ -83,6 +88,7 @@ static void ProcessPendingProfileLoads() {
 }
 
 // Dipanggil sebelum CVehicle::Render().
+// Callback ini hanya mencatat kendaraan, bukan menggambar LED.
 static void OnVehicleRender(CVehicle* vehicle) {
     if (!g_enabled || vehicle == nullptr) {
         return;
@@ -106,20 +112,50 @@ static void OnVehicleRender(CVehicle* vehicle) {
         g_pendingProfileLoads.insert(modelId);
     }
 
-    const VLS::VehicleProfile& profile =
-        g_profileManager.GetProfileOrDefault(modelId);
+    // Hindari kendaraan yang sama masuk lebih dari sekali.
+    if (g_frameVehicleSet.insert(vehicle).second) {
+        g_frameVehicles.push_back(vehicle);
+    }
+}
 
-    if (!profile.enabled) {
+// Dipanggil pada akhir frame.
+// Rendering LED dilakukan setelah callback render kendaraan.
+static void OnFrameEnd(bool fromIdle) {
+    (void)fromIdle;
+
+    if (!g_enabled) {
+        g_frameVehicles.clear();
+        g_frameVehicleSet.clear();
         return;
     }
 
-    const uint32_t rendered =
+    for (CVehicle* vehicle : g_frameVehicles) {
+        if (vehicle == nullptr ||
+            !IsVehiclePointerValid(vehicle)) {
+            continue;
+        }
+
+        const int modelId = vehicle->m_nModelIndex;
+
+        if (modelId < 0) {
+            continue;
+        }
+
+        const VLS::VehicleProfile& profile =
+            g_profileManager.GetProfileOrDefault(modelId);
+
+        if (!profile.enabled) {
+            continue;
+        }
+
         VLS::ProfileRenderer::RenderVehicleProfile(
             vehicle,
             profile
         );
+    }
 
-    (void)rendered;
+    g_frameVehicles.clear();
+    g_frameVehicleSet.clear();
 }
 
 static void UpdateSequenceRuntime() {
@@ -181,6 +217,10 @@ static void OnGameProcess() {
     if (!g_enabled) {
         return;
     }
+
+    // Bersihkan sisa daftar dari siklus sebelumnya.
+    g_frameVehicles.clear();
+    g_frameVehicleSet.clear();
 
     g_vehicleManager.Update();
 
@@ -309,9 +349,10 @@ void Init() {
     if (g_enabled) {
         Events::gameProcessEvent += OnGameProcess;
         Events::vehicleRenderEvent += OnVehicleRender;
+        Events::frameEndEvent += OnFrameEnd;
 
         logger->Info(
-            "Vehicle render callback registered."
+            "Vehicle render and frame-end callbacks registered."
         );
     }
 
@@ -336,6 +377,9 @@ void Shutdown() {
     }
 
     g_currentProfile = nullptr;
+
+    g_frameVehicles.clear();
+    g_frameVehicleSet.clear();
 
     g_pendingProfileLoads.clear();
     g_profileLoadAttempted.clear();
