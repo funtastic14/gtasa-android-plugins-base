@@ -15,6 +15,7 @@ LOCAL_SRC_FILES := main.cpp \
     src/profile_renderer.cpp \
     src/matrix_animation_engine.cpp \
     src/pattern_registry.cpp \
+    src/animation_controller.cpp \
     src/profile_sequence_manager.cpp \
     src/profile_sequence_runtime.cpp \
     src/profile_storage.cpp \
