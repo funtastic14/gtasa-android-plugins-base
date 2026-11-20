@@ -6,6 +6,7 @@
 #include "profile_storage.h"
 #include "profile_sequence_runtime.h"
 #include "profile_renderer.h"
+#include "animation_controller.h"
 #include "vehicle_profile.h"
 
 #include <mod/config.h>
@@ -34,6 +35,12 @@ static int g_selectedPixel = 0;
 static VLS::VehicleManager g_vehicleManager;
 static VLS::VehicleProfileManager g_profileManager;
 static VLS::ProfileSequenceRuntime g_sequenceRuntime;
+static VLS::AnimationController g_animationController;
+
+static VLS::AnimationMode g_animationMode =
+    VLS::AnimationMode::Manual;
+
+static uint32_t g_animationIntervalMs = 3000;
 
 static const VLS::VehicleProfile* g_currentProfile = nullptr;
 
@@ -56,6 +63,12 @@ static constexpr uint32_t MAX_MATRIX_PIXELS = 4096;
 static void ResetSequenceRuntime() {
     g_sequenceRuntime.Stop();
     g_sequenceSelectionAttempted = false;
+}
+
+static void ResetAnimationRuntime() {
+    ResetSequenceRuntime();
+    g_animationController.Reset();
+    g_animationController.SetMode(g_animationMode);
 }
 
 static void EnsureProfileLoaded(int modelId) {
@@ -252,6 +265,22 @@ static const VLS::LedDirection g_directionTypes[] = {
     VLS::LedDirection::CustomAngle
 };
 
+static const char* g_animationModeNames[] = {
+    "Manual",
+    "Automatic",
+    "Random",
+    "Sequential",
+    "Custom"
+};
+
+static const VLS::AnimationMode g_animationModeTypes[] = {
+    VLS::AnimationMode::Manual,
+    VLS::AnimationMode::Automatic,
+    VLS::AnimationMode::Random,
+    VLS::AnimationMode::Sequential,
+    VLS::AnimationMode::Custom
+};
+
 static int GetPatternIndex(VLS::LedEffectType type) {
     for (int i = 0; i < 4; ++i) {
         if (g_patternTypes[i] == type)
@@ -277,6 +306,56 @@ static int GetDirectionIndex(VLS::LedDirection direction) {
     }
 
     return 0;
+}
+
+static int GetAnimationModeIndex(VLS::AnimationMode mode) {
+    for (int i = 0; i < 5; ++i) {
+        if (g_animationModeTypes[i] == mode)
+            return i;
+    }
+
+    return 0;
+}
+
+
+// ---------------------------------------------------------
+// Animation controller helpers
+// ---------------------------------------------------------
+
+static void SetAnimationMode(VLS::AnimationMode mode) {
+    if (g_animationMode == mode)
+        return;
+
+    g_animationMode = mode;
+
+    g_animationController.SetMode(mode);
+    g_animationController.SetIntervalMs(
+        g_animationIntervalMs
+    );
+
+    ResetSequenceRuntime();
+
+    logger->Info(
+        "VLS animation mode changed: %d",
+        static_cast<int>(mode)
+    );
+}
+
+static void UpdateAnimationController() {
+    if (g_currentProfile == nullptr)
+        return;
+
+    if (g_animationMode == VLS::AnimationMode::Custom)
+        return;
+
+    g_animationController.SetIntervalMs(
+        g_animationIntervalMs
+    );
+
+    g_animationController.Update(
+        *g_currentProfile,
+        CTimer::GetTimeMS()
+    );
 }
 
 
@@ -378,6 +457,70 @@ static void RenderEditor() {
         placement.effects[0];
 
     bool changed = false;
+
+    // -----------------------------------------------------
+    // Animation Controller
+    // -----------------------------------------------------
+
+    ImGui::Separator();
+    ImGui::Text("Animation Controller");
+
+    int modeIndex =
+        GetAnimationModeIndex(g_animationMode);
+
+    if (ImGui::Combo(
+            "Animation Mode",
+            &modeIndex,
+            g_animationModeNames,
+            5
+        )) {
+        SetAnimationMode(
+            g_animationModeTypes[modeIndex]
+        );
+    }
+
+    int interval = static_cast<int>(
+        g_animationIntervalMs
+    );
+
+    if (ImGui::SliderInt(
+            "Switch Interval (ms)",
+            &interval,
+            100,
+            30000
+        )) {
+        g_animationIntervalMs =
+            static_cast<uint32_t>(interval);
+
+        g_animationController.SetIntervalMs(
+            g_animationIntervalMs
+        );
+    }
+
+    if (g_animationMode ==
+        VLS::AnimationMode::Custom) {
+        ImGui::Text(
+            "Custom mode uses the profile sequence."
+        );
+    } else if (g_animationMode ==
+               VLS::AnimationMode::Manual) {
+        ImGui::Text(
+            "Manual mode uses the selected editor effect."
+        );
+    } else {
+        ImGui::Text(
+            "Controller selects compatible enabled effects."
+        );
+    }
+
+    // -----------------------------------------------------
+    // Manual selection
+    // -----------------------------------------------------
+
+    g_animationController.SetManualSelection(
+        placement.id,
+        0
+    );
 
     // -----------------------------------------------------
     // LED Zone
@@ -791,10 +934,36 @@ static void OnRenderEffects() {
                 if (!IsVehiclePointerValid(vehicle))
                     continue;
 
-                VLS::ProfileRenderer::RenderVehicleProfile(
-                    vehicle,
-                    *profile
-                );
+                if (g_animationMode ==
+                    VLS::AnimationMode::Custom) {
+
+                    const VLS::EffectSequenceStep* step =
+                        g_sequenceRuntime.GetCurrentStep(
+                            *profile
+                        );
+
+                    if (step != nullptr) {
+                        VLS::ProfileRenderer::RenderSelectedEffect(
+                            vehicle,
+                            *profile,
+                            step->placementId,
+                            step->effectIndex
+                        );
+                    }
+
+                } else {
+                    const VLS::AnimationSelection& selection =
+                        g_animationController.GetSelection();
+
+                    if (selection.valid) {
+                        VLS::ProfileRenderer::RenderSelectedEffect(
+                            vehicle,
+                            *profile,
+                            selection.placementId,
+                            selection.effectIndex
+                        );
+                    }
+                }
             }
         }
     }
@@ -811,6 +980,14 @@ static void OnRenderEffects() {
 static void UpdateSequenceRuntime() {
     if (g_currentProfile == nullptr)
         return;
+
+    if (g_animationMode != VLS::AnimationMode::Custom) {
+        if (g_sequenceRuntime.IsRunning())
+            g_sequenceRuntime.Stop();
+
+        g_sequenceSelectionAttempted = false;
+        return;
+    }
 
     const uint32_t nowMs = CTimer::GetTimeMS();
 
@@ -844,7 +1021,7 @@ static void UpdateSequenceRuntime() {
                 nowMs
             )) {
             logger->Info(
-                "Vehicle sequence started: Index %u",
+                "Vehicle custom sequence started: Index %u",
                 static_cast<unsigned int>(i)
             );
             return;
@@ -871,7 +1048,7 @@ static void OnGameProcess() {
     if (modelId != g_lastLoggedModelId) {
         g_lastLoggedModelId = modelId;
 
-        ResetSequenceRuntime();
+        ResetAnimationRuntime();
 
         if (modelId < 0) {
             g_currentProfile = nullptr;
@@ -896,6 +1073,7 @@ static void OnGameProcess() {
 
     g_currentProfile = &profile;
 
+    UpdateAnimationController();
     UpdateSequenceRuntime();
 }
 
@@ -938,6 +1116,11 @@ void Init() {
 
     if (g_animationSpeed > 10.0f)
         g_animationSpeed = 10.0f;
+
+    g_animationController.SetMode(g_animationMode);
+    g_animationController.SetIntervalMs(
+        g_animationIntervalMs
+    );
 
     if (!VLS::ProfileStorage::Init()) {
         logger->Info(
@@ -987,7 +1170,7 @@ void Shutdown() {
         "Saving Vehicle LED System profiles..."
     );
 
-    ResetSequenceRuntime();
+    ResetAnimationRuntime();
 
     if (g_profileManager.SaveAll()) {
         logger->Info(
