@@ -1,3 +1,4 @@
+
 #include "logic.h"
 
 #include "vehicle_manager.h"
@@ -988,6 +989,9 @@ static void OnRenderEffects() {
 // ---------------------------------------------------------
 
 static void ResetVehicleGeometryScan() {
+    // Lepaskan mesh kendaraan sebelumnya.
+    VLS::VehicleGeometryReader::Clear();
+
     g_geometryScanVehicle = nullptr;
     g_geometryScanModelId = -1;
     g_nextGeometryScanTimeMs = 0;
@@ -1009,9 +1013,12 @@ static void UpdateVehicleGeometryScan() {
         return;
     }
 
-    // Kendaraan atau model berubah: mulai scan baru.
+    // Kendaraan atau model berubah: lepaskan cache lama
+    // sebelum memulai pemindaian kendaraan yang baru.
     if (vehicle != g_geometryScanVehicle ||
         modelId != g_geometryScanModelId) {
+
+        VLS::VehicleGeometryReader::Clear();
 
         g_geometryScanVehicle = vehicle;
         g_geometryScanModelId = modelId;
