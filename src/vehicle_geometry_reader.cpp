@@ -85,8 +85,6 @@ struct FrameScanContext {
 };
 
 static int g_lastSavedModelId = -2147483647;
-
-// Cache hanya menyimpan mesh kendaraan yang sedang aktif.
 static std::vector<AtomicMesh> g_cachedMeshes;
 
 static bool IsFiniteVertex(const RwV3d& vertex) {
@@ -311,6 +309,8 @@ static RpAtomic* ScanAtomic(RpAtomic* atomic, void* data) {
                 ++stats.skippedNoValidTriangleCount;
             }
             else {
+                // CACHE STATISTICS FIX:
+                // Hitung hanya sekali, saat mesh berhasil disalin.
                 ++stats.cachedMeshCount;
 
                 stats.cachedVertexCount +=
@@ -331,8 +331,6 @@ static RpAtomic* ScanAtomic(RpAtomic* atomic, void* data) {
     return atomic;
 }
 
-// Membaca hierarki frame secara read-only.
-// Setiap frame hanya diproses satu kali untuk menghindari siklus.
 static void ScanFrameBranch(
     RwFrame* firstFrame,
     uint32_t depth,
@@ -358,10 +356,8 @@ static void ScanFrameBranch(
             return;
         }
 
-        if (!context.visited.insert(frame).second) {
-            // Frame sudah visited: berhenti untuk mencegah sibling cycle.
+        if (!context.visited.insert(frame).second)
             break;
-        }
 
         FrameInfo info;
 
@@ -379,7 +375,6 @@ static void ScanFrameBranch(
                 ? nodeName
                 : "<unnamed>";
 
-        // Salin matriks. Tidak memodifikasi frame atau matriks asli.
         const RwMatrix& modelling = frame->modelling;
         const RwMatrix& ltm = frame->ltm;
 
@@ -392,7 +387,6 @@ static void ScanFrameBranch(
 
         context.frames->push_back(info);
 
-        // Telusuri anak sebelum melanjutkan sibling.
         if (frame->child != nullptr) {
             ScanFrameBranch(
                 frame->child,
@@ -512,9 +506,8 @@ static std::string BuildDiagnosticReport(
 
     std::unordered_map<RwFrame*, uint32_t> frameIndices;
 
-    for (const FrameInfo& info : frames) {
+    for (const FrameInfo& info : frames)
         frameIndices[info.frame] = info.index;
-    }
 
     std::unordered_map<
         RwFrame*,
@@ -694,7 +687,6 @@ static std::string BuildDiagnosticReport(
 
     std::string result = report.str();
 
-    // Pastikan laporan tidak melewati batas ProfileStorage (256 KB).
     if (result.size() > MAX_DIAGNOSTIC_OUTPUT) {
         result.resize(MAX_DIAGNOSTIC_OUTPUT);
 
@@ -800,7 +792,6 @@ bool VehicleGeometryReader::Scan(
         &atomicContext
     );
 
-    // Baca root frame kendaraan dari clump.
     RwFrame* rootFrame = RpClumpGetFrame(clump);
 
     FrameScanContext frameContext;
@@ -883,16 +874,10 @@ bool VehicleGeometryReader::Scan(
         );
     }
 
-    // Salin hasil scan ke statistik cache.
-    // Nilai ini dihitung saat mesh benar-benar berhasil disalin.
-    for (const AtomicMesh& mesh : meshes) {
-        stats.cachedVertexCount +=
-            static_cast<uint64_t>(mesh.vertices.size());
-
-        stats.cachedTriangleCount +=
-            static_cast<uint64_t>(mesh.triangles.size());
-    }
-
+    // CACHE STATISTICS FIX:
+    // Jangan menjumlahkan vertex dan triangle di sini lagi.
+    // ScanAtomic() sudah menghitungnya tepat saat mesh berhasil disalin.
+    // Hanya sinkronkan jumlah mesh dengan ukuran vector hasil scan.
     stats.cachedMeshCount =
         static_cast<uint32_t>(meshes.size());
 
