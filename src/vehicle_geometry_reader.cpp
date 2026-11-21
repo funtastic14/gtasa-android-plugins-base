@@ -473,13 +473,6 @@ static bool TransformMeshVertexToVehicle(
     result.z = RwV3dDotProduct(delta, t.inverseRowZ);
     return IsFiniteVertex(result);
 }
-static bool GlassName(const std::string& s) {
- std::string n=s; for(char& c:n) if(c>='A'&&c<='Z') c=char(c-'A'+'a');
- return n.find("glass")!=std::string::npos||n.find("alpha")!=std::string::npos||
- n.find("kaca")!=std::string::npos||n.find("windscreen")!=std::string::npos||
- n.find("windshield")!=std::string::npos||n.find("screen")!=std::string::npos||
- n.find("vetr")!=std::string::npos;
-}
 static void GlassParts(const AtomicMesh& mesh,const std::vector<RwV3d>& p,std::vector<GlassPart>& out) {
  size_t n=mesh.triangles.size(); if(!n||n>100000)return;
  std::vector<uint32_t> parent(n); for(uint32_t i=0;i<n;++i)parent[i]=i;
@@ -833,11 +826,11 @@ static std::string BuildDiagnosticReport(
                << info.dominantNormalZCount << "\n";
     }
     report << "\n----------------------------------------\n";
-    report << "\\n----------------------------------------\\n";
-    report << "SURFACE COMPONENT CANDIDATES (ALL FRAMES)\\n";
-    report << "Shared-vertex connected groups from every readable atomic.\\n";
-    report << "Candidates are ranked by area only; geometry/name/position still require review.\\n";
-    report << "----------------------------------------\\n";
+    report << "\n----------------------------------------\n";
+    report << "SURFACE COMPONENT CANDIDATES (ALL FRAMES)\n";
+    report << "Shared-vertex connected groups from every readable atomic.\n";
+    report << "Candidates are ranked by area only; geometry/name/position still require review.\n";
+    report << "----------------------------------------\n";
 
     struct SurfaceCandidateRef {
         const AtomicGeometryInfo* atomic;
@@ -874,7 +867,7 @@ static std::string BuildDiagnosticReport(
 
     const size_t candidateLimit = candidates.size() < 48 ? candidates.size() : 48;
     report << "Candidate Count: " << candidates.size()
-           << " | Displayed: " << candidateLimit << "\\n";
+           << " | Displayed: " << candidateLimit << "\n";
 
     for (size_t i = 0; i < candidateLimit; ++i) {
         const AtomicGeometryInfo& info = *candidates[i].atomic;
@@ -885,19 +878,19 @@ static std::string BuildDiagnosticReport(
                << " | Frame: " << info.frameName
                << " | Triangles: " << part.triangles
                << " | Vertices: " << part.vertices
-               << " | Area: " << part.area << "\\n"
+               << " | Area: " << part.area << "\n"
                << "  Bounds X[" << part.minX << "," << part.maxX
                << "] Y[" << part.minY << "," << part.maxY
-               << "] Z[" << part.minZ << "," << part.maxZ << "]\\n"
+               << "] Z[" << part.minZ << "," << part.maxZ << "]\n"
                << "  Centroid X=" << part.cx
                << " Y=" << part.cy
                << " Z=" << part.cz
                << " | Normal X=" << part.nx
                << " Y=" << part.ny
-               << " Z=" << part.nz << "\\n";
+               << " Z=" << part.nz << "\n";
     }
 
-    report << "----------------------------------------\\n";
+    report << "----------------------------------------\n";
     report << "PER-ATOMIC LOCAL GEOMETRY BOUNDS\n";
     report << "Coordinates are geometry-local, not vehicle/world coordinates.\n";
     report << "----------------------------------------\n";
