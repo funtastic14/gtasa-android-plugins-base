@@ -561,22 +561,22 @@ static void RenderEditor() {
     changed |= ImGui::SliderFloat(
         "Position X",
         &placement.transform.x,
-        -3.0f,
-        3.0f
+        -10.0f,
+        10.0f
     );
 
     changed |= ImGui::SliderFloat(
         "Position Y",
         &placement.transform.y,
-        -3.0f,
-        3.0f
+        -10.0f,
+        10.0f
     );
 
     changed |= ImGui::SliderFloat(
         "Position Z",
         &placement.transform.z,
-        -1.0f,
-        3.0f
+        -10.0f,
+        10.0f
     );
 
     changed |= ImGui::SliderFloat(
