@@ -420,7 +420,7 @@ static void WriteVector(
 static RwV3d CrossProduct(const RwV3d& a, const RwV3d& b) {
     return RwV3d{a.y*b.z-a.z*b.y, a.z*b.x-a.x*b.z, a.x*b.y-a.y*b.x};
 }
-static float DotProduct(const RwV3d& a, const RwV3d& b) {
+static float RwV3dDotProduct(const RwV3d& a, const RwV3d& b) {
     return a.x*b.x + a.y*b.y + a.z*b.z;
 }
 static RwV3d TransformPointByMatrix(const RwMatrix& m, const RwV3d& p) {
@@ -440,7 +440,7 @@ static VehicleSpaceTransform BuildVehicleSpaceTransform(const RwMatrix& m) {
     const RwV3d uxat = CrossProduct(m.up, m.at);
     const RwV3d atxr = CrossProduct(m.at, m.right);
     const RwV3d rxu = CrossProduct(m.right, m.up);
-    const float det = DotProduct(m.right, uxat);
+    const float det = RwV3dDotProduct(m.right, uxat);
     if (!std::isfinite(det) || std::fabs(det) < 0.000001f) return t;
     const float inv = 1.0f / det;
     t.inverseRowX = RwV3d{uxat.x*inv, uxat.y*inv, uxat.z*inv};
@@ -461,9 +461,9 @@ static bool TransformMeshVertexToVehicle(
     const RwV3d delta{
         world.x-t.origin.x, world.y-t.origin.y, world.z-t.origin.z
     };
-    result.x = DotProduct(delta, t.inverseRowX);
-    result.y = DotProduct(delta, t.inverseRowY);
-    result.z = DotProduct(delta, t.inverseRowZ);
+    result.x = RwV3dDotProduct(delta, t.inverseRowX);
+    result.y = RwV3dDotProduct(delta, t.inverseRowY);
+    result.z = RwV3dDotProduct(delta, t.inverseRowZ);
     return IsFiniteVertex(result);
 }
 static void AnalyzeVehicleSpaceMeshes(
@@ -523,7 +523,7 @@ static void AnalyzeVehicleSpaceMeshes(
             const RwV3d ab{b.x-a.x, b.y-a.y, b.z-a.z};
             const RwV3d ac{c.x-a.x, c.y-a.y, c.z-a.z};
             const RwV3d n = CrossProduct(ab, ac);
-            const float len2 = DotProduct(n, n);
+            const float len2 = RwV3dDotProduct(n, n);
             if (!std::isfinite(len2) || len2 < 0.00000001f) continue;
             const float x=std::fabs(n.x), y=std::fabs(n.y), z=std::fabs(n.z);
             if (x >= y && x >= z) ++info.dominantNormalXCount;
