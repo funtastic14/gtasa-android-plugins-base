@@ -545,7 +545,9 @@ static void AnalyzeVehicleSpaceMeshes(
         }
         if (!valid || points.empty()) continue;
         info.hasVehicleSpaceBounds = true;
-        if (GlassName(info.frameName)) GlassParts(mesh, points, info.glassParts);
+        // Analyze every atomic, including frames with non-standard or missing glass names.
+        // The report ranks broad surface candidates; it does not assert that they are glass.
+        GlassParts(mesh, points, info.glassParts);
 
         for (const GeometryTriangle& tri : mesh.triangles) {
             if (tri.a >= points.size() || tri.b >= points.size() ||
@@ -831,21 +833,70 @@ static std::string BuildDiagnosticReport(
                << info.dominantNormalZCount << "\n";
     }
     report << "\n----------------------------------------\n";
-    report << "GLASS CANDIDATE CONNECTED COMPONENTS\\n";
-    report << "Shared-vertex connected groups; diagnostic only; vehicle-local coordinates.\\n";
+    report << "\\n----------------------------------------\\n";
+    report << "SURFACE COMPONENT CANDIDATES (ALL FRAMES)\\n";
+    report << "Shared-vertex connected groups from every readable atomic.\\n";
+    report << "Candidates are ranked by area only; geometry/name/position still require review.\\n";
     report << "----------------------------------------\\n";
-    for(const AtomicGeometryInfo& info:details) {
-      if(info.glassParts.empty())continue;
-      report << "Atomic #" << info.atomicIndex << " | Frame: " << info.frameName << " | Components: " << info.glassParts.size() << "\\n";
-      std::vector<const GlassPart*> v;for(const GlassPart& c:info.glassParts)if(c.triangles)v.push_back(&c);
-      std::sort(v.begin(),v.end(),[](const GlassPart*a,const GlassPart*b){return a->area>b->area;});
-      size_t lim=v.size()<24?v.size():24;
-      for(size_t i=0;i<lim;++i){const GlassPart&c=*v[i];
-       report << "  Part #" << i << " | Triangles: " << c.triangles << " | Vertices: " << c.vertices << " | Area: " << c.area << "\\n"
-       << "    Bounds X[" << c.minX << "," << c.maxX << "] Y[" << c.minY << "," << c.maxY << "] Z[" << c.minZ << "," << c.maxZ << "]\\n"
-       << "    Centroid X=" << c.cx << " Y=" << c.cy << " Z=" << c.cz << " | Normal X=" << c.nx << " Y=" << c.ny << " Z=" << c.nz << "\\n";
-      }
+
+    struct SurfaceCandidateRef {
+        const AtomicGeometryInfo* atomic;
+        const GlassPart* part;
+    };
+
+    std::vector<SurfaceCandidateRef> candidates;
+    for (const AtomicGeometryInfo& info : details) {
+        for (const GlassPart& part : info.glassParts) {
+            const float width = part.maxX - part.minX;
+            const float depth = part.maxY - part.minY;
+            const float height = part.maxZ - part.minZ;
+
+            // Broad screening only: retain front, side, rear and unusual glass
+            // shapes without depending on frame naming conventions.
+            if (part.triangles < 2 ||
+                part.area < 0.02f ||
+                width < 0.20f ||
+                depth < 0.02f ||
+                height < 0.02f)
+                continue;
+
+            candidates.push_back(SurfaceCandidateRef{&info, &part});
+        }
     }
+
+    std::sort(
+        candidates.begin(),
+        candidates.end(),
+        [](const SurfaceCandidateRef& a, const SurfaceCandidateRef& b) {
+            return a.part->area > b.part->area;
+        }
+    );
+
+    const size_t candidateLimit = candidates.size() < 48 ? candidates.size() : 48;
+    report << "Candidate Count: " << candidates.size()
+           << " | Displayed: " << candidateLimit << "\\n";
+
+    for (size_t i = 0; i < candidateLimit; ++i) {
+        const AtomicGeometryInfo& info = *candidates[i].atomic;
+        const GlassPart& part = *candidates[i].part;
+
+        report << "Candidate #" << i
+               << " | Atomic #" << info.atomicIndex
+               << " | Frame: " << info.frameName
+               << " | Triangles: " << part.triangles
+               << " | Vertices: " << part.vertices
+               << " | Area: " << part.area << "\\n"
+               << "  Bounds X[" << part.minX << "," << part.maxX
+               << "] Y[" << part.minY << "," << part.maxY
+               << "] Z[" << part.minZ << "," << part.maxZ << "]\\n"
+               << "  Centroid X=" << part.cx
+               << " Y=" << part.cy
+               << " Z=" << part.cz
+               << " | Normal X=" << part.nx
+               << " Y=" << part.ny
+               << " Z=" << part.nz << "\\n";
+    }
+
     report << "----------------------------------------\\n";
     report << "PER-ATOMIC LOCAL GEOMETRY BOUNDS\n";
     report << "Coordinates are geometry-local, not vehicle/world coordinates.\n";
