@@ -21,6 +21,7 @@
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 namespace VLS {
@@ -71,6 +72,7 @@ struct FrameInfo {
 struct ScanContext {
     GeometryScanStats* stats = nullptr;
     std::vector<AtomicGeometryInfo>* details = nullptr;
+    std::vector<AtomicMesh>* meshes = nullptr;
     uint32_t geometryIndex = 0;
 };
 
@@ -84,6 +86,9 @@ struct FrameScanContext {
 
 static int g_lastSavedModelId = -2147483647;
 
+// Cache hanya menyimpan mesh kendaraan yang sedang aktif.
+static std::vector<AtomicMesh> g_cachedMeshes;
+
 static bool IsFiniteVertex(const RwV3d& vertex) {
     return std::isfinite(vertex.x) &&
            std::isfinite(vertex.y) &&
@@ -96,8 +101,11 @@ static RpAtomic* ScanAtomic(RpAtomic* atomic, void* data) {
 
     ScanContext* context = static_cast<ScanContext*>(data);
 
-    if (context->stats == nullptr || context->details == nullptr)
+    if (context->stats == nullptr ||
+        context->details == nullptr ||
+        context->meshes == nullptr) {
         return atomic;
+    }
 
     GeometryScanStats& stats = *context->stats;
 
@@ -218,9 +226,85 @@ static RpAtomic* ScanAtomic(RpAtomic* atomic, void* data) {
         ++stats.missingVertexDataCount;
     }
 
-    if (triangleCount > 0 &&
-        RpGeometryGetTriangles(geometry) == nullptr) {
+    RpTriangle* sourceTriangles =
+        RpGeometryGetTriangles(geometry);
+
+    if (triangleCount > 0 && sourceTriangles == nullptr)
         ++stats.missingTriangleDataCount;
+
+    // -----------------------------------------------------
+    // Copy CPU geometry into the active vehicle mesh cache.
+    // -----------------------------------------------------
+
+    if (info.hasCpuVertices &&
+        vertices != nullptr &&
+        vertexCount > 0 &&
+        vertexCount <= 1000000u &&
+        triangleCount > 0 &&
+        sourceTriangles != nullptr) {
+
+        AtomicMesh mesh;
+
+        mesh.atomicIndex = atomicIndex;
+        mesh.geometryIndex = geometryIndex;
+        mesh.frame = info.frame;
+
+        mesh.vertices.reserve(vertexCount);
+
+        bool validMeshVertices = true;
+
+        for (uint32_t i = 0; i < vertexCount; ++i) {
+            const RwV3d& vertex = vertices[i];
+
+            if (!IsFiniteVertex(vertex)) {
+                validMeshVertices = false;
+                break;
+            }
+
+            GeometryVertex storedVertex;
+
+            storedVertex.x = vertex.x;
+            storedVertex.y = vertex.y;
+            storedVertex.z = vertex.z;
+
+            mesh.vertices.push_back(storedVertex);
+        }
+
+        if (validMeshVertices &&
+            mesh.vertices.size() == vertexCount) {
+
+            mesh.triangles.reserve(triangleCount);
+
+            for (uint32_t i = 0; i < triangleCount; ++i) {
+                const RpTriangle& triangle =
+                    sourceTriangles[i];
+
+                const uint16_t a = triangle.vertIndex[0];
+                const uint16_t b = triangle.vertIndex[1];
+                const uint16_t c = triangle.vertIndex[2];
+
+                if (a >= vertexCount ||
+                    b >= vertexCount ||
+                    c >= vertexCount) {
+                    continue;
+                }
+
+                GeometryTriangle storedTriangle;
+
+                storedTriangle.a = a;
+                storedTriangle.b = b;
+                storedTriangle.c = c;
+
+                mesh.triangles.push_back(storedTriangle);
+            }
+
+            if (!mesh.vertices.empty() &&
+                !mesh.triangles.empty()) {
+                context->meshes->push_back(
+                    std::move(mesh)
+                );
+            }
+        }
     }
 
     context->details->push_back(info);
@@ -256,7 +340,7 @@ static void ScanFrameBranch(
         }
 
         if (!context.visited.insert(frame).second) {
-            // Frame đã visited: berhenti untuk mencegah sibling cycle.
+            // Frame sudah visited: berhenti untuk mencegah sibling cycle.
             break;
         }
 
@@ -647,11 +731,13 @@ bool VehicleGeometryReader::Scan(
 
     std::vector<AtomicGeometryInfo> details;
     std::vector<FrameInfo> frames;
+    std::vector<AtomicMesh> meshes;
 
     ScanContext atomicContext;
 
     atomicContext.stats = &stats;
     atomicContext.details = &details;
+    atomicContext.meshes = &meshes;
 
     RpClumpForAllAtomics(
         clump,
@@ -751,7 +837,24 @@ bool VehicleGeometryReader::Scan(
         frameContext.depthLimited
     );
 
+    // Ganti cache setelah pemindaian selesai.
+    g_cachedMeshes.swap(meshes);
+
+    logger->Info(
+        "[VLS] Cached CPU meshes: %u",
+        static_cast<unsigned int>(g_cachedMeshes.size())
+    );
+
     return stats.atomicCount > 0;
+}
+
+const std::vector<AtomicMesh>&
+VehicleGeometryReader::GetMeshes() {
+    return g_cachedMeshes;
+}
+
+void VehicleGeometryReader::Clear() {
+    std::vector<AtomicMesh>().swap(g_cachedMeshes);
 }
 
 } // namespace VLS
