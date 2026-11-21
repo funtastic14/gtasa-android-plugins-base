@@ -236,13 +236,18 @@ static RpAtomic* ScanAtomic(RpAtomic* atomic, void* data) {
     // Copy CPU geometry into the active vehicle mesh cache.
     // -----------------------------------------------------
 
-    if (info.hasCpuVertices &&
-        vertices != nullptr &&
-        vertexCount > 0 &&
-        vertexCount <= 1000000u &&
-        triangleCount > 0 &&
-        sourceTriangles != nullptr) {
-
+    if (!info.hasCpuVertices || vertices == nullptr) {
+        ++stats.skippedNoCpuVertexCount;
+    }
+    else if (vertexCount == 0 ||
+             vertexCount > 1000000u) {
+        ++stats.skippedVertexLimitCount;
+    }
+    else if (triangleCount == 0 ||
+             sourceTriangles == nullptr) {
+        ++stats.skippedNoTriangleDataCount;
+    }
+    else {
         AtomicMesh mesh;
 
         mesh.atomicIndex = atomicIndex;
@@ -270,9 +275,11 @@ static RpAtomic* ScanAtomic(RpAtomic* atomic, void* data) {
             mesh.vertices.push_back(storedVertex);
         }
 
-        if (validMeshVertices &&
-            mesh.vertices.size() == vertexCount) {
-
+        if (!validMeshVertices ||
+            mesh.vertices.size() != vertexCount) {
+            ++stats.skippedInvalidVertexCount;
+        }
+        else {
             mesh.triangles.reserve(triangleCount);
 
             for (uint32_t i = 0; i < triangleCount; ++i) {
@@ -286,6 +293,7 @@ static RpAtomic* ScanAtomic(RpAtomic* atomic, void* data) {
                 if (a >= vertexCount ||
                     b >= vertexCount ||
                     c >= vertexCount) {
+                    ++stats.invalidTriangleIndexCount;
                     continue;
                 }
 
@@ -298,8 +306,19 @@ static RpAtomic* ScanAtomic(RpAtomic* atomic, void* data) {
                 mesh.triangles.push_back(storedTriangle);
             }
 
-            if (!mesh.vertices.empty() &&
-                !mesh.triangles.empty()) {
+            if (mesh.vertices.empty() ||
+                mesh.triangles.empty()) {
+                ++stats.skippedNoValidTriangleCount;
+            }
+            else {
+                ++stats.cachedMeshCount;
+
+                stats.cachedVertexCount +=
+                    static_cast<uint64_t>(mesh.vertices.size());
+
+                stats.cachedTriangleCount +=
+                    static_cast<uint64_t>(mesh.triangles.size());
+
                 context->meshes->push_back(
                     std::move(mesh)
                 );
@@ -444,6 +463,42 @@ static std::string BuildDiagnosticReport(
 
     report << "Missing Triangle Data: "
            << stats.missingTriangleDataCount << "\n\n";
+
+    report << "MESH CACHE STATISTICS\n";
+    report << "----------------------------------------\n";
+
+    report << "Cached Atomic Meshes: "
+           << stats.cachedMeshCount << "\n";
+
+    report << "Cached Vertices: "
+           << static_cast<unsigned long long>(
+                  stats.cachedVertexCount
+              ) << "\n";
+
+    report << "Cached Triangles: "
+           << static_cast<unsigned long long>(
+                  stats.cachedTriangleCount
+              ) << "\n";
+
+    report << "Skipped - No CPU Vertex Data: "
+           << stats.skippedNoCpuVertexCount << "\n";
+
+    report << "Skipped - Vertex Count Limit: "
+           << stats.skippedVertexLimitCount << "\n";
+
+    report << "Skipped - No Triangle Data: "
+           << stats.skippedNoTriangleDataCount << "\n";
+
+    report << "Skipped - Invalid Vertex Data: "
+           << stats.skippedInvalidVertexCount << "\n";
+
+    report << "Skipped - No Valid Triangles: "
+           << stats.skippedNoValidTriangleCount << "\n";
+
+    report << "Invalid Triangle Indices: "
+           << static_cast<unsigned long long>(
+                  stats.invalidTriangleIndexCount
+              ) << "\n\n";
 
     report << "FRAME HIERARCHY\n";
     report << "----------------------------------------\n";
@@ -828,6 +883,19 @@ bool VehicleGeometryReader::Scan(
         );
     }
 
+    // Salin hasil scan ke statistik cache.
+    // Nilai ini dihitung saat mesh benar-benar berhasil disalin.
+    for (const AtomicMesh& mesh : meshes) {
+        stats.cachedVertexCount +=
+            static_cast<uint64_t>(mesh.vertices.size());
+
+        stats.cachedTriangleCount +=
+            static_cast<uint64_t>(mesh.triangles.size());
+    }
+
+    stats.cachedMeshCount =
+        static_cast<uint32_t>(meshes.size());
+
     SaveDiagnosticReport(
         modelId,
         stats,
@@ -843,6 +911,48 @@ bool VehicleGeometryReader::Scan(
     logger->Info(
         "[VLS] Cached CPU meshes: %u",
         static_cast<unsigned int>(g_cachedMeshes.size())
+    );
+
+    logger->Info(
+        "[VLS] Cached vertices: %llu",
+        static_cast<unsigned long long>(stats.cachedVertexCount)
+    );
+
+    logger->Info(
+        "[VLS] Cached triangles: %llu",
+        static_cast<unsigned long long>(stats.cachedTriangleCount)
+    );
+
+    logger->Info(
+        "[VLS] Skipped meshes - no CPU vertices: %u",
+        static_cast<unsigned int>(stats.skippedNoCpuVertexCount)
+    );
+
+    logger->Info(
+        "[VLS] Skipped meshes - vertex limit: %u",
+        static_cast<unsigned int>(stats.skippedVertexLimitCount)
+    );
+
+    logger->Info(
+        "[VLS] Skipped meshes - no triangle data: %u",
+        static_cast<unsigned int>(stats.skippedNoTriangleDataCount)
+    );
+
+    logger->Info(
+        "[VLS] Skipped meshes - invalid vertices: %u",
+        static_cast<unsigned int>(stats.skippedInvalidVertexCount)
+    );
+
+    logger->Info(
+        "[VLS] Skipped meshes - no valid triangles: %u",
+        static_cast<unsigned int>(stats.skippedNoValidTriangleCount)
+    );
+
+    logger->Info(
+        "[VLS] Invalid triangle indices: %llu",
+        static_cast<unsigned long long>(
+            stats.invalidTriangleIndexCount
+        )
     );
 
     return stats.atomicCount > 0;
