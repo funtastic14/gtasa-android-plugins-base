@@ -54,6 +54,12 @@ uint32_t g_LastRenderTime = 0;
 uint32_t g_LastRenderFrame = 0xFFFFFFFF;
 std::vector<RwIm2DVertex> g_VertexBuffer;
 
+// Touch-to-scroll state. The coordinator already guarantees that these events belong to this plugin.
+bool g_TouchDown = false;
+int g_TouchFinger = -1;
+float g_LastTouchY = 0.0f;
+float g_PendingTouchScroll = 0.0f;
+
 bool CopyPixels(unsigned char *dst, int dstPitch, const unsigned char *src, int srcPitch, int width, int height) {
     if (!dst || !src || width <= 0 || height <= 0)
         return false;
@@ -169,10 +175,29 @@ void ClientFrame(void *, const ImGuiShared::Touch *events, uint32_t count, int32
         const ImGuiShared::Touch &ev = events[i];
         io.AddMouseSourceEvent(ImGuiMouseSource_TouchScreen);
         io.AddMousePosEvent(ev.x, ev.y);
-        if (ev.type == 2 /* TOUCH_PUSH */)
+
+        if (ev.type == 2 /* TOUCH_PUSH */) {
+            g_TouchDown = true;
+            g_TouchFinger = ev.finger;
+            g_LastTouchY = ev.y;
+            g_PendingTouchScroll = 0.0f;
             io.AddMouseButtonEvent(0, true);
-        else if (ev.type == 1 /* TOUCH_POP */ || ev.type == 4 /* TOUCH_CANCEL */)
+        } else if (ev.type == 3 /* TOUCH_MOVE */) {
+            if (g_TouchDown && ev.finger == g_TouchFinger) {
+                const float deltaY = ev.y - g_LastTouchY;
+                // Ignore tiny finger jitter; larger vertical movement becomes a natural swipe scroll.
+                if (std::fabs(deltaY) >= 1.0f)
+                    g_PendingTouchScroll += deltaY;
+                g_LastTouchY = ev.y;
+            }
+        } else if (ev.type == 1 /* TOUCH_POP */ || ev.type == 4 /* TOUCH_CANCEL */) {
+            if (ev.finger == g_TouchFinger) {
+                g_TouchDown = false;
+                g_TouchFinger = -1;
+                // Keep any final movement for the post-frame control check below.
+            }
             io.AddMouseButtonEvent(0, false);
+        }
     }
 
     const float uiScale = std::clamp(static_cast<float>(height) / 720.0f, 0.8f, 2.0f);
@@ -183,6 +208,17 @@ void ClientFrame(void *, const ImGuiShared::Touch *events, uint32_t count, int32
 
     if (g_UserRenderCallback)
         g_UserRenderCallback();
+
+    // Do not turn a slider/button drag into scrolling. We check the item state after the UI has processed
+    // this frame's touch press/move events. A swipe over empty window content generates a wheel event for
+    // the next frame; the existing ImGui window scrolling then handles it normally.
+    if (std::fabs(g_PendingTouchScroll) >= 2.0f) {
+        const ImGuiContext *ctx = ImGui::GetCurrentContext();
+        if (ctx && ctx->ActiveId == 0 && ctx->HoveredId == 0)
+            io.AddMouseWheelEvent(0.0f, g_PendingTouchScroll / 60.0f);
+    }
+    g_PendingTouchScroll = 0.0f;
+
     ImGui::EndFrame();
 
     // Only touches inside these rectangles reach ImGui; everything else (joystick, camera, gaps between
@@ -200,7 +236,13 @@ void ClientFrame(void *, const ImGuiShared::Touch *events, uint32_t count, int32
     ImGui_ImplRenderWare_RenderDrawData(ImGui::GetDrawData());
 }
 
-void ClientReset(void *) { ImGui_ImplRenderWare_Shutdown(); }
+void ClientReset(void *) {
+    g_TouchDown = false;
+    g_TouchFinger = -1;
+    g_LastTouchY = 0.0f;
+    g_PendingTouchScroll = 0.0f;
+    ImGui_ImplRenderWare_Shutdown();
+}
 
 void Hooked_AND_TouchEvent(int type, int finger, int x, int y) {
     // shortcut: touch coordinates are taken as render pixels (true on tested devices); pass the view size as the
