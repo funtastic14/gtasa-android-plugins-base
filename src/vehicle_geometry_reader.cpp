@@ -1,4 +1,7 @@
+
 #include "vehicle_geometry_reader.h"
+
+#include "profile_storage.h"
 
 #include <mod/logger.h>
 
@@ -8,6 +11,9 @@
 #include <plugin-sdk/renderware/RpGeometry.h>
 
 #include <cstdint>
+#include <cstdio>
+#include <sstream>
+#include <string>
 
 namespace VLS {
 
@@ -16,6 +22,8 @@ namespace {
 struct ScanContext {
     GeometryScanStats* stats = nullptr;
 };
+
+static int g_lastSavedModelId = -2147483647;
 
 static RpAtomic* ScanAtomic(
     RpAtomic* atomic,
@@ -51,13 +59,15 @@ static RpAtomic* ScanAtomic(
     const RwUInt32 flags =
         RpGeometryGetFlags(geometry);
 
-    if (vertexCount > 0)
+    if (vertexCount > 0) {
         stats.totalVertices +=
             static_cast<uint32_t>(vertexCount);
+    }
 
-    if (triangleCount > 0)
+    if (triangleCount > 0) {
         stats.totalTriangles +=
             static_cast<uint32_t>(triangleCount);
+    }
 
     const bool hasPositions =
         (flags & rpGEOMETRYPOSITIONS) != 0;
@@ -104,8 +114,102 @@ static RpAtomic* ScanAtomic(
     return atomic;
 }
 
-} // namespace
+static std::string BuildDiagnosticReport(
+    int modelId,
+    const GeometryScanStats& stats
+) {
+    std::ostringstream report;
 
+    report << "========================================\n";
+    report << "VLS VEHICLE GEOMETRY DIAGNOSTIC\n";
+    report << "========================================\n\n";
+
+    report << "Model ID: " << modelId << "\n\n";
+
+    report << "Atomic Count: "
+           << stats.atomicCount << "\n";
+
+    report << "Geometry Count: "
+           << stats.geometryCount << "\n";
+
+    report << "Total Vertices: "
+           << static_cast<unsigned long long>(
+                stats.totalVertices
+              ) << "\n";
+
+    report << "Total Triangles: "
+           << static_cast<unsigned long long>(
+                stats.totalTriangles
+              ) << "\n\n";
+
+    report << "CPU Vertex Geometry: "
+           << stats.cpuVertexGeometryCount << "\n";
+
+    report << "Native Geometry: "
+           << stats.nativeGeometryCount << "\n";
+
+    report << "Vertex Buffer Geometry: "
+           << stats.vertexBufferGeometryCount << "\n";
+
+    report << "Missing Vertex Data: "
+           << stats.missingVertexDataCount << "\n";
+
+    report << "Missing Triangle Data: "
+           << stats.missingTriangleDataCount << "\n";
+
+    report << "\n========================================\n";
+    report << "END OF DIAGNOSTIC\n";
+    report << "========================================\n";
+
+    return report.str();
+}
+
+static void SaveDiagnosticReport(
+    int modelId,
+    const GeometryScanStats& stats
+) {
+    if (g_lastSavedModelId == modelId)
+        return;
+
+    char fileName[64];
+
+    if (modelId < 0) {
+        std::snprintf(
+            fileName,
+            sizeof(fileName),
+            "geometry_scan_unknown.txt"
+        );
+    } else {
+        std::snprintf(
+            fileName,
+            sizeof(fileName),
+            "geometry_scan_%d.txt",
+            modelId
+        );
+    }
+
+    const std::string report =
+        BuildDiagnosticReport(modelId, stats);
+
+    if (ProfileStorage::SaveDiagnosticText(
+        fileName,
+        report
+    )) {
+        g_lastSavedModelId = modelId;
+
+        logger->Info(
+            "[VLS] Geometry diagnostic saved: %s",
+            fileName
+        );
+    } else {
+        logger->Error(
+            "[VLS] Failed to save geometry diagnostic: %s",
+            fileName
+        );
+    }
+}
+
+}
 
 bool VehicleGeometryReader::Scan(
     CVehicle* vehicle,
@@ -117,8 +221,6 @@ bool VehicleGeometryReader::Scan(
     if (vehicle == nullptr)
         return false;
 
-    // Kendaraan GTA SA umumnya menggunakan RpClump.
-    // Tetap periksa pointer sebelum melakukan traversal.
     RpClump* clump = vehicle->m_pRwClump;
 
     if (clump == nullptr) {
@@ -137,9 +239,7 @@ bool VehicleGeometryReader::Scan(
         &context
     );
 
-    logger->Info(
-        "[VLS] Vehicle Geometry Scan"
-    );
+    logger->Info("[VLS] Vehicle Geometry Scan");
 
     logger->Info(
         "[VLS] Model ID: %d",
@@ -191,7 +291,9 @@ bool VehicleGeometryReader::Scan(
         static_cast<unsigned int>(stats.missingTriangleDataCount)
     );
 
+    SaveDiagnosticReport(modelId, stats);
+
     return stats.atomicCount > 0;
 }
 
-} // namespace VLS
+}
