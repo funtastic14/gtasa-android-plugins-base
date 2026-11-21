@@ -22,7 +22,8 @@ struct GeometryScanStats {
 
 class VehicleGeometryReader {
 public:
-    // Hanya membaca metadata. Tidak mengunci atau mengubah geometri.
+    // Membaca metadata dan menghitung batas vertex CPU per atomic.
+    // Tidak mengunci, mengubah, atau mengalokasikan ulang geometri RenderWare.
     static bool Scan(
         CVehicle* vehicle,
         int modelId,
@@ -30,4 +31,4 @@ public:
     );
 };
 
-}
+} // namespace VLS
