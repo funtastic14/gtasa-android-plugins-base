@@ -12,6 +12,7 @@
 #include <plugin-sdk/renderware/RwFrame.h>
 #include <plugin-sdk/renderware/RwMatrix.h>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -32,6 +33,11 @@ static const size_t MAX_FRAME_COUNT = 4096;
 static const size_t MAX_DIAGNOSTIC_OUTPUT = 240 * 1024;
 static const uint32_t MAX_FRAME_DEPTH = 128;
 
+struct GlassPart {
+ uint32_t triangles=0, vertices=0;
+ float minX=0,minY=0,minZ=0,maxX=0,maxY=0,maxZ=0;
+ float cx=0,cy=0,cz=0,nx=0,ny=0,nz=0,area=0;
+};
 struct AtomicGeometryInfo {
     uint32_t atomicIndex = 0;
     uint32_t geometryIndex = 0;
@@ -58,6 +64,7 @@ struct AtomicGeometryInfo {
     uint32_t dominantNormalXCount = 0;
     uint32_t dominantNormalYCount = 0;
     uint32_t dominantNormalZCount = 0;
+    std::vector<GlassPart> glassParts;
 };
 
 struct FrameInfo {
@@ -466,6 +473,31 @@ static bool TransformMeshVertexToVehicle(
     result.z = RwV3dDotProduct(delta, t.inverseRowZ);
     return IsFiniteVertex(result);
 }
+static bool GlassName(const std::string& s) {
+ std::string n=s; for(char& c:n) if(c>='A'&&c<='Z') c=char(c-'A'+'a');
+ return n.find("glass")!=std::string::npos||n.find("alpha")!=std::string::npos||
+ n.find("kaca")!=std::string::npos||n.find("windscreen")!=std::string::npos||
+ n.find("windshield")!=std::string::npos||n.find("screen")!=std::string::npos||
+ n.find("vetr")!=std::string::npos;
+}
+static void GlassParts(const AtomicMesh& mesh,const std::vector<RwV3d>& p,std::vector<GlassPart>& out) {
+ size_t n=mesh.triangles.size(); if(!n||n>100000)return;
+ std::vector<uint32_t> parent(n); for(uint32_t i=0;i<n;++i)parent[i]=i;
+ auto root=[&parent](uint32_t x){while(parent[x]!=x){parent[x]=parent[parent[x]];x=parent[x];}return x;};
+ std::vector<int32_t> first(mesh.vertices.size(),-1);
+ for(uint32_t i=0;i<n;++i){const GeometryTriangle&t=mesh.triangles[i];uint16_t v[3]={t.a,t.b,t.c};
+  for(int k=0;k<3;++k){if(v[k]>=first.size())continue;if(first[v[k]]>=0){uint32_t a=root(i),b=root(uint32_t(first[v[k]]));if(a!=b)parent[b]=a;}else first[v[k]]=int32_t(i);}}
+ std::unordered_map<uint32_t,size_t> ids; std::vector<std::unordered_set<uint16_t>> used;
+ for(uint32_t i=0;i<n;++i){uint32_t r=root(i);auto it=ids.find(r);if(it==ids.end()){GlassPart c;float h=std::numeric_limits<float>::max();c.minX=c.minY=c.minZ=h;c.maxX=c.maxY=c.maxZ=-h;size_t k=out.size();out.push_back(c);used.emplace_back();ids[r]=k;it=ids.find(r);}
+  GlassPart&c=out[it->second];const GeometryTriangle&t=mesh.triangles[i];if(t.a>=p.size()||t.b>=p.size()||t.c>=p.size())continue;
+  const RwV3d&a=p[t.a];const RwV3d&b=p[t.b];const RwV3d&d=p[t.c];RwV3d ab{b.x-a.x,b.y-a.y,b.z-a.z},ac{d.x-a.x,d.y-a.y,d.z-a.z};RwV3d q=CrossProduct(ab,ac);float l=std::sqrt(RwV3dDotProduct(q,q));if(!std::isfinite(l)||l<1e-5f)continue;
+  float ar=l*.5f;++c.triangles;c.area+=ar;c.cx+=(a.x+b.x+d.x)*ar/3;c.cy+=(a.y+b.y+d.y)*ar/3;c.cz+=(a.z+b.z+d.z)*ar/3;c.nx+=q.x;c.ny+=q.y;c.nz+=q.z;
+  const RwV3d*v[3]={&a,&b,&d};for(int k=0;k<3;++k){c.minX=std::min(c.minX,v[k]->x);c.maxX=std::max(c.maxX,v[k]->x);c.minY=std::min(c.minY,v[k]->y);c.maxY=std::max(c.maxY,v[k]->y);c.minZ=std::min(c.minZ,v[k]->z);c.maxZ=std::max(c.maxZ,v[k]->z);}
+  used[it->second].insert(t.a);used[it->second].insert(t.b);used[it->second].insert(t.c);
+ }
+ for(size_t i=0;i<out.size();++i){GlassPart&c=out[i];c.vertices=uint32_t(used[i].size());if(c.area>1e-6f){c.cx/=c.area;c.cy/=c.area;c.cz/=c.area;float l=std::sqrt(c.nx*c.nx+c.ny*c.ny+c.nz*c.nz);if(l>1e-6f){c.nx/=l;c.ny/=l;c.nz/=l;}}}
+}
+
 static void AnalyzeVehicleSpaceMeshes(
     RwFrame* rootFrame,
     std::vector<AtomicGeometryInfo>& details,
@@ -513,6 +545,7 @@ static void AnalyzeVehicleSpaceMeshes(
         }
         if (!valid || points.empty()) continue;
         info.hasVehicleSpaceBounds = true;
+        if (GlassName(info.frameName)) GlassParts(mesh, points, info.glassParts);
 
         for (const GeometryTriangle& tri : mesh.triangles) {
             if (tri.a >= points.size() || tri.b >= points.size() ||
@@ -798,6 +831,22 @@ static std::string BuildDiagnosticReport(
                << info.dominantNormalZCount << "\n";
     }
     report << "\n----------------------------------------\n";
+    report << "GLASS CANDIDATE CONNECTED COMPONENTS\\n";
+    report << "Shared-vertex connected groups; diagnostic only; vehicle-local coordinates.\\n";
+    report << "----------------------------------------\\n";
+    for(const AtomicGeometryInfo& info:details) {
+      if(info.glassParts.empty())continue;
+      report << "Atomic #" << info.atomicIndex << " | Frame: " << info.frameName << " | Components: " << info.glassParts.size() << "\\n";
+      std::vector<const GlassPart*> v;for(const GlassPart& c:info.glassParts)if(c.triangles)v.push_back(&c);
+      std::sort(v.begin(),v.end(),[](const GlassPart*a,const GlassPart*b){return a->area>b->area;});
+      size_t lim=v.size()<24?v.size():24;
+      for(size_t i=0;i<lim;++i){const GlassPart&c=*v[i];
+       report << "  Part #" << i << " | Triangles: " << c.triangles << " | Vertices: " << c.vertices << " | Area: " << c.area << "\\n"
+       << "    Bounds X[" << c.minX << "," << c.maxX << "] Y[" << c.minY << "," << c.maxY << "] Z[" << c.minZ << "," << c.maxZ << "]\\n"
+       << "    Centroid X=" << c.cx << " Y=" << c.cy << " Z=" << c.cz << " | Normal X=" << c.nx << " Y=" << c.ny << " Z=" << c.nz << "\\n";
+      }
+    }
+    report << "----------------------------------------\\n";
     report << "PER-ATOMIC LOCAL GEOMETRY BOUNDS\n";
     report << "Coordinates are geometry-local, not vehicle/world coordinates.\n";
     report << "----------------------------------------\n";
