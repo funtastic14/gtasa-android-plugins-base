@@ -5,7 +5,6 @@
 
 #include <cstdio>
 #include <vector>
-
 #include <string>
 
 extern IAML* aml;
@@ -16,24 +15,41 @@ namespace ProfileStorage {
 namespace {
 
 static std::string g_profilesDirectory;
+static std::string g_diagnosticsDirectory;
 static bool g_initialized = false;
 
 static const size_t MAX_PROFILE_SIZE = 1024 * 1024;
+static const size_t MAX_DIAGNOSTIC_SIZE = 256 * 1024;
 
-static bool BuildProfilePath(int modelId, char* output, size_t outputSize) {
-    if (g_profilesDirectory.empty() || output == nullptr) {
+static bool BuildProfilePath(
+    int modelId,
+    char* output,
+    size_t outputSize
+) {
+    if (g_profilesDirectory.empty() ||
+        output == nullptr ||
+        outputSize == 0) {
         return false;
     }
 
     char fileName[32];
 
     if (modelId < 0) {
-        std::snprintf(fileName, sizeof(fileName), "default.json");
+        std::snprintf(
+            fileName,
+            sizeof(fileName),
+            "default.json"
+        );
     } else {
-        std::snprintf(fileName, sizeof(fileName), "%d.json", modelId);
+        std::snprintf(
+            fileName,
+            sizeof(fileName),
+            "%d.json",
+            modelId
+        );
     }
 
-    int result = std::snprintf(
+    const int result = std::snprintf(
         output,
         outputSize,
         "%s/%s",
@@ -41,38 +57,85 @@ static bool BuildProfilePath(int modelId, char* output, size_t outputSize) {
         fileName
     );
 
-    return result > 0 && static_cast<size_t>(result) < outputSize;
+    return result > 0 &&
+        static_cast<size_t>(result) < outputSize;
+}
+
+static bool IsSafeDiagnosticFileName(
+    const std::string& fileName
+) {
+    if (fileName.empty() || fileName.size() > 64)
+        return false;
+
+    for (size_t i = 0; i < fileName.size(); ++i) {
+        const char c = fileName[i];
+
+        const bool valid =
+            (c >= 'a' && c <= 'z') ||
+            (c >= 'A' && c <= 'Z') ||
+            (c >= '0' && c <= '9') ||
+            c == '_' ||
+            c == '-' ||
+            c == '.';
+
+        if (!valid)
+            return false;
+    }
+
+    if (fileName == "." || fileName == "..")
+        return false;
+
+    return true;
+}
+
+static bool BuildDiagnosticPath(
+    const std::string& fileName,
+    char* output,
+    size_t outputSize
+) {
+    if (g_diagnosticsDirectory.empty() ||
+        output == nullptr ||
+        outputSize == 0 ||
+        !IsSafeDiagnosticFileName(fileName)) {
+        return false;
+    }
+
+    const int result = std::snprintf(
+        output,
+        outputSize,
+        "%s/%s",
+        g_diagnosticsDirectory.c_str(),
+        fileName.c_str()
+    );
+
+    return result > 0 &&
+        static_cast<size_t>(result) < outputSize;
 }
 
 }
 
 bool Init() {
-    if (g_initialized) {
+    if (g_initialized)
         return true;
-    }
 
-    if (aml == nullptr) {
+    if (aml == nullptr)
         return false;
-    }
 
     const char* basePath = aml->GetInternalModsPath();
 
-    if (basePath == nullptr || basePath[0] == '\0') {
+    if (basePath == nullptr || basePath[0] == '\0')
         return false;
-    }
 
     std::string rootDirectory(basePath);
 
-    if (rootDirectory.back() != '/') {
+    if (rootDirectory.back() != '/')
         rootDirectory += '/';
-    }
 
     rootDirectory += "VehicleLEDSystem";
 
     if (!aml->IsDirectory(rootDirectory.c_str())) {
-        if (!aml->CreateDirRecursive(rootDirectory.c_str())) {
+        if (!aml->CreateDirRecursive(rootDirectory.c_str()))
             return false;
-        }
     }
 
     g_profilesDirectory = rootDirectory + "/profiles";
@@ -84,31 +147,54 @@ bool Init() {
         }
     }
 
+    g_diagnosticsDirectory = rootDirectory + "/diagnostics";
+
+    if (!aml->IsDirectory(g_diagnosticsDirectory.c_str())) {
+        if (!aml->CreateDirRecursive(g_diagnosticsDirectory.c_str())) {
+            g_diagnosticsDirectory.clear();
+            return false;
+        }
+    }
+
     g_initialized = true;
 
     return true;
 }
 
 const char* GetProfilesDirectory() {
-    if (!g_initialized) {
+    if (!g_initialized)
         return nullptr;
-    }
 
     return g_profilesDirectory.c_str();
 }
 
-bool SaveProfileJson(int modelId, const std::string& json) {
-    if (!g_initialized || aml == nullptr || json.empty()) {
+const char* GetDiagnosticsDirectory() {
+    if (!g_initialized)
+        return nullptr;
+
+    return g_diagnosticsDirectory.c_str();
+}
+
+bool SaveProfileJson(
+    int modelId,
+    const std::string& json
+) {
+    if (!g_initialized ||
+        aml == nullptr ||
+        json.empty()) {
         return false;
     }
 
-    if (json.size() > MAX_PROFILE_SIZE) {
+    if (json.size() > MAX_PROFILE_SIZE)
         return false;
-    }
 
     char filePath[512];
 
-    if (!BuildProfilePath(modelId, filePath, sizeof(filePath))) {
+    if (!BuildProfilePath(
+        modelId,
+        filePath,
+        sizeof(filePath)
+    )) {
         return false;
     }
 
@@ -119,46 +205,82 @@ bool SaveProfileJson(int modelId, const std::string& json) {
     );
 }
 
-bool LoadProfileJson(int modelId, std::string& json) {
+bool LoadProfileJson(
+    int modelId,
+    std::string& json
+) {
     json.clear();
 
-    if (!g_initialized || aml == nullptr) {
+    if (!g_initialized || aml == nullptr)
         return false;
-    }
 
     char filePath[512];
 
-    if (!BuildProfilePath(modelId, filePath, sizeof(filePath))) {
+    if (!BuildProfilePath(
+        modelId,
+        filePath,
+        sizeof(filePath)
+    )) {
         return false;
     }
 
-    if (!aml->FileExists(filePath)) {
+    if (!aml->FileExists(filePath))
         return false;
-    }
 
-    size_t fileSize = aml->FileSize(filePath);
+    const size_t fileSize = aml->FileSize(filePath);
 
-    if (fileSize == 0 || fileSize > MAX_PROFILE_SIZE) {
+    if (fileSize == 0 || fileSize > MAX_PROFILE_SIZE)
         return false;
-    }
 
     std::vector<char> buffer(fileSize + 1, '\0');
 
-    int bytesRead = aml->ReadFileToBuffer(
+    const int bytesRead = aml->ReadFileToBuffer(
         filePath,
         buffer.data(),
         fileSize + 1
     );
 
-    if (bytesRead <= 0 || static_cast<size_t>(bytesRead) > fileSize) {
+    if (bytesRead <= 0 ||
+        static_cast<size_t>(bytesRead) > fileSize) {
         return false;
     }
 
     buffer[bytesRead] = '\0';
 
-    json.assign(buffer.data(), static_cast<size_t>(bytesRead));
+    json.assign(
+        buffer.data(),
+        static_cast<size_t>(bytesRead)
+    );
 
     return true;
+}
+
+bool SaveDiagnosticText(
+    const std::string& fileName,
+    const std::string& text
+) {
+    if (!g_initialized ||
+        aml == nullptr ||
+        text.empty() ||
+        text.size() > MAX_DIAGNOSTIC_SIZE) {
+        return false;
+    }
+
+    char filePath[512];
+
+    if (!BuildDiagnosticPath(
+        fileName,
+        filePath,
+        sizeof(filePath)
+    )) {
+        return false;
+    }
+
+    return aml->WriteBufferToFile(
+        filePath,
+        text.data(),
+        text.size()
+    );
 }
 
 }
