@@ -214,7 +214,7 @@ void ClientFrame(void *, const ImGuiShared::Touch *events, uint32_t count, int32
     // the next frame; the existing ImGui window scrolling then handles it normally.
     if (std::fabs(g_PendingTouchScroll) >= 2.0f) {
         const ImGuiContext *ctx = ImGui::GetCurrentContext();
-        if (ctx && ctx->ActiveId == 0 && ctx->HoveredId == 0)
+        if (ctx && ctx->ActiveId == 0)
             io.AddMouseWheelEvent(0.0f, g_PendingTouchScroll / 60.0f);
     }
     g_PendingTouchScroll = 0.0f;
