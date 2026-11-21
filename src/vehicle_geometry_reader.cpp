@@ -50,6 +50,14 @@ struct AtomicGeometryInfo {
     float maxX = 0.0f;
     float maxY = 0.0f;
     float maxZ = 0.0f;
+    std::string frameName;
+    bool hasVehicleSpaceBounds = false;
+    float vehicleMinX = 0.0f, vehicleMinY = 0.0f, vehicleMinZ = 0.0f;
+    float vehicleMaxX = 0.0f, vehicleMaxY = 0.0f, vehicleMaxZ = 0.0f;
+    uint32_t analyzedTriangleCount = 0;
+    uint32_t dominantNormalXCount = 0;
+    uint32_t dominantNormalYCount = 0;
+    uint32_t dominantNormalZCount = 0;
 };
 
 struct FrameInfo {
@@ -409,6 +417,123 @@ static void WriteVector(
            << " Z=" << value.z;
 }
 
+static RwV3d CrossProduct(const RwV3d& a, const RwV3d& b) {
+    return RwV3d{a.y*b.z-a.z*b.y, a.z*b.x-a.x*b.z, a.x*b.y-a.y*b.x};
+}
+static float DotProduct(const RwV3d& a, const RwV3d& b) {
+    return a.x*b.x + a.y*b.y + a.z*b.z;
+}
+static RwV3d TransformPointByMatrix(const RwMatrix& m, const RwV3d& p) {
+    return RwV3d{
+        m.right.x*p.x + m.up.x*p.y + m.at.x*p.z + m.pos.x,
+        m.right.y*p.x + m.up.y*p.y + m.at.y*p.z + m.pos.y,
+        m.right.z*p.x + m.up.z*p.y + m.at.z*p.z + m.pos.z
+    };
+}
+struct VehicleSpaceTransform {
+    RwV3d origin{}, inverseRowX{}, inverseRowY{}, inverseRowZ{};
+    bool valid = false;
+};
+static VehicleSpaceTransform BuildVehicleSpaceTransform(const RwMatrix& m) {
+    VehicleSpaceTransform t;
+    t.origin = m.pos;
+    const RwV3d uxat = CrossProduct(m.up, m.at);
+    const RwV3d atxr = CrossProduct(m.at, m.right);
+    const RwV3d rxu = CrossProduct(m.right, m.up);
+    const float det = DotProduct(m.right, uxat);
+    if (!std::isfinite(det) || std::fabs(det) < 0.000001f) return t;
+    const float inv = 1.0f / det;
+    t.inverseRowX = RwV3d{uxat.x*inv, uxat.y*inv, uxat.z*inv};
+    t.inverseRowY = RwV3d{atxr.x*inv, atxr.y*inv, atxr.z*inv};
+    t.inverseRowZ = RwV3d{rxu.x*inv, rxu.y*inv, rxu.z*inv};
+    t.valid = true;
+    return t;
+}
+static bool TransformMeshVertexToVehicle(
+    const RwMatrix& frameMatrix,
+    const VehicleSpaceTransform& t,
+    const GeometryVertex& source,
+    RwV3d& result
+) {
+    if (!t.valid) return false;
+    const RwV3d local{source.x, source.y, source.z};
+    const RwV3d world = TransformPointByMatrix(frameMatrix, local);
+    const RwV3d delta{
+        world.x-t.origin.x, world.y-t.origin.y, world.z-t.origin.z
+    };
+    result.x = DotProduct(delta, t.inverseRowX);
+    result.y = DotProduct(delta, t.inverseRowY);
+    result.z = DotProduct(delta, t.inverseRowZ);
+    return IsFiniteVertex(result);
+}
+static void AnalyzeVehicleSpaceMeshes(
+    RwFrame* rootFrame,
+    std::vector<AtomicGeometryInfo>& details,
+    const std::vector<FrameInfo>& frames,
+    const std::vector<AtomicMesh>& meshes
+) {
+    if (rootFrame == nullptr) return;
+    std::unordered_map<RwFrame*, std::string> names;
+    for (const FrameInfo& f : frames)
+        if (f.frame != nullptr) names[f.frame] = f.name;
+    std::unordered_map<uint32_t, const AtomicMesh*> byAtomic;
+    for (const AtomicMesh& m : meshes) byAtomic[m.atomicIndex] = &m;
+    const VehicleSpaceTransform vehicleTransform =
+        BuildVehicleSpaceTransform(rootFrame->ltm);
+    if (!vehicleTransform.valid) return;
+
+    for (AtomicGeometryInfo& info : details) {
+        const auto nameIt = names.find(info.frame);
+        info.frameName = nameIt != names.end() ? nameIt->second : "<unlinked>";
+        const auto meshIt = byAtomic.find(info.atomicIndex);
+        if (meshIt == byAtomic.end() || info.frame == nullptr) continue;
+
+        const AtomicMesh& mesh = *meshIt->second;
+        const RwMatrix& frameMatrix = info.frame->ltm;
+        const float high = std::numeric_limits<float>::max();
+        info.vehicleMinX = info.vehicleMinY = info.vehicleMinZ = high;
+        info.vehicleMaxX = info.vehicleMaxY = info.vehicleMaxZ = -high;
+
+        std::vector<RwV3d> points;
+        points.reserve(mesh.vertices.size());
+        bool valid = true;
+        for (const GeometryVertex& v : mesh.vertices) {
+            RwV3d p{};
+            if (!TransformMeshVertexToVehicle(frameMatrix, vehicleTransform, v, p)) {
+                valid = false;
+                break;
+            }
+            points.push_back(p);
+            if (p.x < info.vehicleMinX) info.vehicleMinX = p.x;
+            if (p.y < info.vehicleMinY) info.vehicleMinY = p.y;
+            if (p.z < info.vehicleMinZ) info.vehicleMinZ = p.z;
+            if (p.x > info.vehicleMaxX) info.vehicleMaxX = p.x;
+            if (p.y > info.vehicleMaxY) info.vehicleMaxY = p.y;
+            if (p.z > info.vehicleMaxZ) info.vehicleMaxZ = p.z;
+        }
+        if (!valid || points.empty()) continue;
+        info.hasVehicleSpaceBounds = true;
+
+        for (const GeometryTriangle& tri : mesh.triangles) {
+            if (tri.a >= points.size() || tri.b >= points.size() ||
+                tri.c >= points.size()) continue;
+            const RwV3d& a = points[tri.a];
+            const RwV3d& b = points[tri.b];
+            const RwV3d& c = points[tri.c];
+            const RwV3d ab{b.x-a.x, b.y-a.y, b.z-a.z};
+            const RwV3d ac{c.x-a.x, c.y-a.y, c.z-a.z};
+            const RwV3d n = CrossProduct(ab, ac);
+            const float len2 = DotProduct(n, n);
+            if (!std::isfinite(len2) || len2 < 0.00000001f) continue;
+            const float x=std::fabs(n.x), y=std::fabs(n.y), z=std::fabs(n.z);
+            if (x >= y && x >= z) ++info.dominantNormalXCount;
+            else if (y >= x && y >= z) ++info.dominantNormalYCount;
+            else ++info.dominantNormalZCount;
+            ++info.analyzedTriangleCount;
+        }
+    }
+}
+
 static std::string BuildDiagnosticReport(
     int modelId,
     const GeometryScanStats& stats,
@@ -645,6 +770,34 @@ static std::string BuildDiagnosticReport(
            << unlinkedCount << "\n";
 
     report << "\n----------------------------------------\n";
+    report << "VEHICLE-LOCAL MESH SURFACE ANALYSIS\n";
+    report << "Vertex transform: geometry local -> frame LTM -> inverse vehicle root LTM.\n";
+    report << "Normal axis counts classify each valid triangle by its largest absolute normal component.\n";
+    report << "Measurements only; this section does not automatically identify windshields.\n";
+    report << "----------------------------------------\n";
+    for (const AtomicGeometryInfo& info : details) {
+        if (!info.hasVehicleSpaceBounds && info.analyzedTriangleCount == 0) continue;
+        report << "Atomic #" << info.atomicIndex
+               << " | Geometry #" << info.geometryIndex
+               << " | Frame: " << info.frameName
+               << " | Vertices: " << info.vertexCount
+               << " | Triangles: " << info.triangleCount << "\n";
+        if (info.hasVehicleSpaceBounds) {
+            report << "  Vehicle Min: X=" << info.vehicleMinX
+                   << " Y=" << info.vehicleMinY << " Z=" << info.vehicleMinZ << "\n";
+            report << "  Vehicle Max: X=" << info.vehicleMaxX
+                   << " Y=" << info.vehicleMaxY << " Z=" << info.vehicleMaxZ << "\n";
+            report << "  Vehicle Size: X=" << (info.vehicleMaxX-info.vehicleMinX)
+                   << " Y=" << (info.vehicleMaxY-info.vehicleMinY)
+                   << " Z=" << (info.vehicleMaxZ-info.vehicleMinZ) << "\n";
+        } else report << "  Vehicle Bounds: unavailable\n";
+        report << "  Analyzed Triangles: " << info.analyzedTriangleCount
+               << " | Dominant Normal X/Y/Z: "
+               << info.dominantNormalXCount << "/"
+               << info.dominantNormalYCount << "/"
+               << info.dominantNormalZCount << "\n";
+    }
+    report << "\n----------------------------------------\n";
     report << "PER-ATOMIC LOCAL GEOMETRY BOUNDS\n";
     report << "Coordinates are geometry-local, not vehicle/world coordinates.\n";
     report << "----------------------------------------\n";
@@ -808,6 +961,8 @@ bool VehicleGeometryReader::Scan(
             "[VLS] Frame hierarchy unavailable: clump root frame is null."
         );
     }
+
+    AnalyzeVehicleSpaceMeshes(rootFrame, details, frames, meshes);
 
     logger->Info("[VLS] Vehicle Geometry Scan");
     logger->Info("[VLS] Model ID: %d", modelId);
