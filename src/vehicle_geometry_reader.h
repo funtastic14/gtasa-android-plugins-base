@@ -21,6 +21,20 @@ struct GeometryScanStats {
     uint32_t vertexBufferGeometryCount = 0;
     uint32_t missingVertexDataCount = 0;
     uint32_t missingTriangleDataCount = 0;
+
+    // Mesh cache statistics
+    uint32_t cachedMeshCount = 0;
+    uint64_t cachedVertexCount = 0;
+    uint64_t cachedTriangleCount = 0;
+
+    // Skipped mesh statistics
+    uint32_t skippedNoCpuVertexCount = 0;
+    uint32_t skippedVertexLimitCount = 0;
+    uint32_t skippedNoTriangleDataCount = 0;
+    uint32_t skippedInvalidVertexCount = 0;
+    uint32_t skippedNoValidTriangleCount = 0;
+
+    uint64_t invalidTriangleIndexCount = 0;
 };
 
 struct GeometryVertex {
