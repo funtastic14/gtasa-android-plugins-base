@@ -727,6 +727,8 @@ uint32_t ProfileRenderer::RenderVehicleProfile(
     uint32_t rendered = 0;
 
     for (const LedPlacement& placement : profile.placements) {
+        if (!placement.enabled)
+            continue;
         for (const LedEffectConfig& effect : placement.effects) {
             if (RenderEffect(vehicle, placement, effect))
                 ++rendered;
@@ -748,6 +750,8 @@ bool ProfileRenderer::RenderSelectedEffect(
     for (const LedPlacement& placement : profile.placements) {
         if (placement.id != placementId)
             continue;
+        if (!placement.enabled)
+            return false;
 
         if (effectIndex >= placement.effects.size())
             return false;
