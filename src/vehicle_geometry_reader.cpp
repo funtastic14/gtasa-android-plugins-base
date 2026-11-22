@@ -106,6 +106,7 @@ struct FrameScanContext {
 
 static int g_lastSavedModelId = -2147483647;
 static std::vector<AtomicMesh> g_cachedMeshes;
+static std::vector<SurfacePatch> g_cachedSurfacePatches;
 
 static std::string ReadTextureName(const char* name) {
     if (name == nullptr)
@@ -1085,6 +1086,60 @@ static std::string BuildDiagnosticReport(
     return result;
 }
 
+static SurfaceRoleCandidate ToSurfaceRole(const std::string& hint) {
+    if (hint == "BODY_CHASSIS") return SurfaceRoleCandidate::BodyChassis;
+    if (hint == "FRONT_GLASS_CANDIDATE") return SurfaceRoleCandidate::FrontGlass;
+    if (hint == "REAR_GLASS_CANDIDATE") return SurfaceRoleCandidate::RearGlass;
+    if (hint == "SIDE_GLASS_CANDIDATE") return SurfaceRoleCandidate::SideGlass;
+    if (hint == "GLASS_PANEL_UNRESOLVED") return SurfaceRoleCandidate::GlassUnresolved;
+    if (hint == "LIGHTING_CANDIDATE") return SurfaceRoleCandidate::Lighting;
+    return SurfaceRoleCandidate::Unknown;
+}
+
+static std::vector<SurfacePatch> BuildSurfacePatches(
+    const std::vector<AtomicGeometryInfo>& details,
+    const std::vector<AtomicMesh>& meshes
+) {
+    std::vector<SurfacePatch> patches;
+    std::unordered_map<uint32_t, const AtomicMesh*> meshByAtomic;
+    for (const AtomicMesh& mesh : meshes) meshByAtomic[mesh.atomicIndex] = &mesh;
+
+    for (const AtomicGeometryInfo& info : details) {
+        const auto meshIt = meshByAtomic.find(info.atomicIndex);
+        if (meshIt == meshByAtomic.end()) continue;
+        const AtomicMesh& mesh = *meshIt->second;
+
+        for (const GlassPart& part : info.glassParts) {
+            if (part.triangleIndices.empty() || part.materialCounts.empty()) continue;
+            const int16_t materialIndex = part.materialCounts.front().first;
+            const auto materialIt = std::find_if(
+                info.materials.begin(), info.materials.end(),
+                [materialIndex](const MeshMaterialInfo& item) {
+                    return item.index == materialIndex;
+                }
+            );
+
+            SurfacePatch patch;
+            patch.atomicIndex = info.atomicIndex;
+            patch.materialIndex = materialIndex;
+            patch.frameName = info.frameName;
+            patch.role = ToSurfaceRole(SurfaceRoleHint(info, part));
+            patch.triangleIndices = part.triangleIndices;
+            patch.centroid = {part.cx, part.cy, part.cz};
+            patch.normal = {part.nx, part.ny, part.nz};
+            patch.minBounds = {part.minX, part.minY, part.minZ};
+            patch.maxBounds = {part.maxX, part.maxY, part.maxZ};
+            patch.area = part.area;
+            if (materialIt != info.materials.end()) {
+                patch.textureName = materialIt->textureName;
+                patch.maskName = materialIt->maskName;
+            }
+            patches.push_back(std::move(patch));
+        }
+    }
+    return patches;
+}
+
 static void SaveDiagnosticReport(
     int modelId,
     const GeometryScanStats& stats,
@@ -1280,8 +1335,12 @@ bool VehicleGeometryReader::Scan(
         frameContext.depthLimited
     );
 
-    // Ganti cache setelah pemindaian selesai.
+    // Build surface patches while diagnostic geometry metadata is still available.
+    std::vector<SurfacePatch> surfacePatches = BuildSurfacePatches(details, meshes);
+
+    // Replace caches only after the scan and patch extraction are complete.
     g_cachedMeshes.swap(meshes);
+    g_cachedSurfacePatches.swap(surfacePatches);
 
     logger->Info(
         "[VLS] Cached CPU meshes: %u",
@@ -1338,8 +1397,13 @@ VehicleGeometryReader::GetMeshes() {
     return g_cachedMeshes;
 }
 
+const std::vector<SurfacePatch>& VehicleGeometryReader::GetSurfacePatches() {
+    return g_cachedSurfacePatches;
+}
+
 void VehicleGeometryReader::Clear() {
     std::vector<AtomicMesh>().swap(g_cachedMeshes);
+    std::vector<SurfacePatch>().swap(g_cachedSurfacePatches);
 }
 
 } // namespace VLS
