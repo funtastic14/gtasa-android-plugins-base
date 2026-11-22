@@ -247,11 +247,13 @@ static const VLS::LedEffectType g_patternTypes[] = {
 };
 
 static const char* g_zoneNames[] = {
-    "Windshield",
+    "Front Windshield",
     "Exterior Body",
     "Headlight",
     "Taillight",
-    "Interior"
+    "Interior",
+    "Front Up Windshield",
+    "Roof"
 };
 
 static const VLS::LedZone g_zoneTypes[] = {
@@ -259,7 +261,9 @@ static const VLS::LedZone g_zoneTypes[] = {
     VLS::LedZone::ExteriorBody,
     VLS::LedZone::Headlight,
     VLS::LedZone::Taillight,
-    VLS::LedZone::Interior
+    VLS::LedZone::Interior,
+    VLS::LedZone::FrontUpWindshield,
+    VLS::LedZone::Roof
 };
 
 static const char* g_directionNames[] = {
@@ -304,7 +308,7 @@ static int GetPatternIndex(VLS::LedEffectType type) {
 }
 
 static int GetZoneIndex(VLS::LedZone zone) {
-    for (int i = 0; i < 5; ++i) {
+    for (int i = 0; i < 7; ++i) {
         if (g_zoneTypes[i] == zone)
             return i;
     }
@@ -633,7 +637,7 @@ static void RenderEditor() {
             "Placement Zone",
             &zoneIndex,
             g_zoneNames,
-            5
+            7
         )) {
         placement.zone = g_zoneTypes[zoneIndex];
         changed = true;
