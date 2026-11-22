@@ -822,6 +822,39 @@ static void RenderEditor() {
         }
     }
 
+    float opacity = effect.opacity;
+    if (ImGui::SliderFloat("LED Transparency (0=hidden, 1=solid)", &opacity, 0.0f, 1.0f)) {
+        effect.opacity = opacity;
+        changed = true;
+    }
+
+    const bool supportsPalette =
+        effect.type == VLS::LedEffectType::RunningLED ||
+        effect.type == VLS::LedEffectType::StroboWave ||
+        effect.type == VLS::LedEffectType::StroboEyes;
+    if (supportsPalette) {
+        const char* colorModeNames[] = {"Solid Color", "Two-Color Gradient", "Rainbow"};
+        int colorMode = static_cast<int>(effect.colorMode);
+        if (ImGui::Combo("Color Style", &colorMode, colorModeNames, 3)) {
+            effect.colorMode = static_cast<VLS::LedColorMode>(colorMode);
+            changed = true;
+        }
+        if (effect.colorMode == VLS::LedColorMode::Gradient) {
+            float secondaryColor[3] = {
+                effect.secondaryRed / 255.0f,
+                effect.secondaryGreen / 255.0f,
+                effect.secondaryBlue / 255.0f
+            };
+            if (ImGui::ColorEdit3("Gradient End Color", secondaryColor)) {
+                effect.secondaryRed = static_cast<uint8_t>(secondaryColor[0] * 255.0f);
+                effect.secondaryGreen = static_cast<uint8_t>(secondaryColor[1] * 255.0f);
+                effect.secondaryBlue = static_cast<uint8_t>(secondaryColor[2] * 255.0f);
+                changed = true;
+            }
+        }
+        ImGui::TextWrapped("RGB remains a separate animated color mode.");
+    }
+
     float brightness = effect.brightness;
 
     if (ImGui::SliderFloat(
