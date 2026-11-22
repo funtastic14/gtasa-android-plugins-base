@@ -543,6 +543,20 @@ static bool ReadUInt8(
     return true;
 }
 
+static bool ReadString(
+    const JsonValue& object,
+    const char* key,
+    std::string& output
+) {
+    const JsonValue* value = Find(object, key);
+    if (value == nullptr)
+        return true;
+    if (value->type != JsonValue::String || value->string.size() > 128)
+        return false;
+    output = value->string;
+    return true;
+}
+
 static bool ReadFloat(
     const JsonValue& object,
     const char* key,
@@ -683,7 +697,9 @@ static bool ReadEffect(
         !ReadUInt8(value, "green", effect.green) ||
         !ReadUInt8(value, "blue", effect.blue) ||
         !ReadFloat(value, "brightness", effect.brightness) ||
-        !ReadFloat(value, "speed", effect.speed)) {
+        !ReadFloat(value, "speed", effect.speed) ||
+        !ReadString(value, "text", effect.text) ||
+        !ReadFloat(value, "textSpacing", effect.textSpacing)) {
         return false;
     }
 
@@ -853,7 +869,11 @@ static bool ValidateProfileReferences(
                 effect.brightness < 0.0f ||
                 effect.brightness > 1.0f ||
                 !std::isfinite(effect.speed) ||
-                effect.speed <= 0.0f) {
+                effect.speed <= 0.0f ||
+                !std::isfinite(effect.textSpacing) ||
+                effect.textSpacing < 0.25f ||
+                effect.textSpacing > 4.0f ||
+                effect.text.size() > 128) {
                 return false;
             }
 
@@ -1047,6 +1067,29 @@ static bool AppendMatrix(
     return true;
 }
 
+static bool AppendJsonString(std::string& output, const std::string& value) {
+    if (value.size() > 128)
+        return false;
+    output.push_back('"');
+    for (unsigned char ch : value) {
+        switch (ch) {
+        case '"': output += "\\\""; break;
+        case '\\': output += "\\\\"; break;
+        case '\b': output += "\\b"; break;
+        case '\f': output += "\\f"; break;
+        case '\n': output += "\\n"; break;
+        case '\r': output += "\\r"; break;
+        case '\t': output += "\\t"; break;
+        default:
+            if (ch < 0x20)
+                return false;
+            output.push_back(static_cast<char>(ch));
+        }
+    }
+    output.push_back('"');
+    return true;
+}
+
 static bool AppendEffect(
     std::string& output,
     const LedEffectConfig& effect
@@ -1077,6 +1120,12 @@ static bool AppendEffect(
 
     output += ",\"speed\":";
     if (!AppendFloat(output, effect.speed)) return false;
+
+    output += ",\"text\":";
+    if (!AppendJsonString(output, effect.text)) return false;
+
+    output += ",\"textSpacing\":";
+    if (!AppendFloat(output, effect.textSpacing)) return false;
 
     output += ",\"matrix\":";
 
