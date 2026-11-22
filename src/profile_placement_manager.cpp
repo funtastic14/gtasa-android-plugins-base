@@ -223,13 +223,20 @@ bool ProfilePlacementManager::SetTransform(
         !std::isfinite(transform.rotationX) ||
         !std::isfinite(transform.rotationY) ||
         !std::isfinite(transform.rotationZ) ||
+        !std::isfinite(transform.curvature) ||
+        !std::isfinite(transform.facingYaw) ||
+        !std::isfinite(transform.facingPitch) ||
         !std::isfinite(transform.width) ||
-        !std::isfinite(transform.height)) {
+        !std::isfinite(transform.height) ||
+        !std::isfinite(transform.stretchX) ||
+        !std::isfinite(transform.stretchY)) {
         return false;
     }
 
     if (transform.width <= 0.0f ||
-        transform.height <= 0.0f) {
+        transform.height <= 0.0f ||
+        transform.stretchX <= 0.0f ||
+        transform.stretchY <= 0.0f) {
         return false;
     }
 
