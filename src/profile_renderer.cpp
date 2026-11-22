@@ -242,8 +242,10 @@ static const SurfacePatch* FindWindshieldPatch(
         }
     }
 
-    // Reject unrelated glass patches; never fall back to a floating windshield panel.
-    return bestDistance <= 2.25f ? bestPatch : nullptr;
+    // Choose the closest front-glass component even when the editor's initial
+    // XYZ position is still at the vehicle origin. The LED is then projected
+    // onto that real surface instead of being rejected or rendered floating.
+    return bestPatch;
 }
 
 static bool ProjectToSurfacePatch(
@@ -276,7 +278,7 @@ static bool ProjectToSurfacePatch(
         }
     }
 
-    if (!found || bestDistance > 2.25f)
+    if (!found)
         return false;
 
     CVector normal(patch.normal.x,patch.normal.y,patch.normal.z);
