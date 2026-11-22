@@ -614,12 +614,10 @@ static std::string SurfaceRoleHint(const AtomicGeometryInfo& info, const GlassPa
     std::transform(frameName.begin(), frameName.end(), frameName.begin(),
         [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
-    // "lataria" is the vehicle body/chassis, never a glass or lighting
-    // surface. This explicit semantic exclusion takes priority over material
-    // texture names and all candidate heuristics below.
-    if (frameName.find("lataria") != std::string::npos) {
-        return "BODY_CHASSIS";
-    }
+    // "lataria" names the body/chassis frame. It must not be classified
+    // from its frame name, but material-separated glass/lamp parts attached
+    // to this frame must remain eligible for classification.
+    const bool bodyFrame = frameName.find("lataria") != std::string::npos;
 
     // Surface groups are material-separated. Inspect the material actually
     // assigned to this group instead of relying on the atomic frame name alone.
@@ -674,7 +672,7 @@ static std::string SurfaceRoleHint(const AtomicGeometryInfo& info, const GlassPa
     const float ay = std::fabs(part.ny);
     const float az = std::fabs(part.nz);
 
-    if (frameGlass || textureGlass || (doorNamed && part.cz > 0.30f)) {
+    if ((!bodyFrame && frameGlass) || textureGlass || (!bodyFrame && doorNamed && part.cz > 0.30f)) {
         if (ax > ay && ax > az) return "SIDE_GLASS_CANDIDATE";
         if (ay >= ax && ay > az) {
             if (part.cy > 0.25f) return "FRONT_GLASS_CANDIDATE";
@@ -683,7 +681,9 @@ static std::string SurfaceRoleHint(const AtomicGeometryInfo& info, const GlassPa
         return "GLASS_PANEL_UNRESOLVED";
     }
 
-    // Names such as "lataria" and "alpha" are not semantic proof of glass.
+    // The frame is chassis/body unless material evidence identifies an
+    // attached glass or lighting component.
+    if (bodyFrame) return "BODY_CHASSIS";
     return "UNCLASSIFIED_SURFACE";
 }
 
