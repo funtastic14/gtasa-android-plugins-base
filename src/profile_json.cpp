@@ -557,6 +557,16 @@ static bool ReadString(
     return true;
 }
 
+static bool ReadOptionalFloat(
+    const JsonValue& object,
+    const char* key,
+    float& output
+) {
+    if (Find(object, key) == nullptr)
+        return true;
+    return ReadFloat(object, key, output);
+}
+
 static bool ReadFloat(
     const JsonValue& object,
     const char* key,
@@ -590,9 +600,9 @@ static bool ReadTransform(
         ReadFloat(value, "rotationX", transform.rotationX) &&
         ReadFloat(value, "rotationY", transform.rotationY) &&
         ReadFloat(value, "rotationZ", transform.rotationZ) &&
-        ReadFloat(value, "curvature", transform.curvature) &&
-        ReadFloat(value, "facingYaw", transform.facingYaw) &&
-        ReadFloat(value, "facingPitch", transform.facingPitch) &&
+        ReadOptionalFloat(value, "curvature", transform.curvature) &&
+        ReadOptionalFloat(value, "facingYaw", transform.facingYaw) &&
+        ReadOptionalFloat(value, "facingPitch", transform.facingPitch) &&
         ReadFloat(value, "width", transform.width) &&
         ReadFloat(value, "height", transform.height) &&
         ReadFloat(value, "stretchX", transform.stretchX) &&
