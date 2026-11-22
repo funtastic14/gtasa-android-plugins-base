@@ -616,8 +616,7 @@ static bool RenderEffect(
                 ),
                 red,
                 green,
-                blue,
-                ClampColor(effect.opacity * 255.0f)
+                blue
             );
 
             break;
@@ -675,7 +674,8 @@ static bool RenderEffect(
                 world,
                 red,
                 green,
-                blue
+                blue,
+                ClampColor(effect.opacity * 255.0f)
             );
         }
 
