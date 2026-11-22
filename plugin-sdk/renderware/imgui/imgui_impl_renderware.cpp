@@ -200,6 +200,16 @@ void ClientFrame(void *, const ImGuiShared::Touch *events, uint32_t count, int32
         }
     }
 
+    // Queue touch scrolling before NewFrame so ImGui consumes the swipe in
+    // this frame instead of introducing an avoidable one-frame input delay.
+    // ActiveId from the previous frame still protects sliders and buttons.
+    if (std::fabs(g_PendingTouchScroll) >= 2.0f) {
+        const ImGuiContext *ctx = ImGui::GetCurrentContext();
+        if (ctx && ctx->ActiveId == 0)
+            io.AddMouseWheelEvent(0.0f, g_PendingTouchScroll / 60.0f);
+    }
+    g_PendingTouchScroll = 0.0f;
+
     const float uiScale = std::clamp(static_cast<float>(height) / 720.0f, 0.8f, 2.0f);
     ImGui::GetStyle().FontSizeBase = 22.0f * uiScale;
     ImGui::GetStyle().FramePadding = ImVec2(10.0f * uiScale, 6.0f * uiScale);
@@ -208,16 +218,6 @@ void ClientFrame(void *, const ImGuiShared::Touch *events, uint32_t count, int32
 
     if (g_UserRenderCallback)
         g_UserRenderCallback();
-
-    // Do not turn a slider/button drag into scrolling. We check the item state after the UI has processed
-    // this frame's touch press/move events. A swipe over empty window content generates a wheel event for
-    // the next frame; the existing ImGui window scrolling then handles it normally.
-    if (std::fabs(g_PendingTouchScroll) >= 2.0f) {
-        const ImGuiContext *ctx = ImGui::GetCurrentContext();
-        if (ctx && ctx->ActiveId == 0)
-            io.AddMouseWheelEvent(0.0f, g_PendingTouchScroll / 60.0f);
-    }
-    g_PendingTouchScroll = 0.0f;
 
     ImGui::EndFrame();
 
