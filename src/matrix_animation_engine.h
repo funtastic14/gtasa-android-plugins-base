@@ -11,6 +11,7 @@ struct MatrixPixelOutput {
     uint8_t green = 255;
     uint8_t blue = 255;
     float intensity = 0.0f;
+    uint8_t alpha = 255;
     bool visible = false;
 };
 
