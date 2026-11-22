@@ -520,8 +520,14 @@ static void RenderEditor() {
         return;
     }
 
+    ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarSize, 30.0f);
     ImGui::BeginChild("VLSContent", ImVec2(0.0f, 0.0f), false, ImGuiWindowFlags_AlwaysVerticalScrollbar);
     ImGui::Text("Vehicle LED System");
+    if (ImGui::Button("Scroll Up Fast", ImVec2(180.0f, 38.0f)))
+        ImGui::SetScrollY(ImGui::GetScrollY() - 300.0f);
+    ImGui::SameLine();
+    if (ImGui::Button("Scroll Down Fast", ImVec2(180.0f, 38.0f)))
+        ImGui::SetScrollY(ImGui::GetScrollY() + 300.0f);
     ImGui::Separator();
 
     ImGui::Checkbox(
@@ -539,6 +545,7 @@ static void RenderEditor() {
         );
 
         ImGui::EndChild();
+    ImGui::PopStyleVar();
         ImGui::End();
         return;
     }
@@ -555,6 +562,7 @@ static void RenderEditor() {
         profile->placements.empty()) {
         ImGui::Text("Profile unavailable.");
         ImGui::EndChild();
+    ImGui::PopStyleVar();
         ImGui::End();
         return;
     }
@@ -565,18 +573,19 @@ static void RenderEditor() {
         g_selectedPlacement = static_cast<int>(profile->placements.size()) - 1;
 
     if (g_editorPage == 0) {
-    if (ImGui::Button("Add LED / Light", ImVec2(180.0f, 38.0f))) {
-        VLS::LedPlacement added;
+    auto nextPlacementId = [&]() {
         uint32_t nextId = 1;
-        for (const VLS::LedPlacement& existing : profile->placements) {
-            if (existing.id >= nextId)
-                nextId = existing.id + 1;
-        }
-        added.id = nextId;
+        for (const VLS::LedPlacement& existing : profile->placements)
+            if (existing.id >= nextId) nextId = existing.id + 1;
+        return nextId;
+    };
+
+    if (ImGui::Button("Add LED", ImVec2(112.0f, 40.0f))) {
+        VLS::LedPlacement added;
+        added.id = nextPlacementId();
         added.zone = VLS::LedZone::Windshield;
         added.transform.width = 1.0f;
         added.transform.height = 0.12f;
-
         VLS::LedEffectConfig newEffect;
         newEffect.type = VLS::LedEffectType::RunningLED;
         newEffect.enabled = true;
@@ -586,14 +595,28 @@ static void RenderEditor() {
         newEffect.brightness = 1.0f;
         newEffect.speed = 1.0f;
         added.effects.push_back(newEffect);
-
         profile->placements.push_back(added);
         g_selectedPlacement = static_cast<int>(profile->placements.size()) - 1;
         g_profileManager.MarkDirty(modelId);
     }
-
     ImGui::SameLine();
-    ImGui::Text("LEDs: %d", static_cast<int>(profile->placements.size()));
+    if (ImGui::Button("Copy LED", ImVec2(112.0f, 40.0f))) {
+        VLS::LedPlacement copied = profile->placements[g_selectedPlacement];
+        copied.id = nextPlacementId();
+        profile->placements.push_back(copied);
+        g_selectedPlacement = static_cast<int>(profile->placements.size()) - 1;
+        g_profileManager.MarkDirty(modelId);
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Delete LED", ImVec2(112.0f, 40.0f))) {
+        if (profile->placements.size() > 1) {
+            profile->placements.erase(profile->placements.begin() + g_selectedPlacement);
+            if (g_selectedPlacement >= static_cast<int>(profile->placements.size()))
+                g_selectedPlacement = static_cast<int>(profile->placements.size()) - 1;
+            g_profileManager.MarkDirty(modelId);
+        }
+    }
+    ImGui::Text("LED placements: %d (copy duplicates position + effects)", static_cast<int>(profile->placements.size()));
     ImGui::Dummy(ImVec2(0.0f, 8.0f));
     }
 
@@ -614,9 +637,13 @@ static void RenderEditor() {
     VLS::LedPlacement& placement =
         profile->placements[g_selectedPlacement];
 
+    if (ImGui::Checkbox("LED Placement Always On", &placement.enabled))
+        g_profileManager.MarkDirty(modelId);
+
     if (placement.effects.empty()) {
         ImGui::Text("No LED effect available.");
         ImGui::EndChild();
+    ImGui::PopStyleVar();
         ImGui::End();
         return;
     }
@@ -1148,6 +1175,7 @@ static void RenderEditor() {
     );
 
     ImGui::EndChild();
+    ImGui::PopStyleVar();
         ImGui::End();
 }
 
@@ -1228,6 +1256,9 @@ static void OnRenderEffects() {
                         );
                     }
 
+                } else if (g_animationMode == VLS::AnimationMode::Manual) {
+                    // Manual mode keeps every enabled placement visible together.
+                    VLS::ProfileRenderer::RenderVehicleProfile(vehicle, *profile);
                 } else {
                     const VLS::AnimationSelection& selection =
                         g_animationController.GetSelection();
