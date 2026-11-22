@@ -707,11 +707,22 @@ static bool ReadEffect(
         !ReadUInt8(value, "green", effect.green) ||
         !ReadUInt8(value, "blue", effect.blue) ||
         !ReadFloat(value, "brightness", effect.brightness) ||
-        !ReadFloat(value, "speed", effect.speed) ||
+        !ReadOptionalFloat(value, "opacity", effect.opacity) ||
+        !ReadOptionalFloat(value, "speed", effect.speed) ||
         !ReadString(value, "text", effect.text) ||
         !ReadOptionalFloat(value, "textSpacing", effect.textSpacing)) {
         return false;
     }
+
+    int colorMode = static_cast<int>(effect.colorMode);
+    if (!ReadInt(value, "colorMode", colorMode) ||
+        colorMode < 0 || colorMode > static_cast<int>(LedColorMode::Rainbow) ||
+        !ReadUInt8(value, "secondaryRed", effect.secondaryRed) ||
+        !ReadUInt8(value, "secondaryGreen", effect.secondaryGreen) ||
+        !ReadUInt8(value, "secondaryBlue", effect.secondaryBlue)) {
+        return false;
+    }
+    effect.colorMode = static_cast<LedColorMode>(colorMode);
 
     const JsonValue* matrix = Find(value, "matrix");
 
@@ -878,6 +889,11 @@ static bool ValidateProfileReferences(
                 !std::isfinite(effect.brightness) ||
                 effect.brightness < 0.0f ||
                 effect.brightness > 1.0f ||
+                !std::isfinite(effect.opacity) ||
+                effect.opacity < 0.0f ||
+                effect.opacity > 1.0f ||
+                static_cast<int>(effect.colorMode) < 0 ||
+                static_cast<int>(effect.colorMode) > static_cast<int>(LedColorMode::Rainbow) ||
                 !std::isfinite(effect.speed) ||
                 effect.speed <= 0.0f ||
                 !std::isfinite(effect.textSpacing) ||
@@ -1127,6 +1143,19 @@ static bool AppendEffect(
 
     output += ",\"brightness\":";
     if (!AppendFloat(output, effect.brightness)) return false;
+
+    output += ",\"opacity\":";
+    if (!AppendFloat(output, effect.opacity)) return false;
+
+    output += ",\"colorMode\":";
+    AppendInt(output, static_cast<int>(effect.colorMode));
+
+    output += ",\"secondaryRed\":";
+    AppendUInt(output, effect.secondaryRed);
+    output += ",\"secondaryGreen\":";
+    AppendUInt(output, effect.secondaryGreen);
+    output += ",\"secondaryBlue\":";
+    AppendUInt(output, effect.secondaryBlue);
 
     output += ",\"speed\":";
     if (!AppendFloat(output, effect.speed)) return false;
