@@ -709,7 +709,8 @@ static void RenderEditor() {
             5
         )) {
         effect.type = g_patternTypes[patternIndex];
-        if (effect.type == VLS::LedEffectType::RunningText) {
+        if (effect.type == VLS::LedEffectType::RunningText ||
+            effect.type == VLS::LedEffectType::StroboEyes) {
             effect.matrix.enabled = true;
             if (effect.matrix.rows < 7)
                 effect.matrix.rows = 7;
