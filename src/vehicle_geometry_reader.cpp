@@ -614,6 +614,13 @@ static std::string SurfaceRoleHint(const AtomicGeometryInfo& info, const GlassPa
     std::transform(frameName.begin(), frameName.end(), frameName.begin(),
         [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
+    // "lataria" is the vehicle body/chassis, never a glass or lighting
+    // surface. This explicit semantic exclusion takes priority over material
+    // texture names and all candidate heuristics below.
+    if (frameName.find("lataria") != std::string::npos) {
+        return "BODY_CHASSIS";
+    }
+
     // Surface groups are material-separated. Inspect the material actually
     // assigned to this group instead of relying on the atomic frame name alone.
     std::string textureName;
