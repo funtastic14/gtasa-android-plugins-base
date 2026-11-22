@@ -13,7 +13,9 @@ enum class LedZone : uint8_t {
     ExteriorBody,
     Headlight,
     Taillight,
-    Interior
+    Interior,
+    FrontUpWindshield,
+    Roof
 };
 
 // Jenis efek LED.
