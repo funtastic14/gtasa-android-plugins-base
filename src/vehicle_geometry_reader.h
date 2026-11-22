@@ -58,6 +58,31 @@ struct MeshMaterialInfo {
     std::string maskName;
 };
 
+enum class SurfaceRoleCandidate : uint8_t {
+    Unknown,
+    BodyChassis,
+    FrontGlass,
+    RearGlass,
+    SideGlass,
+    GlassUnresolved,
+    Lighting
+};
+
+struct SurfacePatch {
+    uint32_t atomicIndex = 0;
+    int16_t materialIndex = -1;
+    std::string frameName;
+    std::string textureName;
+    std::string maskName;
+    SurfaceRoleCandidate role = SurfaceRoleCandidate::Unknown;
+    std::vector<uint32_t> triangleIndices;
+    GeometryVertex centroid;
+    GeometryVertex normal;
+    GeometryVertex minBounds;
+    GeometryVertex maxBounds;
+    float area = 0.0f;
+};
+
 struct AtomicMesh {
     uint32_t atomicIndex = 0;
     uint32_t geometryIndex = 0;
@@ -83,6 +108,9 @@ public:
 
     // Mengakses mesh kendaraan yang terakhir dipindai.
     static const std::vector<AtomicMesh>& GetMeshes();
+
+    // Surface components derived from the scanned vehicle mesh.
+    static const std::vector<SurfacePatch>& GetSurfacePatches();
 
     // Menghapus cache mesh kendaraan.
     static void Clear();
