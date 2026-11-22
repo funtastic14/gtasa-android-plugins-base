@@ -1,6 +1,7 @@
 #include "matrix_animation_engine.h"
 
 #include <cmath>
+#include <cctype>
 #include <cstddef>
 
 namespace VLS {
@@ -62,6 +63,41 @@ void HSVtoRGB(
     red = ClampColor(r * 255.0f);
     green = ClampColor(g * 255.0f);
     blue = ClampColor(b * 255.0f);
+}
+
+uint8_t GetGlyphRow(char input, uint16_t row) {
+    if (row >= 7)
+        return 0;
+    char ch = static_cast<char>(std::toupper(static_cast<unsigned char>(input)));
+    static const uint8_t font[36][7] = {
+        {14,17,19,21,25,17,14}, {4,12,4,4,4,4,14},
+        {14,17,1,2,4,8,31}, {30,1,1,14,1,1,30},
+        {2,6,10,18,31,2,2}, {31,16,16,30,1,1,30},
+        {6,8,16,30,17,17,14}, {31,1,2,4,8,8,8},
+        {14,17,17,14,17,17,14}, {14,17,17,15,1,2,12},
+        {14,17,17,31,17,17,17}, {30,17,17,30,17,17,30},
+        {14,17,16,16,16,17,14}, {30,17,17,17,17,17,30},
+        {31,16,16,30,16,16,31}, {31,16,16,30,16,16,16},
+        {14,17,16,23,17,17,15}, {17,17,17,31,17,17,17},
+        {14,4,4,4,4,4,14}, {7,2,2,2,18,18,12},
+        {17,18,20,24,20,18,17}, {16,16,16,16,16,16,31},
+        {17,27,21,21,17,17,17}, {17,25,25,21,19,19,17},
+        {14,17,17,17,17,17,14}, {30,17,17,30,16,16,16},
+        {14,17,17,17,21,18,13}, {30,17,17,30,20,18,17},
+        {15,16,16,14,1,1,30}, {31,4,4,4,4,4,4},
+        {17,17,17,17,17,17,14}, {17,17,17,17,17,10,4},
+        {17,17,17,21,21,21,10}, {17,17,10,4,10,17,17},
+        {17,17,10,4,4,4,4}, {31,1,2,4,8,16,31}
+    };
+    if (ch >= '0' && ch <= '9')
+        return font[ch - '0'][row];
+    if (ch >= 'A' && ch <= 'Z')
+        return font[10 + ch - 'A'][row];
+    if (ch == '-') return row == 3 ? 14 : 0;
+    if (ch == '.') return row == 6 ? 4 : 0;
+    if (ch == ':') return (row == 2 || row == 5) ? 4 : 0;
+    if (ch == ' ') return 0;
+    return row == 0 || row == 6 ? 31 : 17;
 }
 
 float GetDirectionalPosition(
@@ -232,6 +268,34 @@ bool MatrixAnimationEngine::EvaluatePixel(
         break;
     }
 
+    case LedEffectType::RunningText: {
+        if (effect.text.empty() || matrix.rows < 7)
+            return true;
+        const float spacing = effect.textSpacing < 0.25f ? 0.25f : effect.textSpacing;
+        const float charWidth = 6.0f * spacing;
+        const float totalWidth = charWidth * static_cast<float>(effect.text.size());
+        if (totalWidth <= 0.0f)
+            return true;
+        const float scroll = std::fmod(
+            static_cast<float>(timeMs) * speed / 180.0f,
+            totalWidth
+        );
+        float sample = std::fmod(static_cast<float>(column) + scroll, totalWidth);
+        const size_t charIndex = static_cast<size_t>(sample / charWidth);
+        const float within = sample - static_cast<float>(charIndex) * charWidth;
+        const int glyphColumn = static_cast<int>(within / spacing);
+        if (glyphColumn >= 0 && glyphColumn < 5) {
+            const uint8_t bits = GetGlyphRow(effect.text[charIndex], row);
+            intensity = (bits & (1u << (4 - glyphColumn))) ? 1.0f : 0.0f;
+        } else {
+            intensity = 0.0f;
+        }
+        red = effect.red;
+        green = effect.green;
+        blue = effect.blue;
+        break;
+    }
+
     case LedEffectType::RGB: {
         const float hue =
             static_cast<float>(timeMs) * 0.06f * speed +
@@ -242,8 +306,7 @@ bool MatrixAnimationEngine::EvaluatePixel(
     }
 
     default:
-        // RunningText dan CustomAnimation memerlukan
-        // data teks atau frame animasi yang akan ditambahkan nanti.
+        // CustomAnimation requires user-supplied animation frames.
         return false;
     }
 
