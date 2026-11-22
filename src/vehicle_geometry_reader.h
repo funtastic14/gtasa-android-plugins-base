@@ -64,7 +64,10 @@ struct AtomicMesh {
 
     RwFrame* frame = nullptr;
 
+    // Vertex coordinates transformed into vehicle-local space during Scan().
+    // Valid for surface sampling/attachment; original vertices remain unchanged.
     std::vector<GeometryVertex> vertices;
+    std::vector<GeometryVertex> vehicleSpaceVertices;
     std::vector<GeometryTriangle> triangles;
     std::vector<MeshMaterialInfo> materials;
 };
