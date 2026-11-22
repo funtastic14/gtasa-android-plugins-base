@@ -530,14 +530,14 @@ static void AnalyzeVehicleSpaceMeshes(
     RwFrame* rootFrame,
     std::vector<AtomicGeometryInfo>& details,
     const std::vector<FrameInfo>& frames,
-    const std::vector<AtomicMesh>& meshes
+    std::vector<AtomicMesh>& meshes
 ) {
     if (rootFrame == nullptr) return;
     std::unordered_map<RwFrame*, std::string> names;
     for (const FrameInfo& f : frames)
         if (f.frame != nullptr) names[f.frame] = f.name;
-    std::unordered_map<uint32_t, const AtomicMesh*> byAtomic;
-    for (const AtomicMesh& m : meshes) byAtomic[m.atomicIndex] = &m;
+    std::unordered_map<uint32_t, AtomicMesh*> byAtomic;
+    for (AtomicMesh& m : meshes) byAtomic[m.atomicIndex] = &m;
     const VehicleSpaceTransform vehicleTransform =
         BuildVehicleSpaceTransform(rootFrame->ltm);
     if (!vehicleTransform.valid) return;
@@ -556,6 +556,8 @@ static void AnalyzeVehicleSpaceMeshes(
 
         std::vector<RwV3d> points;
         points.reserve(mesh.vertices.size());
+        mesh.vehicleSpaceVertices.clear();
+        mesh.vehicleSpaceVertices.reserve(mesh.vertices.size());
         bool valid = true;
         for (const GeometryVertex& v : mesh.vertices) {
             RwV3d p{};
@@ -564,6 +566,11 @@ static void AnalyzeVehicleSpaceMeshes(
                 break;
             }
             points.push_back(p);
+            GeometryVertex vehicleVertex;
+            vehicleVertex.x = p.x;
+            vehicleVertex.y = p.y;
+            vehicleVertex.z = p.z;
+            mesh.vehicleSpaceVertices.push_back(vehicleVertex);
             if (p.x < info.vehicleMinX) info.vehicleMinX = p.x;
             if (p.y < info.vehicleMinY) info.vehicleMinY = p.y;
             if (p.z < info.vehicleMinZ) info.vehicleMinZ = p.z;
@@ -571,7 +578,10 @@ static void AnalyzeVehicleSpaceMeshes(
             if (p.y > info.vehicleMaxY) info.vehicleMaxY = p.y;
             if (p.z > info.vehicleMaxZ) info.vehicleMaxZ = p.z;
         }
-        if (!valid || points.empty()) continue;
+        if (!valid || points.empty()) {
+            mesh.vehicleSpaceVertices.clear();
+            continue;
+        }
         info.hasVehicleSpaceBounds = true;
         // Analyze every atomic, including frames with non-standard or missing glass names.
         // The report ranks broad surface candidates; it does not assert that they are glass.
