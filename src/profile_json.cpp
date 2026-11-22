@@ -576,6 +576,9 @@ static bool ReadTransform(
         ReadFloat(value, "rotationX", transform.rotationX) &&
         ReadFloat(value, "rotationY", transform.rotationY) &&
         ReadFloat(value, "rotationZ", transform.rotationZ) &&
+        ReadFloat(value, "curvature", transform.curvature) &&
+        ReadFloat(value, "facingYaw", transform.facingYaw) &&
+        ReadFloat(value, "facingPitch", transform.facingPitch) &&
         ReadFloat(value, "width", transform.width) &&
         ReadFloat(value, "height", transform.height) &&
         ReadFloat(value, "stretchX", transform.stretchX) &&
@@ -827,6 +830,9 @@ static bool ValidateProfileReferences(
             !std::isfinite(transform.rotationX) ||
             !std::isfinite(transform.rotationY) ||
             !std::isfinite(transform.rotationZ) ||
+            !std::isfinite(transform.curvature) ||
+            !std::isfinite(transform.facingYaw) ||
+            !std::isfinite(transform.facingPitch) ||
             !std::isfinite(transform.width) ||
             !std::isfinite(transform.height) ||
             !std::isfinite(transform.stretchX) ||
@@ -953,6 +959,15 @@ static bool AppendTransform(
 
     output += ",\"rotationZ\":";
     if (!AppendFloat(output, transform.rotationZ)) return false;
+
+    output += ",\"curvature\":";
+    if (!AppendFloat(output, transform.curvature)) return false;
+
+    output += ",\"facingYaw\":";
+    if (!AppendFloat(output, transform.facingYaw)) return false;
+
+    output += ",\"facingPitch\":";
+    if (!AppendFloat(output, transform.facingPitch)) return false;
 
     output += ",\"width\":";
     if (!AppendFloat(output, transform.width)) return false;
