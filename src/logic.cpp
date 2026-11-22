@@ -506,9 +506,15 @@ static void RenderEditor() {
         ImGuiCond_FirstUseEver
     );
 
+    const ImGuiWindowFlags editorFlags =
+        ImGuiWindowFlags_NoMove |
+        ImGuiWindowFlags_NoResize |
+        ImGuiWindowFlags_NoCollapse;
+
     if (!ImGui::Begin(
             "Vehicle LED System",
-            &g_editorOpen
+            &g_editorOpen,
+            editorFlags
         )) {
         ImGui::End();
         return;
