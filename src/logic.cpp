@@ -749,8 +749,12 @@ static void RenderEditor() {
             effect.matrix.columns = 24;
             changed = true;
         }
-        if (SyncMatrixPixels(effect))
+        const size_t expectedPixels =
+            static_cast<size_t>(effect.matrix.columns) * effect.matrix.rows;
+        if (effect.matrix.pixels.size() != expectedPixels) {
+            SyncMatrixPixels(effect);
             changed = true;
+        }
     }
 
     float brightness = effect.brightness;
