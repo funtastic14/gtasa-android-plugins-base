@@ -753,6 +753,9 @@ static bool ReadPlacement(
     }
 
     placement.zone = static_cast<LedZone>(zone);
+    if (Find(value, "enabled") != nullptr &&
+        !ReadBool(value, "enabled", placement.enabled))
+        return false;
 
     const JsonValue* transform = Find(value, "transform");
 
@@ -1190,6 +1193,8 @@ static bool AppendPlacement(
 
     output += ",\"zone\":";
     AppendInt(output, static_cast<int>(placement.zone));
+    output += ",\"enabled\":";
+    output += placement.enabled ? "true" : "false";
 
     output += ",\"transform\":";
 
