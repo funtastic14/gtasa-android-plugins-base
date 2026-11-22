@@ -317,10 +317,25 @@ bool MatrixAnimationEngine::EvaluatePixel(
             static_cast<float>(timeMs) * speed / 180.0f,
             totalWidth
         );
-        float sample = std::fmod(static_cast<float>(column) + scroll, totalWidth);
-        const size_t charIndex = static_cast<size_t>(sample / charWidth);
-        const float within = sample - static_cast<float>(charIndex) * charWidth;
+        // The vehicle-local X axis is viewed from the opposite side when
+        // the matrix is mounted on a forward-facing windshield. Reverse the
+        // sampling coordinate so the message reads left-to-right from outside.
+        const float travel = std::fmod(
+            static_cast<float>(column) + scroll,
+            totalWidth
+        );
+        float sample = totalWidth - 0.0001f - travel;
+        if (sample < 0.0f)
+            sample += totalWidth;
+
+        size_t charIndex = static_cast<size_t>(sample / charWidth);
+        if (charIndex >= effect.text.size())
+            charIndex = effect.text.size() - 1;
+
+        const float within =
+            sample - static_cast<float>(charIndex) * charWidth;
         const int glyphColumn = static_cast<int>(within / spacing);
+
         if (glyphColumn >= 0 && glyphColumn < 5) {
             const uint8_t bits = GetGlyphRow(effect.text[charIndex], row);
             intensity = (bits & (1u << (4 - glyphColumn))) ? 1.0f : 0.0f;
