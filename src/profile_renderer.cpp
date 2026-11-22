@@ -306,7 +306,8 @@ static void SetVertex(
     const CVector& position,
     uint8_t red,
     uint8_t green,
-    uint8_t blue
+    uint8_t blue,
+    uint8_t alpha = 255
 ) {
     vertex.x = position.x;
     vertex.y = position.y;
@@ -319,7 +320,7 @@ static void SetVertex(
     vertex.r = red;
     vertex.g = green;
     vertex.b = blue;
-    vertex.a = 255;
+    vertex.a = alpha;
 
     vertex.u = 0.0f;
     vertex.v = 0.0f;
@@ -440,7 +441,8 @@ static bool RenderMatrixEffect(
                     world,
                     red,
                     green,
-                    blue
+                    blue,
+                    output.visible ? 255 : 0
                 );
             }
 
