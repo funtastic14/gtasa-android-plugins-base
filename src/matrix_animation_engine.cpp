@@ -233,6 +233,7 @@ bool MatrixAnimationEngine::EvaluatePixel(
     uint8_t red = pixel->red;
     uint8_t green = pixel->green;
     uint8_t blue = pixel->blue;
+    bool preserveEyeDetailColor = false;
 
     switch (effect.type) {
     case LedEffectType::RunningLED: {
@@ -281,9 +282,11 @@ bool MatrixAnimationEngine::EvaluatePixel(
                 intensity = std::fabs(dy) < 0.12f && eyeShape < 1.0f ? 0.8f : 0.0f;
             } else if (eyeShape <= 1.0f) {
                 if (pupilDistance < 0.12f) {
+                    preserveEyeDetailColor = true;
                     red = 5; green = 8; blue = 18;
                     intensity = 1.0f;
                 } else if (pupilDistance < 0.34f) {
+                    preserveEyeDetailColor = true;
                     red = 20; green = 155; blue = 255;
                     intensity = 1.0f;
                 } else {
@@ -348,13 +351,13 @@ bool MatrixAnimationEngine::EvaluatePixel(
         Clamp01(effect.brightness) *
         Clamp01(pixel->brightness);
 
-    if (effect.colorMode == LedColorMode::Gradient) {
+    if (effect.colorMode == LedColorMode::Gradient && !preserveEyeDetailColor) {
         const float blend = Clamp01(directionPosition);
         red = ClampColor(static_cast<float>(red) * (1.0f - blend) + effect.secondaryRed * blend);
         green = ClampColor(static_cast<float>(green) * (1.0f - blend) + effect.secondaryGreen * blend);
         blue = ClampColor(static_cast<float>(blue) * (1.0f - blend) + effect.secondaryBlue * blend);
     } else if (effect.colorMode == LedColorMode::Rainbow &&
-               effect.type != LedEffectType::RGB) {
+               effect.type != LedEffectType::RGB && !preserveEyeDetailColor) {
         const float hue = static_cast<float>(timeMs) * 0.06f * speed + directionPosition * 360.0f;
         HSVtoRGB(hue, red, green, blue);
     }
