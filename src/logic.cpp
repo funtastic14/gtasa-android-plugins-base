@@ -733,6 +733,10 @@ static void RenderEditor() {
         }
         changed |= ImGui::SliderFloat("Text Spacing", &effect.textSpacing, 0.25f, 3.0f);
         ImGui::TextWrapped("Supported characters: A-Z, 0-9 and basic punctuation.");
+    }
+
+    if (effect.type == VLS::LedEffectType::RunningText ||
+        effect.type == VLS::LedEffectType::StroboEyes) {
         if (!effect.matrix.enabled) {
             effect.matrix.enabled = true;
             changed = true;
@@ -741,6 +745,12 @@ static void RenderEditor() {
             effect.matrix.rows = 7;
             changed = true;
         }
+        if (effect.matrix.columns < 24) {
+            effect.matrix.columns = 24;
+            changed = true;
+        }
+        if (SyncMatrixPixels(effect))
+            changed = true;
     }
 
     float brightness = effect.brightness;
