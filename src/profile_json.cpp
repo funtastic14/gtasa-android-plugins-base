@@ -557,16 +557,6 @@ static bool ReadString(
     return true;
 }
 
-static bool ReadOptionalFloat(
-    const JsonValue& object,
-    const char* key,
-    float& output
-) {
-    if (Find(object, key) == nullptr)
-        return true;
-    return ReadFloat(object, key, output);
-}
-
 static bool ReadFloat(
     const JsonValue& object,
     const char* key,
@@ -584,6 +574,16 @@ static bool ReadFloat(
 
     output = static_cast<float>(value);
     return std::isfinite(output);
+}
+
+static bool ReadOptionalFloat(
+    const JsonValue& object,
+    const char* key,
+    float& output
+) {
+    if (Find(object, key) == nullptr)
+        return true;
+    return ReadFloat(object, key, output);
 }
 
 static bool ReadTransform(
