@@ -36,7 +36,9 @@ public:
         RwRenderStateSet(rwRENDERSTATESRCBLEND, Value(rwBLENDSRCALPHA));
         RwRenderStateSet(rwRENDERSTATEDESTBLEND, Value(rwBLENDINVSRCALPHA));
 
-        RwRenderStateSet(rwRENDERSTATEZTESTENABLE, Value(0));
+        // Depth-test prevents LEDs from showing through vehicle body panels.
+        // Keep depth writes disabled for transparent LED rendering.
+        RwRenderStateSet(rwRENDERSTATEZTESTENABLE, Value(1));
         RwRenderStateSet(rwRENDERSTATEZWRITEENABLE, Value(0));
         RwRenderStateSet(rwRENDERSTATECULLMODE, Value(rwCULLMODECULLNONE));
     }
