@@ -510,9 +510,11 @@ static void GlassParts(const AtomicMesh& mesh,const std::vector<RwV3d>& p,std::v
  size_t n=mesh.triangles.size(); if(!n||n>100000)return;
  std::vector<uint32_t> parent(n); for(uint32_t i=0;i<n;++i)parent[i]=i;
  auto root=[&parent](uint32_t x){while(parent[x]!=x){parent[x]=parent[parent[x]];x=parent[x];}return x;};
- std::vector<int32_t> first(mesh.vertices.size(),-1);
+ // Keep triangles with different materials in separate surface groups.
+ // A single atomic can contain body panels and glass that share vertices.
+ std::vector<std::unordered_map<int16_t, int32_t>> firstByVertexMaterial(mesh.vertices.size());
  for(uint32_t i=0;i<n;++i){const GeometryTriangle&t=mesh.triangles[i];uint16_t v[3]={t.a,t.b,t.c};
-  for(int k=0;k<3;++k){if(v[k]>=first.size())continue;if(first[v[k]]>=0){uint32_t a=root(i),b=root(uint32_t(first[v[k]]));if(a!=b)parent[b]=a;}else first[v[k]]=int32_t(i);}}
+  for(int k=0;k<3;++k){if(v[k]>=firstByVertexMaterial.size())continue;auto& byMaterial=firstByVertexMaterial[v[k]];auto it=byMaterial.find(t.materialIndex);if(it!=byMaterial.end()){uint32_t a=root(i),b=root(uint32_t(it->second));if(a!=b)parent[b]=a;}else byMaterial.emplace(t.materialIndex,int32_t(i));}}
  std::unordered_map<uint32_t,size_t> ids; std::vector<std::unordered_set<uint16_t>> used;
  std::vector<std::unordered_map<int16_t,uint32_t>> materialCounts;
  for(uint32_t i=0;i<n;++i){uint32_t r=root(i);auto it=ids.find(r);if(it==ids.end()){GlassPart c;float h=std::numeric_limits<float>::max();c.minX=c.minY=c.minZ=h;c.maxX=c.maxY=c.maxZ=-h;size_t k=out.size();out.push_back(c);used.emplace_back();materialCounts.emplace_back();ids[r]=k;it=ids.find(r);}
