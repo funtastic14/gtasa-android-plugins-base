@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cctype>
 #include <cstdint>
 #include <cstdio>
 #include <iomanip>
@@ -562,6 +563,49 @@ static void AnalyzeVehicleSpaceMeshes(
     }
 }
 
+static std::string SurfaceRoleHint(const AtomicGeometryInfo& info, const GlassPart& part) {
+    std::string name = info.frameName;
+    std::transform(name.begin(), name.end(), name.begin(),
+        [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+
+    const bool explicitLamp =
+        name.find("lamp") != std::string::npos ||
+        name.find("light") != std::string::npos ||
+        name.find("headlight") != std::string::npos ||
+        name.find("taillight") != std::string::npos ||
+        name.find("indicator") != std::string::npos ||
+        name.find("signal") != std::string::npos;
+    if (explicitLamp) return "LIGHTING_CANDIDATE";
+
+    const bool glassNamed =
+        name.find("glass") != std::string::npos ||
+        name.find("window") != std::string::npos ||
+        name.find("windscreen") != std::string::npos ||
+        name.find("windshield") != std::string::npos ||
+        name.find("screen") != std::string::npos ||
+        name.find("kaca") != std::string::npos;
+    const bool doorNamed =
+        name.find("door") != std::string::npos ||
+        name.find("pintu") != std::string::npos;
+
+    const float ax = std::fabs(part.nx);
+    const float ay = std::fabs(part.ny);
+    const float az = std::fabs(part.nz);
+
+    if (glassNamed || (doorNamed && part.cz > 0.30f)) {
+        if (ax > ay && ax > az) return "SIDE_GLASS_CANDIDATE";
+        if (ay >= ax && ay > az) {
+            if (part.cy > 0.25f) return "FRONT_GLASS_CANDIDATE";
+            if (part.cy < -0.25f) return "REAR_GLASS_CANDIDATE";
+        }
+        return "GLASS_PANEL_UNRESOLVED";
+    }
+
+    // Names such as "lataria" are model-author naming conventions.
+    // Do not infer a lamp or glass role from that label alone.
+    return "UNCLASSIFIED_SURFACE";
+}
+
 static std::string BuildDiagnosticReport(
     int modelId,
     const GeometryScanStats& stats,
@@ -876,6 +920,7 @@ static std::string BuildDiagnosticReport(
         report << "Candidate #" << i
                << " | Atomic #" << info.atomicIndex
                << " | Frame: " << info.frameName
+               << " | Role Hint: " << SurfaceRoleHint(info, part)
                << " | Triangles: " << part.triangles
                << " | Vertices: " << part.vertices
                << " | Area: " << part.area << "\n"
