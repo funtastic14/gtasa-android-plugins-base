@@ -41,6 +41,7 @@ struct GlassPart {
  float minX=0,minY=0,minZ=0,maxX=0,maxY=0,maxZ=0;
  float cx=0,cy=0,cz=0,nx=0,ny=0,nz=0,area=0;
  std::vector<std::pair<int16_t, uint32_t>> materialCounts;
+  std::vector<uint32_t> triangleIndices;
 };
 struct AtomicGeometryInfo {
     uint32_t atomicIndex = 0;
