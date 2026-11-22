@@ -781,6 +781,18 @@ static void RenderEditor() {
         changed = true;
     }
 
+    float effectColor[3] = {
+        effect.red / 255.0f,
+        effect.green / 255.0f,
+        effect.blue / 255.0f
+    };
+    if (ImGui::ColorEdit3("Effect Color", effectColor)) {
+        effect.red = static_cast<uint8_t>(effectColor[0] * 255.0f);
+        effect.green = static_cast<uint8_t>(effectColor[1] * 255.0f);
+        effect.blue = static_cast<uint8_t>(effectColor[2] * 255.0f);
+        changed = true;
+    }
+
     // -----------------------------------------------------
     // Matrix Configuration
     // -----------------------------------------------------
