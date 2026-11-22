@@ -33,6 +33,7 @@ static float g_animationSpeed = 1.0f;
 
 static int g_selectedPixel = 0;
 static int g_selectedPlacement = 0;
+static int g_editorPage = 0;
 
 static VLS::VehicleManager g_vehicleManager;
 static VLS::VehicleProfileManager g_profileManager;
@@ -486,6 +487,7 @@ static void RenderEditor() {
     if (g_selectedPlacement >= static_cast<int>(profile->placements.size()))
         g_selectedPlacement = static_cast<int>(profile->placements.size()) - 1;
 
+    if (g_editorPage == 0) {
     if (ImGui::Button("Add LED / Light", ImVec2(180.0f, 38.0f))) {
         VLS::LedPlacement added;
         uint32_t nextId = 1;
@@ -516,6 +518,7 @@ static void RenderEditor() {
     ImGui::SameLine();
     ImGui::Text("LEDs: %d", static_cast<int>(profile->placements.size()));
     ImGui::Dummy(ImVec2(0.0f, 8.0f));
+    }
 
     if (profile->placements.size() > 1) {
         if (ImGui::Button("<< LED", ImVec2(90.0f, 32.0f))) {
@@ -545,6 +548,14 @@ static void RenderEditor() {
 
     bool changed = false;
 
+    if (ImGui::Button("LED & EFFECT", ImVec2(190.0f, 36.0f)))
+        g_editorPage = 0;
+    ImGui::SameLine();
+    if (ImGui::Button("POSITION", ImVec2(190.0f, 36.0f)))
+        g_editorPage = 1;
+    ImGui::Separator();
+
+    if (g_editorPage == 0) {
     // -----------------------------------------------------
     // Animation Controller
     // -----------------------------------------------------
@@ -628,6 +639,9 @@ static void RenderEditor() {
         changed = true;
     }
 
+    }
+
+    if (g_editorPage == 1) {
     // -----------------------------------------------------
     // Placement
     // -----------------------------------------------------
@@ -655,6 +669,9 @@ static void RenderEditor() {
     changed |= DrawSpacedFloatControl("Stretch X", &placement.transform.stretchX, 0.1f, 4.0f, 0.01f);
     changed |= DrawSpacedFloatControl("Stretch Y", &placement.transform.stretchY, 0.1f, 4.0f, 0.01f);
 
+    }
+
+    if (g_editorPage == 0) {
     // -----------------------------------------------------
     // Effect
     // -----------------------------------------------------
@@ -888,6 +905,8 @@ static void RenderEditor() {
         }
     }
 
+    }
+
     // -----------------------------------------------------
     // Dirty state
     // -----------------------------------------------------
@@ -922,15 +941,21 @@ static void RenderEditor() {
 
     ImGui::SameLine();
 
-    if (ImGui::Button(
-            "Reset Position",
-            ImVec2(160.0f, 40.0f)
-        )) {
-        placement.transform.x = 0.0f;
-        placement.transform.y = 0.0f;
-        placement.transform.z = 0.0f;
-
-        g_profileManager.MarkDirty(modelId);
+    if (g_editorPage == 1) {
+        if (ImGui::Button(
+                "Reset Position",
+                ImVec2(160.0f, 40.0f)
+            )) {
+            placement.transform.x = 0.0f;
+            placement.transform.y = 0.0f;
+            placement.transform.z = 0.0f;
+            placement.transform.rotationX = 0.0f;
+            placement.transform.rotationY = 0.0f;
+            placement.transform.rotationZ = 0.0f;
+            placement.transform.stretchX = 1.0f;
+            placement.transform.stretchY = 1.0f;
+            g_profileManager.MarkDirty(modelId);
+        }
     }
 
     ImGui::Spacing();
