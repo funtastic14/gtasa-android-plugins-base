@@ -525,6 +525,8 @@ static void GlassParts(const AtomicMesh& mesh,const std::vector<RwV3d>& p,std::v
   float ar=l*.5f;++c.triangles;c.area+=ar;c.cx+=(a.x+b.x+d.x)*ar/3;c.cy+=(a.y+b.y+d.y)*ar/3;c.cz+=(a.z+b.z+d.z)*ar/3;c.nx+=q.x;c.ny+=q.y;c.nz+=q.z;
   const RwV3d*v[3]={&a,&b,&d};for(int k=0;k<3;++k){c.minX=std::min(c.minX,v[k]->x);c.maxX=std::max(c.maxX,v[k]->x);c.minY=std::min(c.minY,v[k]->y);c.maxY=std::max(c.maxY,v[k]->y);c.minZ=std::min(c.minZ,v[k]->z);c.maxZ=std::max(c.maxZ,v[k]->z);}
   used[it->second].insert(t.a);used[it->second].insert(t.b);used[it->second].insert(t.c);
+  // Preserve source triangle indices for windshield surface projection.
+  c.triangleIndices.push_back(i);
   ++materialCounts[it->second][t.materialIndex];
  }
  for(size_t i=0;i<out.size();++i){GlassPart&c=out[i];c.vertices=uint32_t(used[i].size());for(const auto& entry:materialCounts[i])c.materialCounts.push_back(entry);std::sort(c.materialCounts.begin(),c.materialCounts.end(),[](const auto&a,const auto&b){return a.first<b.first;});if(c.area>1e-6f){c.cx/=c.area;c.cy/=c.area;c.cz/=c.area;float l=std::sqrt(c.nx*c.nx+c.ny*c.ny+c.nz*c.nz);if(l>1e-6f){c.nx/=l;c.ny/=l;c.nz/=l;}}}
