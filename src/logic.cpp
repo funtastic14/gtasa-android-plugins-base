@@ -21,6 +21,7 @@
 #include <vector>
 #include <cstdint>
 #include <cstddef>
+#include <cstring>
 
 namespace Logic {
 
@@ -34,6 +35,8 @@ static float g_animationSpeed = 1.0f;
 static int g_selectedPixel = 0;
 static int g_selectedPlacement = 0;
 static int g_editorPage = 0;
+static char g_runningTextBuffer[129] = {};
+static const VLS::LedEffectConfig* g_runningTextBufferEffect = nullptr;
 
 static VLS::VehicleManager g_vehicleManager;
 static VLS::VehicleProfileManager g_profileManager;
@@ -234,6 +237,7 @@ static bool SyncMatrixPixels(
 
 static const char* g_patternNames[] = {
     "Running LED",
+    "Running Text",
     "RGB",
     "Strobo Wave",
     "Strobo Eyes"
@@ -241,6 +245,7 @@ static const char* g_patternNames[] = {
 
 static const VLS::LedEffectType g_patternTypes[] = {
     VLS::LedEffectType::RunningLED,
+    VLS::LedEffectType::RunningText,
     VLS::LedEffectType::RGB,
     VLS::LedEffectType::StroboWave,
     VLS::LedEffectType::StroboEyes
@@ -299,7 +304,7 @@ static const VLS::AnimationMode g_animationModeTypes[] = {
 };
 
 static int GetPatternIndex(VLS::LedEffectType type) {
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < 5; ++i) {
         if (g_patternTypes[i] == type)
             return i;
     }
@@ -670,6 +675,12 @@ static void RenderEditor() {
     changed |= DrawSpacedFloatControl("Rotation X", &placement.transform.rotationX, -180.0f, 180.0f, 0.5f);
     changed |= DrawSpacedFloatControl("Rotation Y", &placement.transform.rotationY, -180.0f, 180.0f, 0.5f);
     changed |= DrawSpacedFloatControl("Rotation Z", &placement.transform.rotationZ, -180.0f, 180.0f, 0.5f);
+    ImGui::Separator();
+    ImGui::Text("Curvature / Bend");
+    changed |= DrawSpacedFloatControl("Curve Depth", &placement.transform.curvature, -1.5f, 1.5f, 0.01f);
+    ImGui::Text("Facing Direction / POV");
+    changed |= DrawSpacedFloatControl("POV Yaw", &placement.transform.facingYaw, -90.0f, 90.0f, 0.5f);
+    changed |= DrawSpacedFloatControl("POV Pitch", &placement.transform.facingPitch, -90.0f, 90.0f, 0.5f);
     changed |= DrawSpacedFloatControl("Stretch X", &placement.transform.stretchX, 0.1f, 4.0f, 0.01f);
     changed |= DrawSpacedFloatControl("Stretch Y", &placement.transform.stretchY, 0.1f, 4.0f, 0.01f);
 
@@ -695,10 +706,40 @@ static void RenderEditor() {
             "Pattern",
             &patternIndex,
             g_patternNames,
-            4
+            5
         )) {
         effect.type = g_patternTypes[patternIndex];
+        if (effect.type == VLS::LedEffectType::RunningText) {
+            effect.matrix.enabled = true;
+            if (effect.matrix.rows < 7)
+                effect.matrix.rows = 7;
+            if (effect.matrix.columns < 24)
+                effect.matrix.columns = 24;
+            SyncMatrixPixels(effect);
+        }
         changed = true;
+    }
+
+    if (effect.type == VLS::LedEffectType::RunningText) {
+        if (g_runningTextBufferEffect != &effect) {
+            std::memset(g_runningTextBuffer, 0, sizeof(g_runningTextBuffer));
+            std::strncpy(g_runningTextBuffer, effect.text.c_str(), sizeof(g_runningTextBuffer) - 1);
+            g_runningTextBufferEffect = &effect;
+        }
+        if (ImGui::InputText("Running Text", g_runningTextBuffer, sizeof(g_runningTextBuffer))) {
+            effect.text = g_runningTextBuffer;
+            changed = true;
+        }
+        changed |= ImGui::SliderFloat("Text Spacing", &effect.textSpacing, 0.25f, 3.0f);
+        ImGui::TextWrapped("Supported characters: A-Z, 0-9 and basic punctuation.");
+        if (!effect.matrix.enabled) {
+            effect.matrix.enabled = true;
+            changed = true;
+        }
+        if (effect.matrix.rows < 7) {
+            effect.matrix.rows = 7;
+            changed = true;
+        }
     }
 
     float brightness = effect.brightness;
@@ -956,6 +997,9 @@ static void RenderEditor() {
             placement.transform.rotationX = 0.0f;
             placement.transform.rotationY = 0.0f;
             placement.transform.rotationZ = 0.0f;
+            placement.transform.curvature = 0.0f;
+            placement.transform.facingYaw = 0.0f;
+            placement.transform.facingPitch = 0.0f;
             placement.transform.stretchX = 1.0f;
             placement.transform.stretchY = 1.0f;
             g_profileManager.MarkDirty(modelId);
