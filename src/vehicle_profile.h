@@ -30,6 +30,12 @@ enum class LedEffectType : uint8_t {
 };
 
 // Arah gerakan masing-masing LED/piksel.
+enum class LedColorMode : uint8_t {
+    Solid,
+    Gradient,
+    Rainbow
+};
+
 enum class LedDirection : uint8_t {
     LeftToRight,
     RightToLeft,
@@ -106,7 +112,13 @@ struct LedEffectConfig {
     uint8_t blue = 255;
 
     float brightness = 1.0f;
+    float opacity = 1.0f;
     float speed = 1.0f;
+
+    LedColorMode colorMode = LedColorMode::Solid;
+    uint8_t secondaryRed = 0;
+    uint8_t secondaryGreen = 120;
+    uint8_t secondaryBlue = 255;
 
     // Teks untuk efek RunningText pada LED Matrix.
     std::string text;
