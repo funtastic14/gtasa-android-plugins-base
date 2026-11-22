@@ -238,14 +238,14 @@ static bool RenderMatrixEffect(
             const uint32_t indexBase = pixelIndex * 6;
 
             const float left =
-                t.x - t.width * 0.5f +
+                t.x - effectiveWidth * 0.5f +
                 static_cast<float>(column) * cellWidth +
                 gapX * 0.5f;
 
             const float right = left + pixelWidth;
 
             const float top =
-                t.z + t.height * 0.5f -
+                t.z + effectiveHeight * 0.5f -
                 static_cast<float>(row) * cellHeight -
                 gapZ * 0.5f;
 
