@@ -257,14 +257,48 @@ bool MatrixAnimationEngine::EvaluatePixel(
     }
 
     case LedEffectType::StroboEyes: {
-        const bool firstHalf =
-            column < matrix.columns / 2;
+        if (matrix.rows >= 7 && matrix.columns >= 14) {
+            const float eyeCenterX = column < matrix.columns / 2
+                ? static_cast<float>(matrix.columns) * 0.25f
+                : static_cast<float>(matrix.columns) * 0.75f;
+            const float eyeCenterY = static_cast<float>(matrix.rows - 1) * 0.5f;
+            const float eyeRadiusX = static_cast<float>(matrix.columns) * 0.19f;
+            const float eyeRadiusY = static_cast<float>(matrix.rows) * 0.43f;
+            const float dx = (static_cast<float>(column) - eyeCenterX) / eyeRadiusX;
+            const float dy = (static_cast<float>(row) - eyeCenterY) / eyeRadiusY;
+            const float eyeShape = dx * dx + dy * dy;
 
-        const bool alternate =
-            std::fmod(static_cast<float>(timeMs) / 180.0f, 1.0f)
-            < 0.5f;
+            const float blinkPhase = std::fmod(static_cast<float>(timeMs), 3200.0f);
+            const bool blinking = blinkPhase < 150.0f ||
+                                  (blinkPhase > 2050.0f && blinkPhase < 2190.0f);
+            const float pupilMotion = std::sin(static_cast<float>(timeMs) / 720.0f) * 0.22f;
+            const float side = column < matrix.columns / 2 ? -1.0f : 1.0f;
+            const float pupilX = dx - pupilMotion * side;
+            const float pupilY = dy;
+            const float pupilDistance = pupilX * pupilX + pupilY * pupilY;
 
-        intensity = (firstHalf == alternate) ? 1.0f : 0.0f;
+            if (blinking) {
+                intensity = std::fabs(dy) < 0.12f && eyeShape < 1.0f ? 0.8f : 0.0f;
+            } else if (eyeShape <= 1.0f) {
+                if (pupilDistance < 0.12f) {
+                    red = 5; green = 8; blue = 18;
+                    intensity = 1.0f;
+                } else if (pupilDistance < 0.34f) {
+                    red = 20; green = 155; blue = 255;
+                    intensity = 1.0f;
+                } else {
+                    red = effect.red; green = effect.green; blue = effect.blue;
+                    intensity = 0.85f;
+                }
+            } else {
+                intensity = 0.0f;
+            }
+        } else {
+            const bool firstHalf = column < matrix.columns / 2;
+            const bool alternate =
+                std::fmod(static_cast<float>(timeMs) / 180.0f, 1.0f) < 0.5f;
+            intensity = (firstHalf == alternate) ? 1.0f : 0.0f;
+        }
         break;
     }
 
