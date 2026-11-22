@@ -40,21 +40,21 @@ const PatternInfo g_patterns[] = {
         PatternCategory::Color,
         "RGB",
         "Perubahan warna RGB",
-        WINDSHIELD
+        ALL_ZONES
     },
     {
         LedEffectType::StroboWave,
         PatternCategory::Warning,
         "Strobo Wave",
         "Efek kilatan strobo bergelombang",
-        WINDSHIELD
+        ALL_ZONES
     },
     {
         LedEffectType::StroboEyes,
         PatternCategory::Special,
         "Strobo Eyes",
         "Efek animasi khusus bergaya mata",
-        WINDSHIELD
+        ALL_ZONES
     }
 };
 
