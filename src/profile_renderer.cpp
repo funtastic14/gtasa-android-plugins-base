@@ -1,9 +1,11 @@
 
 #include "profile_renderer.h"
 #include "matrix_animation_engine.h"
+#include "vehicle_geometry_reader.h"
 
 #include <cmath>
 #include <cstdint>
+#include <limits>
 #include <vector>
 
 #include <plugin-sdk/game_sa/base/Matrix.h>
@@ -125,15 +127,164 @@ static void HSVtoRGB(
     blue = ClampColor(b * 255.0f);
 }
 
-static CVector TransformPlacementPoint(const CVector& point, const LedTransform& t, CMatrix* matrix) {
+static CVector TransformPlacementLocalPoint(const CVector& point, const LedTransform& t) {
     const float k = 0.01745329251994329577f;
     const float rx=t.rotationX*k, ry=t.rotationY*k, rz=t.rotationZ*k;
     float x=point.x-t.x, y=point.y-t.y, z=point.z-t.z;
     float c=std::cos(rx), s=std::sin(rx), q=y*c-z*s; z=y*s+z*c; y=q;
     c=std::cos(ry); s=std::sin(ry); q=x*c+z*s; z=-x*s+z*c; x=q;
     c=std::cos(rz); s=std::sin(rz); q=x*c-y*s; y=x*s+y*c; x=q;
-    CVector local(t.x+x,t.y+y,t.z+z);
-    return matrix->TransformPoint(local);
+    return CVector(t.x+x,t.y+y,t.z+z);
+}
+
+static CVector TransformPlacementPoint(const CVector& point, const LedTransform& t, CMatrix* matrix) {
+    return matrix->TransformPoint(TransformPlacementLocalPoint(point, t));
+}
+
+static CVector ClosestPointOnTriangle(
+    const CVector& p, const CVector& a, const CVector& b, const CVector& c
+) {
+    const CVector ab = b - a;
+    const CVector ac = c - a;
+    const CVector ap = p - a;
+    const float d1 = DotProduct(ab, ap);
+    const float d2 = DotProduct(ac, ap);
+    if (d1 <= 0.0f && d2 <= 0.0f) return a;
+
+    const CVector bp = p - b;
+    const float d3 = DotProduct(ab, bp);
+    const float d4 = DotProduct(ac, bp);
+    if (d3 >= 0.0f && d4 <= d3) return b;
+
+    const float vc = d1 * d4 - d3 * d2;
+    if (vc <= 0.0f && d1 >= 0.0f && d3 <= 0.0f) {
+        const float v = d1 / (d1 - d3);
+        return a + ab * v;
+    }
+
+    const CVector cp = p - c;
+    const float d5 = DotProduct(ab, cp);
+    const float d6 = DotProduct(ac, cp);
+    if (d6 >= 0.0f && d5 <= d6) return c;
+
+    const float vb = d5 * d2 - d1 * d6;
+    if (vb <= 0.0f && d2 >= 0.0f && d6 <= 0.0f) {
+        const float w = d2 / (d2 - d6);
+        return a + ac * w;
+    }
+
+    const float va = d3 * d6 - d5 * d4;
+    if (va <= 0.0f && (d4 - d3) >= 0.0f && (d5 - d6) >= 0.0f) {
+        const CVector edge = c - b;
+        const float w = (d4 - d3) / ((d4 - d3) + (d5 - d6));
+        return b + edge * w;
+    }
+
+    const float denom = 1.0f / (va + vb + vc);
+    const float v = vb * denom;
+    const float w = vc * denom;
+    return a + ab * v + ac * w;
+}
+
+static const SurfacePatch* FindWindshieldPatch(
+    const CVector& center,
+    const std::vector<AtomicMesh>& meshes,
+    const std::vector<SurfacePatch>& patches,
+    const AtomicMesh*& selectedMesh
+) {
+    const SurfacePatch* bestPatch = nullptr;
+    selectedMesh = nullptr;
+    float bestDistance = std::numeric_limits<float>::max();
+
+    for (const SurfacePatch& patch : patches) {
+        const bool frontCandidate =
+            patch.role == SurfaceRoleCandidate::FrontGlass ||
+            (patch.role == SurfaceRoleCandidate::GlassUnresolved &&
+             patch.centroid.y > 0.25f &&
+             std::fabs(patch.normal.y) >= std::fabs(patch.normal.x) &&
+             std::fabs(patch.normal.y) >= std::fabs(patch.normal.z));
+        if (!frontCandidate || patch.triangleIndices.empty())
+            continue;
+
+        const auto meshIt = std::find_if(
+            meshes.begin(), meshes.end(),
+            [&patch](const AtomicMesh& mesh) {
+                return mesh.atomicIndex == patch.atomicIndex;
+            }
+        );
+        if (meshIt == meshes.end() ||
+            meshIt->vehicleSpaceVertices.empty())
+            continue;
+
+        float nearest = std::numeric_limits<float>::max();
+        for (uint32_t triIndex : patch.triangleIndices) {
+            if (triIndex >= meshIt->triangles.size()) continue;
+            const GeometryTriangle& tri = meshIt->triangles[triIndex];
+            if (tri.a >= meshIt->vehicleSpaceVertices.size() ||
+                tri.b >= meshIt->vehicleSpaceVertices.size() ||
+                tri.c >= meshIt->vehicleSpaceVertices.size()) continue;
+
+            const GeometryVertex& av = meshIt->vehicleSpaceVertices[tri.a];
+            const GeometryVertex& bv = meshIt->vehicleSpaceVertices[tri.b];
+            const GeometryVertex& cv = meshIt->vehicleSpaceVertices[tri.c];
+            const CVector a(av.x,av.y,av.z), b(bv.x,bv.y,bv.z), c(cv.x,cv.y,cv.z);
+            const CVector q = ClosestPointOnTriangle(center,a,b,c);
+            const CVector delta = center-q;
+            const float distance = DotProduct(delta,delta);
+            if (distance < nearest) nearest = distance;
+        }
+
+        if (nearest < bestDistance) {
+            bestDistance = nearest;
+            bestPatch = &patch;
+            selectedMesh = &(*meshIt);
+        }
+    }
+
+    // Reject unrelated glass patches; never fall back to a floating windshield panel.
+    return bestDistance <= 2.25f ? bestPatch : nullptr;
+}
+
+static bool ProjectToSurfacePatch(
+    const CVector& point,
+    const SurfacePatch& patch,
+    const AtomicMesh& mesh,
+    CVector& projected
+) {
+    float bestDistance = std::numeric_limits<float>::max();
+    bool found = false;
+
+    for (uint32_t triIndex : patch.triangleIndices) {
+        if (triIndex >= mesh.triangles.size()) continue;
+        const GeometryTriangle& tri = mesh.triangles[triIndex];
+        if (tri.a >= mesh.vehicleSpaceVertices.size() ||
+            tri.b >= mesh.vehicleSpaceVertices.size() ||
+            tri.c >= mesh.vehicleSpaceVertices.size()) continue;
+
+        const GeometryVertex& av = mesh.vehicleSpaceVertices[tri.a];
+        const GeometryVertex& bv = mesh.vehicleSpaceVertices[tri.b];
+        const GeometryVertex& cv = mesh.vehicleSpaceVertices[tri.c];
+        const CVector a(av.x,av.y,av.z), b(bv.x,bv.y,bv.z), c(cv.x,cv.y,cv.z);
+        const CVector q = ClosestPointOnTriangle(point,a,b,c);
+        const CVector delta = point-q;
+        const float distance = DotProduct(delta,delta);
+        if (distance < bestDistance) {
+            bestDistance = distance;
+            projected = q;
+            found = true;
+        }
+    }
+
+    if (!found || bestDistance > 2.25f)
+        return false;
+
+    CVector normal(patch.normal.x,patch.normal.y,patch.normal.z);
+    const float length = std::sqrt(DotProduct(normal,normal));
+    if (length > 1e-5f) {
+        normal *= (0.012f / length);
+        projected += normal;
+    }
+    return true;
 }
 
 static void SetVertex(
@@ -197,6 +348,23 @@ static bool RenderMatrixEffect(
         t.stretchX <= 0.0f ||
         t.stretchY <= 0.0f)
         return false;
+
+    const bool attachToWindshield =
+        placement.zone == LedZone::Windshield ||
+        placement.zone == LedZone::FrontUpWindshield;
+    const AtomicMesh* surfaceMesh = nullptr;
+    const SurfacePatch* surfacePatch = nullptr;
+    if (attachToWindshield) {
+        const CVector center(t.x,t.y,t.z);
+        surfacePatch = FindWindshieldPatch(
+            center,
+            VehicleGeometryReader::GetMeshes(),
+            VehicleGeometryReader::GetSurfacePatches(),
+            surfaceMesh
+        );
+        if (surfacePatch == nullptr || surfaceMesh == nullptr)
+            return false;
+    }
 
     const float effectiveWidth = t.width * t.stretchX;
     const float effectiveHeight = t.height * t.stretchY;
@@ -456,7 +624,15 @@ static bool RenderEffect(
         local[3] = {left,  t.y, t.z + halfHeight};
 
         for (uint32_t v = 0; v < 4; ++v) {
-            CVector world = TransformPlacementPoint(local[v], t, matrix);
+            CVector world;
+            if (attachToWindshield) {
+                CVector vehicleLocal = TransformPlacementLocalPoint(local[v], t);
+                if (!ProjectToSurfacePatch(vehicleLocal, *surfacePatch, *surfaceMesh, vehicleLocal))
+                    return false;
+                world = matrix->TransformPoint(vehicleLocal);
+            } else {
+                world = TransformPlacementPoint(local[v], t, matrix);
+            }
 
             SetVertex(
                 vertices[i * 4 + v],
