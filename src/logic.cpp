@@ -390,17 +390,18 @@ static bool DrawSpacedFloatControl(
 ) {
     bool changed = false;
     ImGui::PushID(label);
-    ImGui::PushItemWidth(-88.0f);
+    // Larger touch targets for phone screens.
+    ImGui::PushItemWidth(-104.0f);
     changed |= ImGui::SliderFloat(label, value, minValue, maxValue, "%.3f");
     ImGui::PopItemWidth();
     ImGui::SameLine();
-    if (ImGui::SmallButton("<<")) {
+    if (ImGui::Button("-", ImVec2(44.0f, 34.0f))) {
         *value -= step;
         if (*value < minValue) *value = minValue;
         changed = true;
     }
     ImGui::SameLine();
-    if (ImGui::SmallButton(">>")) {
+    if (ImGui::Button("+", ImVec2(44.0f, 34.0f))) {
         *value += step;
         if (*value > maxValue) *value = maxValue;
         changed = true;
@@ -1280,8 +1281,7 @@ static void OnGameProcess() {
 
     g_vehicleManager.Update();
 
-    // Scan geometri kendaraan pemain.
-    UpdateVehicleGeometryScan();
+    // Automatic geometry scanning is paused until windshield work resumes.
 
     ProcessPendingProfileLoads();
 
