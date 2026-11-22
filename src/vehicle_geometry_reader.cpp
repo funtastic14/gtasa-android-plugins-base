@@ -610,35 +610,64 @@ static void AnalyzeVehicleSpaceMeshes(
 }
 
 static std::string SurfaceRoleHint(const AtomicGeometryInfo& info, const GlassPart& part) {
-    std::string name = info.frameName;
-    std::transform(name.begin(), name.end(), name.begin(),
+    std::string frameName = info.frameName;
+    std::transform(frameName.begin(), frameName.end(), frameName.begin(),
         [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
+    // Surface groups are material-separated. Inspect the material actually
+    // assigned to this group instead of relying on the atomic frame name alone.
+    std::string textureName;
+    std::string maskName;
+    if (!part.materialCounts.empty()) {
+        const int16_t materialIndex = part.materialCounts.front().first;
+        const auto materialIt = std::find_if(
+            info.materials.begin(), info.materials.end(),
+            [materialIndex](const MeshMaterialInfo& item) {
+                return item.index == materialIndex;
+            }
+        );
+        if (materialIt != info.materials.end()) {
+            textureName = materialIt->textureName;
+            maskName = materialIt->maskName;
+        }
+    }
+    std::transform(textureName.begin(), textureName.end(), textureName.begin(),
+        [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    std::transform(maskName.begin(), maskName.end(), maskName.begin(),
+        [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+
+    const auto contains = [](const std::string& value, const char* token) {
+        return value.find(token) != std::string::npos;
+    };
     const bool explicitLamp =
-        name.find("lamp") != std::string::npos ||
-        name.find("light") != std::string::npos ||
-        name.find("headlight") != std::string::npos ||
-        name.find("taillight") != std::string::npos ||
-        name.find("indicator") != std::string::npos ||
-        name.find("signal") != std::string::npos;
+        contains(frameName, "lamp") || contains(frameName, "light") ||
+        contains(frameName, "headlight") || contains(frameName, "taillight") ||
+        contains(frameName, "indicator") || contains(frameName, "signal") ||
+        contains(textureName, "vehiclelight") || contains(textureName, "headlight") ||
+        contains(textureName, "taillight") || contains(textureName, "indicator") ||
+        contains(maskName, "vehiclelight") || contains(maskName, "headlight") ||
+        contains(maskName, "taillight");
     if (explicitLamp) return "LIGHTING_CANDIDATE";
 
-    const bool glassNamed =
-        name.find("glass") != std::string::npos ||
-        name.find("window") != std::string::npos ||
-        name.find("windscreen") != std::string::npos ||
-        name.find("windshield") != std::string::npos ||
-        name.find("screen") != std::string::npos ||
-        name.find("kaca") != std::string::npos;
+    const bool frameGlass =
+        contains(frameName, "glass") || contains(frameName, "window") ||
+        contains(frameName, "windscreen") || contains(frameName, "windshield") ||
+        contains(frameName, "screen") || contains(frameName, "kaca");
+    const bool textureGlass =
+        contains(textureName, "glass") || contains(textureName, "window") ||
+        contains(textureName, "windscreen") || contains(textureName, "windshield") ||
+        contains(textureName, "kaca") ||
+        contains(maskName, "glass") || contains(maskName, "window") ||
+        contains(maskName, "windscreen") || contains(maskName, "windshield") ||
+        contains(maskName, "kaca");
     const bool doorNamed =
-        name.find("door") != std::string::npos ||
-        name.find("pintu") != std::string::npos;
+        contains(frameName, "door") || contains(frameName, "pintu");
 
     const float ax = std::fabs(part.nx);
     const float ay = std::fabs(part.ny);
     const float az = std::fabs(part.nz);
 
-    if (glassNamed || (doorNamed && part.cz > 0.30f)) {
+    if (frameGlass || textureGlass || (doorNamed && part.cz > 0.30f)) {
         if (ax > ay && ax > az) return "SIDE_GLASS_CANDIDATE";
         if (ay >= ax && ay > az) {
             if (part.cy > 0.25f) return "FRONT_GLASS_CANDIDATE";
@@ -647,8 +676,7 @@ static std::string SurfaceRoleHint(const AtomicGeometryInfo& info, const GlassPa
         return "GLASS_PANEL_UNRESOLVED";
     }
 
-    // Names such as "lataria" are model-author naming conventions.
-    // Do not infer a lamp or glass role from that label alone.
+    // Names such as "lataria" and "alpha" are not semantic proof of glass.
     return "UNCLASSIFIED_SURFACE";
 }
 
