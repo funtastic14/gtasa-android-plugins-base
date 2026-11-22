@@ -553,6 +553,18 @@ static bool RenderEffect(
         // dependency. Keep the established vehicle-local renderer alive
         // when a model has no readable CPU glass geometry or no valid patch.
         projectToWindshield = surfacePatch != nullptr && surfaceMesh != nullptr;
+
+        // Projecting every rotated corner back onto the glass cancels the
+        // intended tilt. When the user rotates the placement, use the full
+        // vehicle-local transform so the orientation remains visible.
+        const bool hasPlacementRotation =
+            std::fabs(t.rotationX) > 0.001f ||
+            std::fabs(t.rotationY) > 0.001f ||
+            std::fabs(t.rotationZ) > 0.001f ||
+            std::fabs(t.facingYaw) > 0.001f ||
+            std::fabs(t.facingPitch) > 0.001f;
+        if (hasPlacementRotation)
+            projectToWindshield = false;
     }
 
     const float effectiveWidth = t.width * t.stretchX;
