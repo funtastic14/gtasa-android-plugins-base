@@ -138,7 +138,8 @@ static CVector TransformPlacementLocalPoint(const CVector& point, const LedTrans
 }
 
 static CVector TransformPlacementPoint(const CVector& point, const LedTransform& t, CMatrix* matrix) {
-    return matrix->TransformPoint(TransformPlacementLocalPoint(point, t));
+    CVector local = TransformPlacementLocalPoint(point, t);
+    return matrix->TransformPoint(local);
 }
 
 static CVector ClosestPointOnTriangle(
@@ -349,23 +350,6 @@ static bool RenderMatrixEffect(
         t.stretchY <= 0.0f)
         return false;
 
-    const bool attachToWindshield =
-        placement.zone == LedZone::Windshield ||
-        placement.zone == LedZone::FrontUpWindshield;
-    const AtomicMesh* surfaceMesh = nullptr;
-    const SurfacePatch* surfacePatch = nullptr;
-    if (attachToWindshield) {
-        const CVector center(t.x,t.y,t.z);
-        surfacePatch = FindWindshieldPatch(
-            center,
-            VehicleGeometryReader::GetMeshes(),
-            VehicleGeometryReader::GetSurfacePatches(),
-            surfaceMesh
-        );
-        if (surfacePatch == nullptr || surfaceMesh == nullptr)
-            return false;
-    }
-
     const float effectiveWidth = t.width * t.stretchX;
     const float effectiveHeight = t.height * t.stretchY;
     const float cellWidth = effectiveWidth / static_cast<float>(columns);
@@ -534,6 +518,23 @@ static bool RenderEffect(
 
     const uint32_t head =
         static_cast<uint32_t>(cycle * SEGMENTS) % SEGMENTS;
+
+    const bool attachToWindshield =
+        placement.zone == LedZone::Windshield ||
+        placement.zone == LedZone::FrontUpWindshield;
+    const AtomicMesh* surfaceMesh = nullptr;
+    const SurfacePatch* surfacePatch = nullptr;
+    if (attachToWindshield) {
+        const CVector center(t.x,t.y,t.z);
+        surfacePatch = FindWindshieldPatch(
+            center,
+            VehicleGeometryReader::GetMeshes(),
+            VehicleGeometryReader::GetSurfacePatches(),
+            surfaceMesh
+        );
+        if (surfacePatch == nullptr || surfaceMesh == nullptr)
+            return false;
+    }
 
     const float effectiveWidth = t.width * t.stretchX;
     const float effectiveHeight = t.height * t.stretchY;
