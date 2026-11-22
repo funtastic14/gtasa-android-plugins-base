@@ -709,7 +709,7 @@ static bool ReadEffect(
         !ReadFloat(value, "brightness", effect.brightness) ||
         !ReadFloat(value, "speed", effect.speed) ||
         !ReadString(value, "text", effect.text) ||
-        !ReadFloat(value, "textSpacing", effect.textSpacing)) {
+        !ReadOptionalFloat(value, "textSpacing", effect.textSpacing)) {
         return false;
     }
 
