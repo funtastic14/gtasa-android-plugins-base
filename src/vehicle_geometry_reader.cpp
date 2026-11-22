@@ -9,6 +9,8 @@
 #include <plugin-sdk/renderware/RpClump.h>
 #include <plugin-sdk/renderware/RpAtomic.h>
 #include <plugin-sdk/renderware/RpGeometry.h>
+#include <plugin-sdk/renderware/RpMaterial.h>
+#include <plugin-sdk/renderware/RwTexture.h>
 #include <plugin-sdk/renderware/RwFrame.h>
 #include <plugin-sdk/renderware/RwMatrix.h>
 
@@ -38,6 +40,7 @@ struct GlassPart {
  uint32_t triangles=0, vertices=0;
  float minX=0,minY=0,minZ=0,maxX=0,maxY=0,maxZ=0;
  float cx=0,cy=0,cz=0,nx=0,ny=0,nz=0,area=0;
+ std::vector<std::pair<int16_t, uint32_t>> materialCounts;
 };
 struct AtomicGeometryInfo {
     uint32_t atomicIndex = 0;
@@ -66,6 +69,7 @@ struct AtomicGeometryInfo {
     uint32_t dominantNormalYCount = 0;
     uint32_t dominantNormalZCount = 0;
     std::vector<GlassPart> glassParts;
+    std::vector<MeshMaterialInfo> materials;
 };
 
 struct FrameInfo {
@@ -102,6 +106,15 @@ struct FrameScanContext {
 
 static int g_lastSavedModelId = -2147483647;
 static std::vector<AtomicMesh> g_cachedMeshes;
+
+static std::string ReadTextureName(const char* name) {
+    if (name == nullptr)
+        return std::string();
+    size_t length = 0;
+    while (length < 32 && name[length] != '\0')
+        ++length;
+    return std::string(name, length);
+}
 
 static bool IsFiniteVertex(const RwV3d& vertex) {
     return std::isfinite(vertex.x) &&
@@ -151,6 +164,9 @@ static RpAtomic* ScanAtomic(RpAtomic* atomic, void* data) {
         signedTriangleCount > 0
             ? static_cast<uint32_t>(signedTriangleCount)
             : 0;
+    const RwInt32 signedMaterialCount = RpGeometryGetNumMaterials(geometry);
+    const uint32_t materialCount = signedMaterialCount > 0
+        ? static_cast<uint32_t>(signedMaterialCount) : 0;
 
     stats.totalVertices += vertexCount;
     stats.totalTriangles += triangleCount;
@@ -177,6 +193,20 @@ static RpAtomic* ScanAtomic(RpAtomic* atomic, void* data) {
     info.vertexCount = vertexCount;
     info.triangleCount = triangleCount;
     info.frame = RpAtomicGetFrame(atomic);
+
+    const uint32_t safeMaterialCount = materialCount > 1024u ? 1024u : materialCount;
+    info.materials.reserve(safeMaterialCount);
+    for (uint32_t i = 0; i < safeMaterialCount; ++i) {
+        MeshMaterialInfo materialInfo;
+        materialInfo.index = static_cast<int16_t>(i);
+        RpMaterial* material = RpGeometryGetMaterial(geometry, static_cast<RwInt32>(i));
+        RwTexture* texture = material != nullptr ? RpMaterialGetTexture(material) : nullptr;
+        if (texture != nullptr) {
+            materialInfo.textureName = ReadTextureName(RwTextureGetName(texture));
+            materialInfo.maskName = ReadTextureName(RwTextureGetMaskName(texture));
+        }
+        info.materials.push_back(materialInfo);
+    }
 
     const RwV3d* vertices = nullptr;
 
@@ -267,6 +297,7 @@ static RpAtomic* ScanAtomic(RpAtomic* atomic, void* data) {
         mesh.atomicIndex = atomicIndex;
         mesh.geometryIndex = geometryIndex;
         mesh.frame = info.frame;
+        mesh.materials = info.materials;
 
         mesh.vertices.reserve(vertexCount);
 
@@ -316,6 +347,7 @@ static RpAtomic* ScanAtomic(RpAtomic* atomic, void* data) {
                 storedTriangle.a = a;
                 storedTriangle.b = b;
                 storedTriangle.c = c;
+                storedTriangle.materialIndex = triangle.matIndex;
 
                 mesh.triangles.push_back(storedTriangle);
             }
@@ -482,14 +514,16 @@ static void GlassParts(const AtomicMesh& mesh,const std::vector<RwV3d>& p,std::v
  for(uint32_t i=0;i<n;++i){const GeometryTriangle&t=mesh.triangles[i];uint16_t v[3]={t.a,t.b,t.c};
   for(int k=0;k<3;++k){if(v[k]>=first.size())continue;if(first[v[k]]>=0){uint32_t a=root(i),b=root(uint32_t(first[v[k]]));if(a!=b)parent[b]=a;}else first[v[k]]=int32_t(i);}}
  std::unordered_map<uint32_t,size_t> ids; std::vector<std::unordered_set<uint16_t>> used;
- for(uint32_t i=0;i<n;++i){uint32_t r=root(i);auto it=ids.find(r);if(it==ids.end()){GlassPart c;float h=std::numeric_limits<float>::max();c.minX=c.minY=c.minZ=h;c.maxX=c.maxY=c.maxZ=-h;size_t k=out.size();out.push_back(c);used.emplace_back();ids[r]=k;it=ids.find(r);}
+ std::vector<std::unordered_map<int16_t,uint32_t>> materialCounts;
+ for(uint32_t i=0;i<n;++i){uint32_t r=root(i);auto it=ids.find(r);if(it==ids.end()){GlassPart c;float h=std::numeric_limits<float>::max();c.minX=c.minY=c.minZ=h;c.maxX=c.maxY=c.maxZ=-h;size_t k=out.size();out.push_back(c);used.emplace_back();materialCounts.emplace_back();ids[r]=k;it=ids.find(r);}
   GlassPart&c=out[it->second];const GeometryTriangle&t=mesh.triangles[i];if(t.a>=p.size()||t.b>=p.size()||t.c>=p.size())continue;
   const RwV3d&a=p[t.a];const RwV3d&b=p[t.b];const RwV3d&d=p[t.c];RwV3d ab{b.x-a.x,b.y-a.y,b.z-a.z},ac{d.x-a.x,d.y-a.y,d.z-a.z};RwV3d q=CrossProduct(ab,ac);float l=std::sqrt(RwV3dDotProduct(q,q));if(!std::isfinite(l)||l<1e-5f)continue;
   float ar=l*.5f;++c.triangles;c.area+=ar;c.cx+=(a.x+b.x+d.x)*ar/3;c.cy+=(a.y+b.y+d.y)*ar/3;c.cz+=(a.z+b.z+d.z)*ar/3;c.nx+=q.x;c.ny+=q.y;c.nz+=q.z;
   const RwV3d*v[3]={&a,&b,&d};for(int k=0;k<3;++k){c.minX=std::min(c.minX,v[k]->x);c.maxX=std::max(c.maxX,v[k]->x);c.minY=std::min(c.minY,v[k]->y);c.maxY=std::max(c.maxY,v[k]->y);c.minZ=std::min(c.minZ,v[k]->z);c.maxZ=std::max(c.maxZ,v[k]->z);}
   used[it->second].insert(t.a);used[it->second].insert(t.b);used[it->second].insert(t.c);
+  ++materialCounts[it->second][t.materialIndex];
  }
- for(size_t i=0;i<out.size();++i){GlassPart&c=out[i];c.vertices=uint32_t(used[i].size());if(c.area>1e-6f){c.cx/=c.area;c.cy/=c.area;c.cz/=c.area;float l=std::sqrt(c.nx*c.nx+c.ny*c.ny+c.nz*c.nz);if(l>1e-6f){c.nx/=l;c.ny/=l;c.nz/=l;}}}
+ for(size_t i=0;i<out.size();++i){GlassPart&c=out[i];c.vertices=uint32_t(used[i].size());for(const auto& entry:materialCounts[i])c.materialCounts.push_back(entry);std::sort(c.materialCounts.begin(),c.materialCounts.end(),[](const auto&a,const auto&b){return a.first<b.first;});if(c.area>1e-6f){c.cx/=c.area;c.cy/=c.area;c.cz/=c.area;float l=std::sqrt(c.nx*c.nx+c.ny*c.ny+c.nz*c.nz);if(l>1e-6f){c.nx/=l;c.ny/=l;c.nz/=l;}}}
 }
 
 static void AnalyzeVehicleSpaceMeshes(
@@ -933,6 +967,22 @@ static std::string BuildDiagnosticReport(
                << " | Normal X=" << part.nx
                << " Y=" << part.ny
                << " Z=" << part.nz << "\n";
+        for (const auto& materialCount : part.materialCounts) {
+            const int16_t materialIndex = materialCount.first;
+            const auto materialIt = std::find_if(
+                info.materials.begin(), info.materials.end(),
+                [materialIndex](const MeshMaterialInfo& item) { return item.index == materialIndex; }
+            );
+            report << "  Material #" << materialIndex
+                   << " | Triangles: " << materialCount.second;
+            if (materialIt != info.materials.end()) {
+                report << " | Texture: "
+                       << (materialIt->textureName.empty() ? "<none>" : materialIt->textureName)
+                       << " | Mask: "
+                       << (materialIt->maskName.empty() ? "<none>" : materialIt->maskName);
+            }
+            report << "\n";
+        }
     }
 
     report << "----------------------------------------\n";
