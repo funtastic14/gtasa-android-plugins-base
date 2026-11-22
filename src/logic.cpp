@@ -708,7 +708,7 @@ static void RenderEditor() {
     } else if (g_animationMode ==
                VLS::AnimationMode::Manual) {
         ImGui::Text(
-            "Manual mode uses the selected editor effect."
+            "Manual mode renders all enabled LED placements together."
         );
     } else {
         ImGui::Text(
@@ -863,6 +863,7 @@ static void RenderEditor() {
 
     const bool supportsPalette =
         effect.type == VLS::LedEffectType::RunningLED ||
+        effect.type == VLS::LedEffectType::RunningText ||
         effect.type == VLS::LedEffectType::StroboWave ||
         effect.type == VLS::LedEffectType::StroboEyes;
     if (supportsPalette) {
