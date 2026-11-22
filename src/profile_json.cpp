@@ -577,7 +577,9 @@ static bool ReadTransform(
         ReadFloat(value, "rotationY", transform.rotationY) &&
         ReadFloat(value, "rotationZ", transform.rotationZ) &&
         ReadFloat(value, "width", transform.width) &&
-        ReadFloat(value, "height", transform.height);
+        ReadFloat(value, "height", transform.height) &&
+        ReadFloat(value, "stretchX", transform.stretchX) &&
+        ReadFloat(value, "stretchY", transform.stretchY);
 }
 
 static bool ReadMatrixPixel(
@@ -827,8 +829,12 @@ static bool ValidateProfileReferences(
             !std::isfinite(transform.rotationZ) ||
             !std::isfinite(transform.width) ||
             !std::isfinite(transform.height) ||
+            !std::isfinite(transform.stretchX) ||
+            !std::isfinite(transform.stretchY) ||
             transform.width <= 0.0f ||
-            transform.height <= 0.0f) {
+            transform.height <= 0.0f ||
+            transform.stretchX <= 0.0f ||
+            transform.stretchY <= 0.0f) {
             return false;
         }
 
@@ -953,6 +959,12 @@ static bool AppendTransform(
 
     output += ",\"height\":";
     if (!AppendFloat(output, transform.height)) return false;
+
+    output += ",\"stretchX\":";
+    if (!AppendFloat(output, transform.stretchX)) return false;
+
+    output += ",\"stretchY\":";
+    if (!AppendFloat(output, transform.stretchY)) return false;
 
     output += "}";
     return true;
