@@ -548,7 +548,7 @@ static void AnalyzeVehicleSpaceMeshes(
         const auto meshIt = byAtomic.find(info.atomicIndex);
         if (meshIt == byAtomic.end() || info.frame == nullptr) continue;
 
-        const AtomicMesh& mesh = *meshIt->second;
+        AtomicMesh& mesh = *meshIt->second;
         const RwMatrix& frameMatrix = info.frame->ltm;
         const float high = std::numeric_limits<float>::max();
         info.vehicleMinX = info.vehicleMinY = info.vehicleMinZ = high;
