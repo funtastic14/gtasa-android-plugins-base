@@ -708,7 +708,7 @@ static bool ReadPlacement(
 
     if (!ReadInt(value, "zone", zone) ||
         zone < 0 ||
-        zone > static_cast<int>(LedZone::Interior)) {
+        zone > static_cast<int>(LedZone::Roof)) {
         return false;
     }
 
@@ -815,7 +815,7 @@ static bool ValidateProfileReferences(
         int zone = static_cast<int>(placement.zone);
 
         if (zone < 0 ||
-            zone > static_cast<int>(LedZone::Interior)) {
+            zone > static_cast<int>(LedZone::Roof)) {
             return false;
         }
 
@@ -1078,7 +1078,7 @@ static bool AppendPlacement(
 ) {
     if (static_cast<int>(placement.zone) < 0 ||
         static_cast<int>(placement.zone) >
-            static_cast<int>(LedZone::Interior)) {
+            static_cast<int>(LedZone::Roof)) {
         return false;
     }
 
