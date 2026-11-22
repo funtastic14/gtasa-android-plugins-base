@@ -48,6 +48,13 @@ struct LedTransform {
     float rotationY = 0.0f;
     float rotationZ = 0.0f;
 
+    // Lengkungan permukaan LED (offset kedalaman maksimum di tengah, unit kendaraan).
+    float curvature = 0.0f;
+
+    // Koreksi arah hadap/POV setelah rotasi pemasangan.
+    float facingYaw = 0.0f;
+    float facingPitch = 0.0f;
+
     float width = 1.0f;
     float height = 1.0f;
     float stretchX = 1.0f;
@@ -100,6 +107,10 @@ struct LedEffectConfig {
 
     float brightness = 1.0f;
     float speed = 1.0f;
+
+    // Teks untuk efek RunningText pada LED Matrix.
+    std::string text;
+    float textSpacing = 1.0f;
 
     // Konfigurasi matriks untuk efek ini.
     LedMatrixConfig matrix;
