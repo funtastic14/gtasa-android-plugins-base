@@ -129,8 +129,18 @@ static void HSVtoRGB(
 
 static CVector TransformPlacementLocalPoint(const CVector& point, const LedTransform& t) {
     const float k = 0.01745329251994329577f;
-    const float rx=t.rotationX*k, ry=t.rotationY*k, rz=t.rotationZ*k;
+    const float rx=(t.rotationX + t.facingPitch)*k;
+    const float ry=(t.rotationY + t.facingYaw)*k;
+    const float rz=t.rotationZ*k;
     float x=point.x-t.x, y=point.y-t.y, z=point.z-t.z;
+
+    // Cylindrical/parabolic bend across the LED width. Zero curvature
+    // preserves the original flat placement exactly.
+    const float halfWidth = 0.5f * t.width * t.stretchX;
+    if (halfWidth > 0.0001f && std::isfinite(t.curvature)) {
+        const float u = std::max(-1.0f, std::min(1.0f, x / halfWidth));
+        y += t.curvature * (1.0f - u * u);
+    }
     float c=std::cos(rx), s=std::sin(rx), q=y*c-z*s; z=y*s+z*c; y=q;
     c=std::cos(ry); s=std::sin(ry); q=x*c+z*s; z=-x*s+z*c; x=q;
     c=std::cos(rz); s=std::sin(rz); q=x*c-y*s; y=x*s+y*c; x=q;
@@ -496,6 +506,9 @@ static bool RenderEffect(
         !std::isfinite(t.rotationX) ||
         !std::isfinite(t.rotationY) ||
         !std::isfinite(t.rotationZ) ||
+        !std::isfinite(t.curvature) ||
+        !std::isfinite(t.facingYaw) ||
+        !std::isfinite(t.facingPitch) ||
         !std::isfinite(effect.brightness) ||
         !std::isfinite(effect.speed))
         return false;
