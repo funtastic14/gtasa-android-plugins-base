@@ -37,6 +37,7 @@ static int g_selectedPlacement = 0;
 static int g_editorPage = 0;
 static char g_runningTextBuffer[129] = {};
 static const VLS::LedEffectConfig* g_runningTextBufferEffect = nullptr;
+static bool g_runningTextKeyboardOpen = false;
 
 static VLS::VehicleManager g_vehicleManager;
 static VLS::VehicleProfileManager g_profileManager;
@@ -390,18 +391,17 @@ static bool DrawSpacedFloatControl(
 ) {
     bool changed = false;
     ImGui::PushID(label);
-    // Larger touch targets for phone screens.
-    ImGui::PushItemWidth(-104.0f);
-    changed |= ImGui::SliderFloat(label, value, minValue, maxValue, "%.3f");
-    ImGui::PopItemWidth();
+    ImGui::Text("%s", label);
     ImGui::SameLine();
-    if (ImGui::Button("-", ImVec2(44.0f, 34.0f))) {
+    if (ImGui::Button("-", ImVec2(76.0f, 40.0f))) {
         *value -= step;
         if (*value < minValue) *value = minValue;
         changed = true;
     }
     ImGui::SameLine();
-    if (ImGui::Button("+", ImVec2(44.0f, 34.0f))) {
+    ImGui::Text("%.3f", *value);
+    ImGui::SameLine();
+    if (ImGui::Button("+", ImVec2(76.0f, 40.0f))) {
         *value += step;
         if (*value > maxValue) *value = maxValue;
         changed = true;
@@ -409,6 +409,58 @@ static bool DrawSpacedFloatControl(
     ImGui::PopID();
     ImGui::Dummy(ImVec2(0.0f, 7.0f));
     return changed;
+}
+
+static void DrawRunningTextKeyboard(VLS::LedEffectConfig& effect, bool& changed) {
+    if (!g_runningTextKeyboardOpen)
+        return;
+
+    ImGui::Separator();
+    ImGui::TextWrapped("VLS Touch Keyboard - tap letters or numbers to compose text.");
+    const char* rows[] = {"ABCDEFG", "HIJKLMN", "OPQRSTU", "VWXYZ012", "3456789"};
+    for (const char* row : rows) {
+        for (const char* key = row; *key; ++key) {
+            char label[2] = {*key, '\0'};
+            if (ImGui::Button(label, ImVec2(43.0f, 40.0f))) {
+                const size_t len = std::strlen(g_runningTextBuffer);
+                if (len + 1 < sizeof(g_runningTextBuffer)) {
+                    g_runningTextBuffer[len] = *key;
+                    g_runningTextBuffer[len + 1] = '\0';
+                    effect.text = g_runningTextBuffer;
+                    changed = true;
+                }
+            }
+            if (key[1]) ImGui::SameLine();
+        }
+    }
+
+    if (ImGui::Button("SPACE", ImVec2(92.0f, 40.0f))) {
+        const size_t len = std::strlen(g_runningTextBuffer);
+        if (len + 1 < sizeof(g_runningTextBuffer)) {
+            g_runningTextBuffer[len] = ' ';
+            g_runningTextBuffer[len + 1] = '\0';
+            effect.text = g_runningTextBuffer;
+            changed = true;
+        }
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("DEL", ImVec2(72.0f, 40.0f))) {
+        size_t len = std::strlen(g_runningTextBuffer);
+        if (len > 0) {
+            g_runningTextBuffer[len - 1] = '\0';
+            effect.text = g_runningTextBuffer;
+            changed = true;
+        }
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("CLEAR", ImVec2(82.0f, 40.0f))) {
+        g_runningTextBuffer[0] = '\0';
+        effect.text.clear();
+        changed = true;
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("DONE", ImVec2(72.0f, 40.0f)))
+        g_runningTextKeyboardOpen = false;
 }
 
 static void RenderEditor() {
@@ -456,6 +508,7 @@ static void RenderEditor() {
         return;
     }
 
+    ImGui::BeginChild("VLSContent", ImVec2(0.0f, 0.0f), false, ImGuiWindowFlags_AlwaysVerticalScrollbar);
     ImGui::Text("Vehicle LED System");
     ImGui::Separator();
 
@@ -473,6 +526,7 @@ static void RenderEditor() {
             "Enter a vehicle to edit its profile."
         );
 
+        ImGui::EndChild();
         ImGui::End();
         return;
     }
@@ -488,6 +542,7 @@ static void RenderEditor() {
     if (profile == nullptr ||
         profile->placements.empty()) {
         ImGui::Text("Profile unavailable.");
+        ImGui::EndChild();
         ImGui::End();
         return;
     }
@@ -549,6 +604,7 @@ static void RenderEditor() {
 
     if (placement.effects.empty()) {
         ImGui::Text("No LED effect available.");
+        ImGui::EndChild();
         ImGui::End();
         return;
     }
@@ -728,12 +784,12 @@ static void RenderEditor() {
             std::strncpy(g_runningTextBuffer, effect.text.c_str(), sizeof(g_runningTextBuffer) - 1);
             g_runningTextBufferEffect = &effect;
         }
-        if (ImGui::InputText("Running Text", g_runningTextBuffer, sizeof(g_runningTextBuffer))) {
-            effect.text = g_runningTextBuffer;
-            changed = true;
-        }
+        ImGui::TextWrapped("Current message: %s", g_runningTextBuffer[0] ? g_runningTextBuffer : "(empty)");
+        if (ImGui::Button(g_runningTextKeyboardOpen ? "Hide Touch Keyboard" : "Open Touch Keyboard", ImVec2(230.0f, 44.0f)))
+            g_runningTextKeyboardOpen = !g_runningTextKeyboardOpen;
+        DrawRunningTextKeyboard(effect, changed);
         changed |= ImGui::SliderFloat("Text Spacing", &effect.textSpacing, 0.25f, 3.0f);
-        ImGui::TextWrapped("Supported characters: A-Z, 0-9 and basic punctuation.");
+        ImGui::TextWrapped("Choose Pattern > Running Text, open the touch keyboard, type your message, then tap DONE and Save Profile.");
     }
 
     if (effect.type == VLS::LedEffectType::RunningText ||
@@ -1044,7 +1100,8 @@ static void RenderEditor() {
         "Close this window without disabling LED."
     );
 
-    ImGui::End();
+    ImGui::EndChild();
+        ImGui::End();
 }
 
 
