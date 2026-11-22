@@ -48,6 +48,8 @@ struct LedTransform {
 
     float width = 1.0f;
     float height = 1.0f;
+    float stretchX = 1.0f;
+    float stretchY = 1.0f;
 };
 
 // Konfigurasi satu LED/piksel matriks.
