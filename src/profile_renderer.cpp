@@ -436,7 +436,7 @@ static bool RenderMatrixEffect(
             for (uint32_t v = 0; v < 4; ++v) {
                 CVector world = TransformPlacementPoint(local[v], t, matrix);
                 RwIm3DVertex vertex;
-                SetVertex(vertex, world, red, green, blue, 255);
+                SetVertex(vertex, world, red, green, blue, output.alpha);
                 vertices.push_back(vertex);
             }
 
@@ -509,6 +509,7 @@ static bool RenderEffect(
         !std::isfinite(t.facingYaw) ||
         !std::isfinite(t.facingPitch) ||
         !std::isfinite(effect.brightness) ||
+        !std::isfinite(effect.opacity) ||
         !std::isfinite(effect.speed))
         return false;
 
@@ -517,6 +518,7 @@ static bool RenderEffect(
         t.stretchX <= 0.0f ||
         t.stretchY <= 0.0f ||
         effect.brightness <= 0.0f ||
+        effect.opacity <= 0.0f ||
         effect.speed <= 0.0f)
         return false;
 
@@ -614,7 +616,8 @@ static bool RenderEffect(
                 ),
                 red,
                 green,
-                blue
+                blue,
+                ClampColor(effect.opacity * 255.0f)
             );
 
             break;
@@ -622,6 +625,16 @@ static bool RenderEffect(
 
         default:
             return false;
+        }
+
+        if (effect.colorMode == LedColorMode::Gradient) {
+            const float blend = (static_cast<float>(i) + 0.5f) / static_cast<float>(SEGMENTS);
+            red = ClampColor(static_cast<float>(red) * (1.0f - blend) + effect.secondaryRed * blend);
+            green = ClampColor(static_cast<float>(green) * (1.0f - blend) + effect.secondaryGreen * blend);
+            blue = ClampColor(static_cast<float>(blue) * (1.0f - blend) + effect.secondaryBlue * blend);
+        } else if (effect.colorMode == LedColorMode::Rainbow &&
+                   effect.type != LedEffectType::RGB) {
+            HSVtoRGB(static_cast<float>(time) * 0.06f + static_cast<float>(i) * (360.0f / SEGMENTS), red, green, blue);
         }
 
         red = ClampColor(red * brightness * intensity);
