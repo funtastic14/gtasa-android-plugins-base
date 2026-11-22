@@ -35,6 +35,9 @@ static float g_animationSpeed = 1.0f;
 static int g_selectedPixel = 0;
 static int g_selectedPlacement = 0;
 static int g_editorPage = 0;
+static int g_adjustmentScaleMode = 1;
+static const char* g_adjustmentScaleNames[] = {"Very Fine", "Normal", "Fast", "Very Fast"};
+static const float g_adjustmentScaleValues[] = {0.1f, 1.0f, 5.0f, 20.0f};
 static char g_runningTextBuffer[129] = {};
 static const VLS::LedEffectConfig* g_runningTextBufferEffect = nullptr;
 static bool g_runningTextKeyboardOpen = false;
@@ -390,6 +393,9 @@ static bool DrawSpacedFloatControl(
     const char* label, float* value, float minValue, float maxValue, float step
 ) {
     bool changed = false;
+    const int scaleMode = g_adjustmentScaleMode < 0 ? 0 :
+        (g_adjustmentScaleMode > 3 ? 3 : g_adjustmentScaleMode);
+    step *= g_adjustmentScaleValues[scaleMode];
     ImGui::PushID(label);
     ImGui::Text("%s", label);
     ImGui::SameLine();
@@ -715,7 +721,9 @@ static void RenderEditor() {
     ImGui::Separator();
     ImGui::Text("LED Placement");
 
-    ImGui::Text("Position (fine adjustment: << / >>)");
+    ImGui::Text("Position adjustment speed");
+    ImGui::Combo("Adjustment Speed", &g_adjustmentScaleMode, g_adjustmentScaleNames, 4);
+    ImGui::Text("Very Fine = 0.1x | Normal = 1x | Fast = 5x | Very Fast = 20x");
     ImGui::Dummy(ImVec2(0.0f, 5.0f));
     changed |= DrawSpacedFloatControl("Position X", &placement.transform.x, -10.0f, 10.0f, 0.01f);
     changed |= DrawSpacedFloatControl("Position Y", &placement.transform.y, -10.0f, 10.0f, 0.01f);
