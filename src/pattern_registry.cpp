@@ -9,18 +9,31 @@ constexpr uint32_t ZoneMask(LedZone zone) {
     return 1u << static_cast<uint8_t>(zone);
 }
 
-constexpr uint32_t WINDSHIELD =
-    ZoneMask(LedZone::Windshield);
+constexpr uint32_t ALL_ZONES =
+    ZoneMask(LedZone::Windshield) |
+    ZoneMask(LedZone::ExteriorBody) |
+    ZoneMask(LedZone::Headlight) |
+    ZoneMask(LedZone::Taillight) |
+    ZoneMask(LedZone::Interior) |
+    ZoneMask(LedZone::FrontUpWindshield) |
+    ZoneMask(LedZone::Roof);
 
 // Tahap pertama hanya mendaftarkan pola yang sudah
 // memiliki implementasi pada engine saat ini.
 const PatternInfo g_patterns[] = {
     {
+        LedEffectType::RunningText,
+        PatternCategory::Matrix,
+        "Running Text",
+        "Teks berjalan pada LED Matrix",
+        ALL_ZONES
+    },
+    {
         LedEffectType::RunningLED,
         PatternCategory::Directional,
         "Running LED",
         "LED bergerak secara berurutan",
-        WINDSHIELD
+        ALL_ZONES
     },
     {
         LedEffectType::RGB,
