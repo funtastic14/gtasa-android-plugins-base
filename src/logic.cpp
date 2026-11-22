@@ -594,6 +594,14 @@ static void RenderEditor() {
         1.0f
     );
 
+    ImGui::Separator();
+    ImGui::Text("Orientation & Stretch");
+    changed |= ImGui::SliderFloat("Rotation X", &placement.transform.rotationX, -180.0f, 180.0f);
+    changed |= ImGui::SliderFloat("Rotation Y", &placement.transform.rotationY, -180.0f, 180.0f);
+    changed |= ImGui::SliderFloat("Rotation Z", &placement.transform.rotationZ, -180.0f, 180.0f);
+    changed |= ImGui::SliderFloat("Stretch X", &placement.transform.stretchX, 0.1f, 4.0f);
+    changed |= ImGui::SliderFloat("Stretch Y", &placement.transform.stretchY, 0.1f, 4.0f);
+
     // -----------------------------------------------------
     // Effect
     // -----------------------------------------------------
