@@ -131,6 +131,7 @@ struct LedEffectConfig {
 // Satu titik pemasangan LED.
 struct LedPlacement {
     uint32_t id = 0;
+    bool enabled = true;
 
     LedZone zone = LedZone::ExteriorBody;
 
