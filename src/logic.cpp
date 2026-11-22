@@ -32,6 +32,7 @@ static int g_brightness = 100;
 static float g_animationSpeed = 1.0f;
 
 static int g_selectedPixel = 0;
+static int g_selectedPlacement = 0;
 
 static VLS::VehicleManager g_vehicleManager;
 static VLS::VehicleProfileManager g_profileManager;
@@ -374,6 +375,31 @@ static void UpdateAnimationController() {
 // ImGui launcher and editor
 // ---------------------------------------------------------
 
+static bool DrawSpacedFloatControl(
+    const char* label, float* value, float minValue, float maxValue, float step
+) {
+    bool changed = false;
+    ImGui::PushID(label);
+    ImGui::PushItemWidth(-1.0f);
+    changed |= ImGui::SliderFloat(label, value, minValue, maxValue, "%.3f");
+    ImGui::PopItemWidth();
+    ImGui::SameLine();
+    if (ImGui::SmallButton("<<")) {
+        *value -= step;
+        if (*value < minValue) *value = minValue;
+        changed = true;
+    }
+    ImGui::SameLine();
+    if (ImGui::SmallButton(">>")) {
+        *value += step;
+        if (*value > maxValue) *value = maxValue;
+        changed = true;
+    }
+    ImGui::PopID();
+    ImGui::Dummy(ImVec2(0.0f, 7.0f));
+    return changed;
+}
+
 static void RenderEditor() {
 
     ImGui::SetNextWindowPos(
@@ -455,8 +481,58 @@ static void RenderEditor() {
         return;
     }
 
+    if (g_selectedPlacement < 0)
+        g_selectedPlacement = 0;
+    if (g_selectedPlacement >= static_cast<int>(profile->placements.size()))
+        g_selectedPlacement = static_cast<int>(profile->placements.size()) - 1;
+
+    if (ImGui::Button("Add LED / Light", ImVec2(180.0f, 38.0f))) {
+        VLS::LedPlacement added;
+        uint32_t nextId = 1;
+        for (const VLS::LedPlacement& existing : profile->placements) {
+            if (existing.id >= nextId)
+                nextId = existing.id + 1;
+        }
+        added.id = nextId;
+        added.zone = VLS::LedZone::Windshield;
+        added.transform.width = 1.0f;
+        added.transform.height = 0.12f;
+
+        VLS::LedEffectConfig newEffect;
+        newEffect.type = VLS::LedEffectType::RunningLED;
+        newEffect.enabled = true;
+        newEffect.red = 0;
+        newEffect.green = 180;
+        newEffect.blue = 255;
+        newEffect.brightness = 1.0f;
+        newEffect.speed = 1.0f;
+        added.effects.push_back(newEffect);
+
+        profile->placements.push_back(added);
+        g_selectedPlacement = static_cast<int>(profile->placements.size()) - 1;
+        g_profileManager.MarkDirty(modelId);
+    }
+
+    ImGui::SameLine();
+    ImGui::Text("LEDs: %d", static_cast<int>(profile->placements.size()));
+    ImGui::Dummy(ImVec2(0.0f, 8.0f));
+
+    if (profile->placements.size() > 1) {
+        if (ImGui::Button("<< LED", ImVec2(90.0f, 32.0f))) {
+            if (g_selectedPlacement > 0) --g_selectedPlacement;
+        }
+        ImGui::SameLine();
+        ImGui::Text("Placement %d / %d", g_selectedPlacement + 1,
+            static_cast<int>(profile->placements.size()));
+        ImGui::SameLine();
+        if (ImGui::Button("LED >>", ImVec2(90.0f, 32.0f))) {
+            if (g_selectedPlacement + 1 < static_cast<int>(profile->placements.size()))
+                ++g_selectedPlacement;
+        }
+    }
+
     VLS::LedPlacement& placement =
-        profile->placements[0];
+        profile->placements[g_selectedPlacement];
 
     if (placement.effects.empty()) {
         ImGui::Text("No LED effect available.");
@@ -559,48 +635,25 @@ static void RenderEditor() {
     ImGui::Separator();
     ImGui::Text("LED Placement");
 
-    changed |= ImGui::SliderFloat(
-        "Position X",
-        &placement.transform.x,
-        -10.0f,
-        10.0f
-    );
+    ImGui::Text("Position (fine adjustment: << / >>)");
+    ImGui::Dummy(ImVec2(0.0f, 5.0f));
+    changed |= DrawSpacedFloatControl("Position X", &placement.transform.x, -10.0f, 10.0f, 0.01f);
+    changed |= DrawSpacedFloatControl("Position Y", &placement.transform.y, -10.0f, 10.0f, 0.01f);
+    changed |= DrawSpacedFloatControl("Position Z", &placement.transform.z, -10.0f, 10.0f, 0.01f);
 
-    changed |= ImGui::SliderFloat(
-        "Position Y",
-        &placement.transform.y,
-        -10.0f,
-        10.0f
-    );
-
-    changed |= ImGui::SliderFloat(
-        "Position Z",
-        &placement.transform.z,
-        -10.0f,
-        10.0f
-    );
-
-    changed |= ImGui::SliderFloat(
-        "Width",
-        &placement.transform.width,
-        0.1f,
-        6.0f
-    );
-
-    changed |= ImGui::SliderFloat(
-        "Height",
-        &placement.transform.height,
-        0.02f,
-        1.0f
-    );
+    ImGui::Text("Size");
+    ImGui::Dummy(ImVec2(0.0f, 5.0f));
+    changed |= DrawSpacedFloatControl("Width", &placement.transform.width, 0.1f, 6.0f, 0.01f);
+    changed |= DrawSpacedFloatControl("Height", &placement.transform.height, 0.02f, 1.0f, 0.005f);
 
     ImGui::Separator();
     ImGui::Text("Orientation & Stretch");
-    changed |= ImGui::SliderFloat("Rotation X", &placement.transform.rotationX, -180.0f, 180.0f);
-    changed |= ImGui::SliderFloat("Rotation Y", &placement.transform.rotationY, -180.0f, 180.0f);
-    changed |= ImGui::SliderFloat("Rotation Z", &placement.transform.rotationZ, -180.0f, 180.0f);
-    changed |= ImGui::SliderFloat("Stretch X", &placement.transform.stretchX, 0.1f, 4.0f);
-    changed |= ImGui::SliderFloat("Stretch Y", &placement.transform.stretchY, 0.1f, 4.0f);
+    ImGui::Dummy(ImVec2(0.0f, 5.0f));
+    changed |= DrawSpacedFloatControl("Rotation X", &placement.transform.rotationX, -180.0f, 180.0f, 0.5f);
+    changed |= DrawSpacedFloatControl("Rotation Y", &placement.transform.rotationY, -180.0f, 180.0f, 0.5f);
+    changed |= DrawSpacedFloatControl("Rotation Z", &placement.transform.rotationZ, -180.0f, 180.0f, 0.5f);
+    changed |= DrawSpacedFloatControl("Stretch X", &placement.transform.stretchX, 0.1f, 4.0f, 0.01f);
+    changed |= DrawSpacedFloatControl("Stretch Y", &placement.transform.stretchY, 0.1f, 4.0f, 0.01f);
 
     // -----------------------------------------------------
     // Effect
