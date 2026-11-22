@@ -2,6 +2,8 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
+#include <utility>
 #include <vector>
 
 struct CVehicle;
@@ -47,6 +49,13 @@ struct GeometryTriangle {
     uint16_t a = 0;
     uint16_t b = 0;
     uint16_t c = 0;
+    int16_t materialIndex = -1;
+};
+
+struct MeshMaterialInfo {
+    int16_t index = -1;
+    std::string textureName;
+    std::string maskName;
 };
 
 struct AtomicMesh {
@@ -57,6 +66,7 @@ struct AtomicMesh {
 
     std::vector<GeometryVertex> vertices;
     std::vector<GeometryTriangle> triangles;
+    std::vector<MeshMaterialInfo> materials;
 };
 
 class VehicleGeometryReader {
