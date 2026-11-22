@@ -521,12 +521,13 @@ static bool RenderEffect(
     const uint32_t head =
         static_cast<uint32_t>(cycle * SEGMENTS) % SEGMENTS;
 
-    const bool attachToWindshield =
+    const bool isWindshieldZone =
         placement.zone == LedZone::Windshield ||
         placement.zone == LedZone::FrontUpWindshield;
     const AtomicMesh* surfaceMesh = nullptr;
     const SurfacePatch* surfacePatch = nullptr;
-    if (attachToWindshield) {
+    bool projectToWindshield = false;
+    if (isWindshieldZone) {
         const CVector center(t.x,t.y,t.z);
         surfacePatch = FindWindshieldPatch(
             center,
@@ -534,8 +535,10 @@ static bool RenderEffect(
             VehicleGeometryReader::GetSurfacePatches(),
             surfaceMesh
         );
-        if (surfacePatch == nullptr || surfaceMesh == nullptr)
-            return false;
+        // Surface recognition is an enhancement, not a hard render
+        // dependency. Keep the established vehicle-local renderer alive
+        // when a model has no readable CPU glass geometry or no valid patch.
+        projectToWindshield = surfacePatch != nullptr && surfaceMesh != nullptr;
     }
 
     const float effectiveWidth = t.width * t.stretchX;
@@ -628,12 +631,17 @@ static bool RenderEffect(
 
         for (uint32_t v = 0; v < 4; ++v) {
             CVector world;
-            if (attachToWindshield) {
+            if (projectToWindshield) {
                 CVector vehicleLocal = TransformPlacementLocalPoint(local[v], t);
-                if (!ProjectToSurfacePatch(vehicleLocal, *surfacePatch, *surfaceMesh, vehicleLocal))
-                    return false;
-                world = matrix->TransformPoint(vehicleLocal);
+                CVector projected;
+                if (ProjectToSurfacePatch(vehicleLocal, *surfacePatch, *surfaceMesh, projected)) {
+                    world = matrix->TransformPoint(projected);
+                } else {
+                    // A single failed corner must not cancel the whole LED.
+                    world = TransformPlacementPoint(local[v], t, matrix);
+                }
             } else {
+                // Preserve the previously working placement path as fallback.
                 world = TransformPlacementPoint(local[v], t, matrix);
             }
 
