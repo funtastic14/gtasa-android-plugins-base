@@ -380,7 +380,7 @@ static bool DrawSpacedFloatControl(
 ) {
     bool changed = false;
     ImGui::PushID(label);
-    ImGui::PushItemWidth(-1.0f);
+    ImGui::PushItemWidth(-88.0f);
     changed |= ImGui::SliderFloat(label, value, minValue, maxValue, "%.3f");
     ImGui::PopItemWidth();
     ImGui::SameLine();
