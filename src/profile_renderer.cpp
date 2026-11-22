@@ -380,11 +380,16 @@ static bool RenderMatrixEffect(
     if (pixelWidth <= 0.0f || pixelHeight <= 0.0f)
         return false;
 
-    std::vector<RwIm3DVertex> vertices;
-    std::vector<RwImVertexIndex> indices;
-
-    vertices.resize(pixelCount * 4);
-    indices.resize(pixelCount * 6);
+    // Reuse capacity across frames: matrix effects can run on several vehicles,
+    // so allocating two fresh vectors for every placement every frame is costly on mobile.
+    static std::vector<RwIm3DVertex> vertices;
+    static std::vector<RwImVertexIndex> indices;
+    vertices.clear();
+    indices.clear();
+    if (vertices.capacity() < pixelCount * 4)
+        vertices.reserve(pixelCount * 4);
+    if (indices.capacity() < pixelCount * 6)
+        indices.reserve(pixelCount * 6);
 
     const uint32_t timeMs = CTimer::GetTimeMS();
 
@@ -401,35 +406,28 @@ static bool RenderMatrixEffect(
                 ))
                 return false;
 
-            const uint32_t pixelIndex = row * columns + column;
-            const uint32_t vertexBase = pixelIndex * 4;
-            const uint32_t indexBase = pixelIndex * 6;
+            // Invisible pixels do not need vertices or triangles at all.
+            if (!output.visible || output.intensity <= 0.001f)
+                continue;
+
+            const uint32_t vertexBase = static_cast<uint32_t>(vertices.size());
 
             const float left =
                 t.x - effectiveWidth * 0.5f +
                 static_cast<float>(column) * cellWidth +
                 gapX * 0.5f;
-
             const float right = left + pixelWidth;
-
             const float top =
                 t.z + effectiveHeight * 0.5f -
                 static_cast<float>(row) * cellHeight -
                 gapZ * 0.5f;
-
             const float bottom = top - pixelHeight;
 
-            const uint8_t red =
-                ClampColor(output.red * output.intensity);
-
-            const uint8_t green =
-                ClampColor(output.green * output.intensity);
-
-            const uint8_t blue =
-                ClampColor(output.blue * output.intensity);
+            const uint8_t red = ClampColor(output.red * output.intensity);
+            const uint8_t green = ClampColor(output.green * output.intensity);
+            const uint8_t blue = ClampColor(output.blue * output.intensity);
 
             CVector local[4];
-
             local[0] = {left,  t.y, bottom};
             local[1] = {right, t.y, bottom};
             local[2] = {right, t.y, top};
@@ -437,28 +435,24 @@ static bool RenderMatrixEffect(
 
             for (uint32_t v = 0; v < 4; ++v) {
                 CVector world = TransformPlacementPoint(local[v], t, matrix);
-
-                SetVertex(
-                    vertices[vertexBase + v],
-                    world,
-                    red,
-                    green,
-                    blue,
-                    output.visible ? 255 : 0
-                );
+                RwIm3DVertex vertex;
+                SetVertex(vertex, world, red, green, blue, 255);
+                vertices.push_back(vertex);
             }
 
             const RwImVertexIndex base =
                 static_cast<RwImVertexIndex>(vertexBase);
-
-            indices[indexBase]     = base;
-            indices[indexBase + 1] = base + 1;
-            indices[indexBase + 2] = base + 2;
-            indices[indexBase + 3] = base;
-            indices[indexBase + 4] = base + 2;
-            indices[indexBase + 5] = base + 3;
+            indices.push_back(base);
+            indices.push_back(static_cast<RwImVertexIndex>(base + 1));
+            indices.push_back(static_cast<RwImVertexIndex>(base + 2));
+            indices.push_back(base);
+            indices.push_back(static_cast<RwImVertexIndex>(base + 2));
+            indices.push_back(static_cast<RwImVertexIndex>(base + 3));
         }
     }
+
+    if (vertices.empty() || indices.empty())
+        return false;
 
     RenderStateGuard stateGuard;
 
