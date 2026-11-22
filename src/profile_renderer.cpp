@@ -125,6 +125,17 @@ static void HSVtoRGB(
     blue = ClampColor(b * 255.0f);
 }
 
+static CVector TransformPlacementPoint(const CVector& point, const LedTransform& t, CMatrix* matrix) {
+    const float k = 0.01745329251994329577f;
+    const float rx=t.rotationX*k, ry=t.rotationY*k, rz=t.rotationZ*k;
+    float x=point.x-t.x, y=point.y-t.y, z=point.z-t.z;
+    float c=std::cos(rx), s=std::sin(rx), q=y*c-z*s; z=y*s+z*c; y=q;
+    c=std::cos(ry); s=std::sin(ry); q=x*c+z*s; z=-x*s+z*c; x=q;
+    c=std::cos(rz); s=std::sin(rz); q=x*c-y*s; y=x*s+y*c; x=q;
+    CVector local(t.x+x,t.y+y,t.z+z);
+    return matrix->TransformPoint(local);
+}
+
 static void SetVertex(
     RwIm3DVertex& vertex,
     const CVector& position,
@@ -179,12 +190,18 @@ static bool RenderMatrixEffect(
         !std::isfinite(t.z) ||
         !std::isfinite(t.width) ||
         !std::isfinite(t.height) ||
+        !std::isfinite(t.stretchX) ||
+        !std::isfinite(t.stretchY) ||
         t.width <= 0.0f ||
-        t.height <= 0.0f)
+        t.height <= 0.0f ||
+        t.stretchX <= 0.0f ||
+        t.stretchY <= 0.0f)
         return false;
 
-    const float cellWidth = t.width / static_cast<float>(columns);
-    const float cellHeight = t.height / static_cast<float>(rows);
+    const float effectiveWidth = t.width * t.stretchX;
+    const float effectiveHeight = t.height * t.stretchY;
+    const float cellWidth = effectiveWidth / static_cast<float>(columns);
+    const float cellHeight = effectiveHeight / static_cast<float>(rows);
 
     const float gapX = cellWidth * 0.12f;
     const float gapZ = cellHeight * 0.12f;
@@ -251,7 +268,7 @@ static bool RenderMatrixEffect(
             local[3] = {left,  t.y, top};
 
             for (uint32_t v = 0; v < 4; ++v) {
-                CVector world = matrix->TransformPoint(local[v]);
+                CVector world = TransformPlacementPoint(local[v], t, matrix);
 
                 SetVertex(
                     vertices[vertexBase + v],
@@ -320,12 +337,19 @@ static bool RenderEffect(
         !std::isfinite(t.z) ||
         !std::isfinite(t.width) ||
         !std::isfinite(t.height) ||
+        !std::isfinite(t.stretchX) ||
+        !std::isfinite(t.stretchY) ||
+        !std::isfinite(t.rotationX) ||
+        !std::isfinite(t.rotationY) ||
+        !std::isfinite(t.rotationZ) ||
         !std::isfinite(effect.brightness) ||
         !std::isfinite(effect.speed))
         return false;
 
     if (t.width <= 0.0f ||
         t.height <= 0.0f ||
+        t.stretchX <= 0.0f ||
+        t.stretchY <= 0.0f ||
         effect.brightness <= 0.0f ||
         effect.speed <= 0.0f)
         return false;
@@ -343,8 +367,10 @@ static bool RenderEffect(
     const uint32_t head =
         static_cast<uint32_t>(cycle * SEGMENTS) % SEGMENTS;
 
-    const float segmentWidth = t.width / SEGMENTS;
-    const float halfHeight = t.height * 0.5f;
+    const float effectiveWidth = t.width * t.stretchX;
+    const float effectiveHeight = t.height * t.stretchY;
+    const float segmentWidth = effectiveWidth / SEGMENTS;
+    const float halfHeight = effectiveHeight * 0.5f;
 
     RwIm3DVertex vertices[SEGMENTS * 4];
     RwImVertexIndex indices[SEGMENTS * 6];
@@ -417,7 +443,7 @@ static bool RenderEffect(
         blue = ClampColor(blue * brightness * intensity);
 
         const float left =
-            t.x - t.width * 0.5f + i * segmentWidth;
+            t.x - effectiveWidth * 0.5f + i * segmentWidth;
 
         const float right =
             left + segmentWidth * 0.88f;
@@ -430,7 +456,7 @@ static bool RenderEffect(
         local[3] = {left,  t.y, t.z + halfHeight};
 
         for (uint32_t v = 0; v < 4; ++v) {
-            CVector world = matrix->TransformPoint(local[v]);
+            CVector world = TransformPlacementPoint(local[v], t, matrix);
 
             SetVertex(
                 vertices[i * 4 + v],
