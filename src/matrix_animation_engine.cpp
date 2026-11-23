@@ -222,12 +222,8 @@ bool MatrixAnimationEngine::EvaluatePixel(
 
     const float speed = effect.speed * pixel->speed;
 
-    const float movement =
-        static_cast<float>(timeMs) * speed / 1200.0f;
-
-    const float progress = Fract(movement);
-    const float distance = Fract(progress - directionPosition);
-
+    // Motion is evaluated once below from the selected LedMotionPattern.
+    // Do not retain the legacy per-effect directional sweep here.
     float intensity = 1.0f;
 
     uint8_t red = pixel->red;
@@ -236,24 +232,17 @@ bool MatrixAnimationEngine::EvaluatePixel(
     bool preserveEyeDetailColor = false;
 
     switch (effect.type) {
-    case LedEffectType::RunningLED: {
-        intensity = 0.06f;
-
-        if (distance < 0.30f) {
-            intensity = 1.0f - (distance / 0.30f) * 0.88f;
-        }
-
+    case LedEffectType::RunningLED:
+        // Spatial sweep comes exclusively from effect.motionPattern.
+        intensity = 1.0f;
         break;
-    }
 
     case LedEffectType::StroboWave: {
+        // Keep the strobe cadence, but remove its hidden LTR spatial head.
         const bool flashOn =
             std::fmod(static_cast<float>(timeMs) * speed / 250.0f, 1.0f)
             < 0.5f;
-
-        intensity =
-            (distance < 0.22f && flashOn) ? 1.0f : 0.0f;
-
+        intensity = flashOn ? 1.0f : 0.0f;
         break;
     }
 
@@ -297,10 +286,9 @@ bool MatrixAnimationEngine::EvaluatePixel(
                 intensity = 0.0f;
             }
         } else {
-            const bool firstHalf = column < matrix.columns / 2;
-            const bool alternate =
-                std::fmod(static_cast<float>(timeMs) / 180.0f, 1.0f) < 0.5f;
-            intensity = (firstHalf == alternate) ? 1.0f : 0.0f;
+            // On narrow matrices there is no room to draw eye details.
+            // Leave spatial sequencing to the selected motion pattern.
+            intensity = 1.0f;
         }
         break;
     }
