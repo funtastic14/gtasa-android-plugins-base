@@ -39,7 +39,7 @@ public:
 
     // Returns true when a valid effect is selected.
     bool Update(
-        const VehicleProfile& profile,
+        const LedPlacement& placement,
         uint32_t nowMs
     );
 
