@@ -44,8 +44,10 @@ static const char* g_adjustmentScaleNames[] = {"Very Fine", "Normal", "Fast", "V
 static const float g_adjustmentScaleValues[] = {0.1f, 1.0f, 5.0f, 20.0f};
 static char g_runningTextBuffer[129] = {};
 static char g_runningFontBuffer[33] = {};
+static char g_runningTextureBuffer[33] = {};
 static const VLS::LedEffectConfig* g_runningTextBufferEffect = nullptr;
 static const VLS::LedEffectConfig* g_runningFontBufferEffect = nullptr;
+static const VLS::LedEffectConfig* g_runningTextureBufferEffect = nullptr;
 static bool g_runningTextKeyboardOpen = false;
 
 static VLS::VehicleManager g_vehicleManager;
@@ -867,6 +869,17 @@ static void RenderEditor() {
             changed = true;
         }
         ImGui::TextWrapped("Place a 5x7 bitmap font file at VehicleLEDSystem/fonts/<name>.vlsfont. Use 95 ASCII glyphs (space through ~), 7 rows per glyph, 2 hexadecimal digits per row.");
+        if (g_runningTextureBufferEffect != &effect) {
+            std::memset(g_runningTextureBuffer, 0, sizeof(g_runningTextureBuffer));
+            std::strncpy(g_runningTextureBuffer, effect.textureName.c_str(), sizeof(g_runningTextureBuffer) - 1);
+            g_runningTextureBufferEffect = &effect;
+        }
+        ImGui::Text("Custom matrix texture (.ppm, P3)");
+        if (ImGui::InputText("Texture Name", g_runningTextureBuffer, sizeof(g_runningTextureBuffer))) {
+            effect.textureName = g_runningTextureBuffer;
+            changed = true;
+        }
+        ImGui::TextWrapped("Place a P3 PPM image at VehicleLEDSystem/textures/<name>.ppm. It is mapped to the matrix and colors lit text pixels.");
         static const char* textMotionNames[] = {"Scroll Left", "Scroll Right", "Bounce Horizontal", "Scroll Up", "Scroll Down", "Bounce Vertical", "Static / Center"};
         int textMotionIndex = static_cast<int>(effect.textMotion);
         if (ImGui::Combo("Text Motion", &textMotionIndex, textMotionNames, 7)) {
