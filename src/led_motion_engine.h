@@ -77,6 +77,22 @@ inline float EvaluateMotionIntensity(
         return ((column + static_cast<uint16_t>(phase * 4.0f)) % 2u) ? 0.08f : 1.0f;
     case LedMotionPattern::Checkerboard:
         return ((column + row + static_cast<uint16_t>(phase * 4.0f)) % 2u) ? 0.08f : 1.0f;
+    case LedMotionPattern::Windmill: {
+        const float angle = std::atan2(dy, dx);
+        const float blade = std::cos(angle * 4.0f - wavePhase);
+        return blade > 0.15f ? 1.0f : 0.08f;
+    }
+    case LedMotionPattern::Spiral: {
+        const float angle = std::atan2(dy, dx);
+        const float spiral = std::cos(radius * 24.0f - angle * 3.0f - wavePhase);
+        return 0.08f + 0.92f * (0.5f + 0.5f * spiral);
+    }
+    case LedMotionPattern::Starburst: {
+        const float angle = std::atan2(dy, dx);
+        const float rays = std::fabs(std::cos(angle * 6.0f - wavePhase * 0.5f));
+        const float radial = clamp01(1.0f - radius * 0.55f);
+        return 0.06f + 0.94f * rays * radial;
+    }
     }
     (void)columns;
     (void)rows;
