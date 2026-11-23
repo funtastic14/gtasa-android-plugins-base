@@ -641,13 +641,14 @@ static bool RenderEffect(
             return false;
         }
 
+        const float nx = (static_cast<float>(i) + 0.5f) / static_cast<float>(SEGMENTS);
+
         // Only general-purpose effects sample the shared motion field.
         // Strobo Eyes and Running Text retain their dedicated movement engines.
         if (effect.type == LedEffectType::RunningLED ||
             effect.type == LedEffectType::RGB ||
             effect.type == LedEffectType::StroboWave) {
             const float phase01 = static_cast<float>(std::fmod(time / 1800.0, 1.0));
-            const float nx = (static_cast<float>(i) + 0.5f) / static_cast<float>(SEGMENTS);
             intensity *= EvaluateMotionIntensity(
                 ResolveMotionPattern(effect, CTimer::GetTimeMS(), GetPlacementMotionPlayback(placement), placement.animationIntervalMs), nx, 0.5f, phase01,
                 static_cast<uint16_t>(i), 0,
