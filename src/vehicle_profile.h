@@ -52,6 +52,40 @@ enum class LedColorDirection : uint8_t {
     EdgeToCenter
 };
 
+// Dedicated Strobo Eyes controls. These are intentionally independent
+// from the general-purpose LED motion pattern engine.
+enum class EyeShape : uint8_t {
+    Classic,
+    Narrow,
+    Wide,
+    Round,
+    Cat,
+    Square
+};
+
+enum class EyeMotion : uint8_t {
+    Idle,
+    LookLeft,
+    LookRight,
+    LookUp,
+    LookDown,
+    Scan,
+    Wink,
+    Shake,
+    RapidBlink
+};
+
+enum class EyeExpression : uint8_t {
+    Neutral,
+    Happy,
+    Angry,
+    Sad,
+    Surprised,
+    Sleepy,
+    Love,
+    Evil
+};
+
 // Motion is independent from color style and effect family.
 enum class LedMotionPattern : uint8_t {
     LeftToRight,
@@ -185,6 +219,12 @@ struct LedEffectConfig {
     uint8_t tertiaryBlue = 255;
     LedColorDirection colorDirection = LedColorDirection::LeftToRight;
     float colorSpread = 1.0f;
+
+    // Dedicated eye geometry and expression settings.
+    EyeShape eyeShape = EyeShape::Classic;
+    EyeMotion eyeMotion = EyeMotion::Idle;
+    EyeExpression eyeExpression = EyeExpression::Neutral;
+    uint32_t eyeBlinkIntervalMs = 3200;
 
     // Teks untuk efek RunningText pada LED Matrix.
     std::string text;
