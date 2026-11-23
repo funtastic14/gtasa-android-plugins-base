@@ -740,8 +740,15 @@ static void RenderEditor() {
         ImGui::TextWrapped("Random: this LED randomly selects its own enabled patterns.");
     else if (placement.animationMode == static_cast<uint8_t>(VLS::AnimationMode::Sequential))
         ImGui::TextWrapped("Sequential: this LED follows its own effect list.");
-    else
-        ImGui::TextWrapped("Custom: currently uses this LED's effect order; editable custom timeline is next.");
+    else {
+        ImGui::TextWrapped("Custom: runs this LED's ordered effect list using each step's own duration.");
+        int stepDuration = static_cast<int>(effect.durationMs);
+        if (ImGui::SliderInt("Selected Step Duration (ms)", &stepDuration, 100, 60000)) {
+            effect.durationMs = static_cast<uint32_t>(stepDuration);
+            changed = true;
+        }
+        ImGui::TextWrapped("Use Move Effect Up/Down to customize the sequence order.");
+    }
 
         // LED Zone
     // -----------------------------------------------------
