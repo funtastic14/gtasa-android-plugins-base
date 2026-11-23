@@ -1008,6 +1008,21 @@ static void RenderEditor() {
             }
         }
         ImGui::TextWrapped("Color direction and spread are independent from the LED motion pattern. RGB keeps its own animated spectrum.");
+    } else if (effect.type == VLS::LedEffectType::RGB) {
+        const char* colorDirectionNames[] = {
+            "Left to Right", "Right to Left", "Top to Bottom", "Bottom to Top",
+            "Diagonal Down", "Diagonal Up", "Center Out", "Edges to Center"
+        };
+        int direction = static_cast<int>(effect.colorDirection);
+        if (ImGui::Combo("RGB Color Direction", &direction, colorDirectionNames, 8)) {
+            effect.colorDirection = static_cast<VLS::LedColorDirection>(direction);
+            changed = true;
+        }
+        float spread = effect.colorSpread;
+        if (ImGui::SliderFloat("RGB Color Spread", &spread, 0.25f, 4.0f)) {
+            effect.colorSpread = spread;
+            changed = true;
+        }
     }
 
     float brightness = effect.brightness;
