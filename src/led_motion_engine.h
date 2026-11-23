@@ -9,6 +9,38 @@ namespace VLS {
 
 // Single source of truth for spatial motion. Both the strip renderer and
 // matrix renderer sample this field using normalized placement coordinates.
+inline LedMotionPattern ResolveMotionPattern(
+    const LedEffectConfig& effect,
+    uint32_t timeMs
+) {
+    if (effect.motionPlayback == MotionPlaybackMode::Manual)
+        return effect.motionPattern;
+    const uint32_t interval = effect.motionIntervalMs < 500 ? 500 : effect.motionIntervalMs;
+    const uint32_t step = timeMs / interval;
+    const uint32_t count = static_cast<uint32_t>(LedMotionPattern::Starburst) + 1u;
+    if (effect.motionPlayback == MotionPlaybackMode::Sequential)
+        return static_cast<LedMotionPattern>(step % count);
+    if (effect.motionPlayback == MotionPlaybackMode::Automatic) {
+        static const LedMotionPattern automaticOrder[] = {
+            LedMotionPattern::LeftToRight, LedMotionPattern::CenterOut,
+            LedMotionPattern::ZoomIn, LedMotionPattern::Wave,
+            LedMotionPattern::Ripple, LedMotionPattern::Windmill,
+            LedMotionPattern::Spiral, LedMotionPattern::Starburst,
+            LedMotionPattern::RightToLeft, LedMotionPattern::EdgeToCenter,
+            LedMotionPattern::ZoomOut, LedMotionPattern::Flow
+        };
+        const uint32_t size = static_cast<uint32_t>(sizeof(automaticOrder) / sizeof(automaticOrder[0]));
+        return automaticOrder[step % size];
+    }
+    uint32_t value = step ^ (effect.motionPattern == LedMotionPattern::LeftToRight ? 0x9E3779B9u : 0x85EBCA6Bu);
+    value ^= value >> 16;
+    value *= 0x7FEB352Du;
+    value ^= value >> 15;
+    value *= 0x846CA68Bu;
+    value ^= value >> 16;
+    return static_cast<LedMotionPattern>(value % count);
+}
+
 inline float EvaluateMotionIntensity(
     LedMotionPattern pattern,
     float x,
