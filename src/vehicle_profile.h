@@ -36,6 +36,27 @@ enum class LedColorMode : uint8_t {
     Rainbow
 };
 
+// Motion is independent from color style and effect family.
+enum class LedMotionPattern : uint8_t {
+    LeftToRight,
+    RightToLeft,
+    CenterOut,
+    EdgeToCenter,
+    ZoomIn,
+    ZoomOut,
+    FadeIn,
+    FadeOut,
+    Rolling,
+    Flow,
+    Wave,
+    Diagonal,
+    Ripple,
+    Pulse,
+    AlternateRows,
+    AlternateColumns,
+    Checkerboard
+};
+
 enum class LedDirection : uint8_t {
     LeftToRight,
     RightToLeft,
@@ -117,6 +138,7 @@ struct LedEffectConfig {
     uint32_t durationMs = 1000; // Per-step duration for this LED's Custom sequence.
 
     LedColorMode colorMode = LedColorMode::Solid;
+    LedMotionPattern motionPattern = LedMotionPattern::LeftToRight;
     uint8_t secondaryRed = 0;
     uint8_t secondaryGreen = 120;
     uint8_t secondaryBlue = 255;
