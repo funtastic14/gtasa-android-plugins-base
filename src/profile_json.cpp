@@ -757,6 +757,13 @@ static bool ReadPlacement(
         !ReadBool(value, "enabled", placement.enabled))
         return false;
 
+    if (!ReadUInt8(value, "animationMode", placement.animationMode) ||
+        placement.animationMode > 4 ||
+        !ReadUInt32(value, "animationIntervalMs", placement.animationIntervalMs) ||
+        placement.animationIntervalMs < 100 ||
+        placement.animationIntervalMs > 30000)
+        return false;
+
     const JsonValue* transform = Find(value, "transform");
 
     if (transform != nullptr &&
@@ -1195,6 +1202,10 @@ static bool AppendPlacement(
     AppendInt(output, static_cast<int>(placement.zone));
     output += ",\"enabled\":";
     output += placement.enabled ? "true" : "false";
+    output += ",\"animationMode\":";
+    AppendUInt(output, placement.animationMode);
+    output += ",\"animationIntervalMs\":";
+    AppendUInt(output, placement.animationIntervalMs);
 
     output += ",\"transform\":";
 
