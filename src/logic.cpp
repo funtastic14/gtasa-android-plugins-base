@@ -889,9 +889,9 @@ static void RenderEditor() {
             "Windmill", "Spiral", "Starburst"
         };
         int motionIndex = static_cast<int>(effect.motionPattern);
-        if (ImGui::Combo("Motion Pattern", &motionIndex, motionNames, 17)) {
+        if (ImGui::Combo("Motion Pattern", &motionIndex, motionNames, 20)) {
             if (motionIndex < 0) motionIndex = 0;
-            if (motionIndex > 16) motionIndex = 16;
+            if (motionIndex > 19) motionIndex = 19;
             effect.motionPattern = static_cast<VLS::LedMotionPattern>(motionIndex);
             changed = true;
         }
