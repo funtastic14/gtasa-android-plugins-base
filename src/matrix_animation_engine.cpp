@@ -1,5 +1,6 @@
 #include "matrix_animation_engine.h"
 #include "led_motion_engine.h"
+#include "profile_storage.h"
 
 #include <cmath>
 #include <cctype>
@@ -66,7 +67,48 @@ void HSVtoRGB(
     blue = ClampColor(b * 255.0f);
 }
 
-uint8_t GetGlyphRow(char input, uint16_t row) {
+uint8_t GetGlyphRow(char input, uint16_t row, const std::string& fontName) {
+    static std::string cachedFontName;
+    static uint8_t customFont[95][7] = {};
+    static bool customFontValid = false;
+    if (fontName != cachedFontName) {
+        cachedFontName = fontName;
+        customFontValid = false;
+        std::string bitmap;
+        if (ProfileStorage::LoadFontBitmap(fontName, bitmap)) {
+            std::string digits;
+            digits.reserve(1330);
+            for (char c : bitmap) {
+                if (std::isspace(static_cast<unsigned char>(c))) continue;
+                digits.push_back(c);
+            }
+            if (digits.size() == 1330) {
+                bool valid = true;
+                for (size_t glyph = 0; glyph < 95 && valid; ++glyph) {
+                    for (size_t y = 0; y < 7; ++y) {
+                        const size_t pos = (glyph * 7 + y) * 2;
+                        unsigned int value = 0;
+                        for (size_t k = 0; k < 2; ++k) {
+                            const char ch = digits[pos + k];
+                            value <<= 4;
+                            if (ch >= '0' && ch <= '9') value |= static_cast<unsigned int>(ch - '0');
+                            else if (ch >= 'a' && ch <= 'f') value |= static_cast<unsigned int>(ch - 'a' + 10);
+                            else if (ch >= 'A' && ch <= 'F') value |= static_cast<unsigned int>(ch - 'A' + 10);
+                            else { valid = false; break; }
+                        }
+                        if (!valid || value > 31u) { valid = false; break; }
+                        customFont[glyph][y] = static_cast<uint8_t>(value);
+                    }
+                }
+                customFontValid = valid;
+            }
+        }
+    }
+    if (customFontValid && row < 7) {
+        const unsigned char code = static_cast<unsigned char>(input);
+        if (code >= 32 && code <= 126)
+            return customFont[code - 32][row];
+    }
     if (row >= 7)
         return 0;
     char ch = static_cast<char>(std::toupper(static_cast<unsigned char>(input)));
@@ -353,7 +395,7 @@ bool MatrixAnimationEngine::EvaluatePixel(
                 glyphColumn = static_cast<int>(within / spacing);
                 glyphRow = row;
                 if (glyphColumn >= 0 && glyphColumn < 5)
-                    intensity = (GetGlyphRow(effect.text[charIndex], glyphRow) & (1u << (4 - glyphColumn))) ? 1.0f : 0.0f;
+                    intensity = (GetGlyphRow(effect.text[charIndex], glyphRow, effect.fontName) & (1u << (4 - glyphColumn))) ? 1.0f : 0.0f;
                 else
                     intensity = 0.0f;
             } else intensity = 0.0f;
@@ -372,7 +414,7 @@ bool MatrixAnimationEngine::EvaluatePixel(
                 const float within = sample - static_cast<float>(charIndex) * charWidth;
                 const int glyphRow = static_cast<int>(within / spacing);
                 if (column < 7 && glyphRow >= 0 && glyphRow < 5) {
-                    const uint8_t bits = GetGlyphRow(effect.text[charIndex], column);
+                    const uint8_t bits = GetGlyphRow(effect.text[charIndex], column, effect.fontName);
                     intensity = (bits & (1u << (4 - glyphRow))) ? 1.0f : 0.0f;
                 } else intensity = 0.0f;
             } else intensity = 0.0f;
