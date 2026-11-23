@@ -728,6 +728,10 @@ static bool ReadEffect(
     effect.colorMode = static_cast<LedColorMode>(colorMode);
     if (!ReadInt(value, "motionPattern", motionPattern) || motionPattern < 0 || motionPattern > static_cast<int>(LedMotionPattern::Starburst)) return false;
     effect.motionPattern = static_cast<LedMotionPattern>(motionPattern);
+    int motionPlayback = static_cast<int>(effect.motionPlayback);
+    if (!ReadInt(value, "motionPlayback", motionPlayback) || motionPlayback < 0 || motionPlayback > static_cast<int>(MotionPlaybackMode::Random)) return false;
+    effect.motionPlayback = static_cast<MotionPlaybackMode>(motionPlayback);
+    if (!ReadUInt32(value, "motionIntervalMs", effect.motionIntervalMs) || effect.motionIntervalMs < 500 || effect.motionIntervalMs > 30000) return false;
     int textMotion = static_cast<int>(effect.textMotion);
     if (!ReadInt(value, "textMotion", textMotion) || textMotion < 0 || textMotion > static_cast<int>(RunningTextMotion::Static)) return false;
     effect.textMotion = static_cast<RunningTextMotion>(textMotion);
@@ -1176,6 +1180,10 @@ static bool AppendEffect(
     AppendInt(output, static_cast<int>(effect.colorMode));
     output += ",\"motionPattern\":";
     AppendInt(output, static_cast<int>(effect.motionPattern));
+    output += ",\"motionPlayback\":";
+    AppendInt(output, static_cast<int>(effect.motionPlayback));
+    output += ",\"motionIntervalMs\":";
+    AppendUInt(output, effect.motionIntervalMs);
 
     output += ",\"secondaryRed\":";
     AppendUInt(output, effect.secondaryRed);
