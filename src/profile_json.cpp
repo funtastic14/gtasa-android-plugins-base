@@ -937,6 +937,10 @@ static bool ValidateProfileReferences(
                 effect.opacity > 1.0f ||
                 static_cast<int>(effect.colorMode) < 0 ||
                 static_cast<int>(effect.colorMode) > static_cast<int>(LedColorMode::Alternating) ||
+                static_cast<int>(effect.colorDirection) < 0 ||
+                static_cast<int>(effect.colorDirection) > static_cast<int>(LedColorDirection::EdgeToCenter) ||
+                !std::isfinite(effect.colorSpread) ||
+                effect.colorSpread < 0.1f || effect.colorSpread > 8.0f ||
                 !std::isfinite(effect.speed) ||
                 effect.speed <= 0.0f ||
                 effect.durationMs < 100 ||
