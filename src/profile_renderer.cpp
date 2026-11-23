@@ -658,11 +658,15 @@ static bool RenderEffect(
                 break;
             case LedColorMode::ThreeColorGradient: {
                 const float t = blend < 0.5f ? blend * 2.0f : (blend - 0.5f) * 2.0f;
-                const uint8_t* a = blend < 0.5f ? &effect.red : &effect.secondaryRed;
-                const uint8_t* b = blend < 0.5f ? &effect.secondaryRed : &effect.tertiaryRed;
-                red = ClampColor(a[0] * (1.0f - t) + b[0] * t);
-                green = ClampColor(a[1] * (1.0f - t) + b[1] * t);
-                blue = ClampColor(a[2] * (1.0f - t) + b[2] * t);
+                const float ar = blend < 0.5f ? effect.red : effect.secondaryRed;
+                const float ag = blend < 0.5f ? effect.green : effect.secondaryGreen;
+                const float ab = blend < 0.5f ? effect.blue : effect.secondaryBlue;
+                const float br = blend < 0.5f ? effect.secondaryRed : effect.tertiaryRed;
+                const float bg = blend < 0.5f ? effect.secondaryGreen : effect.tertiaryGreen;
+                const float bb = blend < 0.5f ? effect.secondaryBlue : effect.tertiaryBlue;
+                red = ClampColor(ar * (1.0f - t) + br * t);
+                green = ClampColor(ag * (1.0f - t) + bg * t);
+                blue = ClampColor(ab * (1.0f - t) + bb * t);
                 break;
             }
             case LedColorMode::Rainbow:
