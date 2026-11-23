@@ -712,7 +712,8 @@ static bool ReadEffect(
         !ReadUInt32(value, "durationMs", effect.durationMs) ||
         effect.durationMs < 100 || effect.durationMs > 60000 ||
         !ReadString(value, "text", effect.text) ||
-        !ReadOptionalFloat(value, "textSpacing", effect.textSpacing)) {
+        !ReadOptionalFloat(value, "textSpacing", effect.textSpacing) ||
+        !ReadString(value, "fontName", effect.fontName)) {
         return false;
     }
 
@@ -1202,6 +1203,8 @@ static bool AppendEffect(
 
     output += ",\"textSpacing\":";
     if (!AppendFloat(output, effect.textSpacing)) return false;
+    output += ",\"fontName\":";
+    if (!AppendJsonString(output, effect.fontName)) return false;
     output += ",\"textMotion\":";
     AppendInt(output, static_cast<int>(effect.textMotion));
 
