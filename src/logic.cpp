@@ -37,6 +37,7 @@ static float g_animationSpeed = 1.0f;
 static int g_selectedPixel = 0;
 static int g_selectedPlacement = 0;
 static int g_selectedEffect = 0;
+static uint32_t g_effectEditorPlacementId = 0;
 static int g_editorPage = 0;
 static int g_adjustmentScaleMode = 1;
 static const char* g_adjustmentScaleNames[] = {"Very Fine", "Normal", "Fast", "Very Fast"};
@@ -383,7 +384,7 @@ static void UpdateAnimationController() {
             controller.SetRandomSeed(static_cast<uint32_t>(g_currentProfile->modelId * 2654435761u) ^ (placement.id * 2246822519u));
         controller.SetMode(static_cast<VLS::AnimationMode>(placement.animationMode));
         controller.SetIntervalMs(placement.animationIntervalMs);
-        controller.SetManualSelection(placement.id, 0);
+        controller.SetManualSelection(placement.id, placement.activeEffectIndex);
         controller.Update(placement, nowMs);
     }
 }
@@ -646,6 +647,10 @@ static void RenderEditor() {
 
     bool changed = false;
 
+    if (g_effectEditorPlacementId != placement.id) {
+        g_effectEditorPlacementId = placement.id;
+        g_selectedEffect = static_cast<int>(placement.activeEffectIndex);
+    }
     if (g_selectedEffect < 0) g_selectedEffect = 0;
     if (g_selectedEffect >= static_cast<int>(placement.effects.size()))
         g_selectedEffect = placement.effects.empty() ? 0 : static_cast<int>(placement.effects.size()) - 1;
@@ -656,12 +661,14 @@ static void RenderEditor() {
         addedEffect.red = 0; addedEffect.green = 180; addedEffect.blue = 255;
         placement.effects.push_back(addedEffect);
         g_selectedEffect = static_cast<int>(placement.effects.size()) - 1;
+        placement.activeEffectIndex = static_cast<uint32_t>(g_selectedEffect);
         changed = true;
     }
     ImGui::SameLine();
     if (ImGui::Button("Copy Effect", ImVec2(125.0f, 38.0f)) && !placement.effects.empty()) {
         placement.effects.push_back(placement.effects[g_selectedEffect]);
         g_selectedEffect = static_cast<int>(placement.effects.size()) - 1;
+        placement.activeEffectIndex = static_cast<uint32_t>(g_selectedEffect);
         changed = true;
     }
     ImGui::SameLine();
@@ -669,6 +676,7 @@ static void RenderEditor() {
         placement.effects.erase(placement.effects.begin() + g_selectedEffect);
         if (g_selectedEffect >= static_cast<int>(placement.effects.size()))
             g_selectedEffect = static_cast<int>(placement.effects.size()) - 1;
+        placement.activeEffectIndex = static_cast<uint32_t>(g_selectedEffect);
         changed = true;
     }
 
@@ -678,10 +686,14 @@ static void RenderEditor() {
         return;
     }
     ImGui::Text("Effects on this LED: %d", static_cast<int>(placement.effects.size()));
-    ImGui::SliderInt("Selected Effect", &g_selectedEffect, 0, static_cast<int>(placement.effects.size()) - 1);
+    if (ImGui::SliderInt("Selected Effect", &g_selectedEffect, 0, static_cast<int>(placement.effects.size()) - 1)) {
+        placement.activeEffectIndex = static_cast<uint32_t>(g_selectedEffect);
+        changed = true;
+    }
     if (ImGui::Button("Move Effect Up", ImVec2(145.0f, 34.0f)) && g_selectedEffect > 0) {
         std::swap(placement.effects[g_selectedEffect], placement.effects[g_selectedEffect - 1]);
         --g_selectedEffect;
+        placement.activeEffectIndex = static_cast<uint32_t>(g_selectedEffect);
         changed = true;
     }
     ImGui::SameLine();
@@ -689,6 +701,7 @@ static void RenderEditor() {
         g_selectedEffect + 1 < static_cast<int>(placement.effects.size())) {
         std::swap(placement.effects[g_selectedEffect], placement.effects[g_selectedEffect + 1]);
         ++g_selectedEffect;
+        placement.activeEffectIndex = static_cast<uint32_t>(g_selectedEffect);
         changed = true;
     }
     VLS::LedEffectConfig& effect = placement.effects[g_selectedEffect];
@@ -720,7 +733,7 @@ static void RenderEditor() {
         changed = true;
     }
     if (placement.animationMode == static_cast<uint8_t>(VLS::AnimationMode::Manual))
-        ImGui::TextWrapped("Manual: this LED keeps its first enabled effect.");
+        ImGui::TextWrapped("Manual: this LED keeps its selected effect.");
     else if (placement.animationMode == static_cast<uint8_t>(VLS::AnimationMode::Automatic))
         ImGui::TextWrapped("Automatic: this LED cycles its compatible patterns only.");
     else if (placement.animationMode == static_cast<uint8_t>(VLS::AnimationMode::Random))
