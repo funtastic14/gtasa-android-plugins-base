@@ -362,6 +362,77 @@ bool MatrixAnimationEngine::EvaluatePixel(
         return false;
     }
 
+    // Motion layer: independent of the effect family and color palette.
+    // Coordinates are normalized per placement, so animations never cross LED placements.
+    const float phase = Fract(static_cast<float>(timeMs) * speed / 1800.0f);
+    const float dx = x - 0.5f;
+    const float dy = y - 0.5f;
+    const float radius = std::sqrt(dx * dx + dy * dy) * 1.41421356f;
+    const float wavePhase = TWO_PI * (static_cast<float>(timeMs) * speed / 1800.0f);
+    switch (effect.motionPattern) {
+    case LedMotionPattern::LeftToRight: {
+        const float d = Fract(phase - x);
+        intensity *= d < 0.24f ? 1.0f - d / 0.24f : 0.035f;
+        break;
+    }
+    case LedMotionPattern::RightToLeft: {
+        const float d = Fract(phase - (1.0f - x));
+        intensity *= d < 0.24f ? 1.0f - d / 0.24f : 0.035f;
+        break;
+    }
+    case LedMotionPattern::CenterOut: {
+        const float d = Fract(phase - std::fabs(x - 0.5f) * 2.0f);
+        intensity *= d < 0.22f ? 1.0f - d / 0.22f : 0.025f;
+        break;
+    }
+    case LedMotionPattern::EdgeToCenter: {
+        const float d = Fract(phase - (1.0f - std::fabs(x - 0.5f) * 2.0f));
+        intensity *= d < 0.22f ? 1.0f - d / 0.22f : 0.025f;
+        break;
+    }
+    case LedMotionPattern::ZoomIn:
+        intensity *= Clamp01(1.0f - std::fabs(radius - phase) * 5.0f);
+        break;
+    case LedMotionPattern::ZoomOut:
+        intensity *= Clamp01(1.0f - std::fabs(radius - (1.0f - phase)) * 5.0f);
+        break;
+    case LedMotionPattern::FadeIn:
+        intensity *= phase;
+        break;
+    case LedMotionPattern::FadeOut:
+        intensity *= 1.0f - phase;
+        break;
+    case LedMotionPattern::Rolling:
+        intensity *= Fract(x * 3.0f - phase) < 0.48f ? 1.0f : 0.04f;
+        break;
+    case LedMotionPattern::Flow:
+        intensity *= 0.15f + 0.85f * (0.5f + 0.5f * std::sin(wavePhase - (x + y) * TWO_PI * 2.0f));
+        break;
+    case LedMotionPattern::Wave:
+        intensity *= 0.5f + 0.5f * std::sin(wavePhase + x * TWO_PI * 2.0f);
+        break;
+    case LedMotionPattern::Diagonal: {
+        const float d = Fract(phase - Fract(x + y));
+        intensity *= d < 0.25f ? 1.0f - d / 0.25f : 0.03f;
+        break;
+    }
+    case LedMotionPattern::Ripple:
+        intensity *= 0.5f + 0.5f * std::sin(radius * 18.0f - wavePhase * 2.0f);
+        break;
+    case LedMotionPattern::Pulse:
+        intensity *= 0.08f + 0.92f * (0.5f + 0.5f * std::sin(wavePhase));
+        break;
+    case LedMotionPattern::AlternateRows:
+        intensity *= ((row + static_cast<uint32_t>(phase * 4.0f)) % 2u) ? 0.08f : 1.0f;
+        break;
+    case LedMotionPattern::AlternateColumns:
+        intensity *= ((column + static_cast<uint32_t>(phase * 4.0f)) % 2u) ? 0.08f : 1.0f;
+        break;
+    case LedMotionPattern::Checkerboard:
+        intensity *= ((column + row + static_cast<uint32_t>(phase * 4.0f)) % 2u) ? 0.08f : 1.0f;
+        break;
+    }
+
     const float brightness =
         Clamp01(effect.brightness) *
         Clamp01(pixel->brightness);
