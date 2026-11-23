@@ -405,7 +405,7 @@ bool MatrixAnimationEngine::EvaluatePixel(
         effect.type != LedEffectType::RunningText) {
         const float phase = Fract(static_cast<float>(timeMs) * speed / 1800.0f);
         intensity *= EvaluateMotionIntensity(
-            effect.motionPattern, x, y, phase,
+            ResolveMotionPattern(effect, timeMs), x, y, phase,
             column, row, matrix.columns, matrix.rows
         );
     }
