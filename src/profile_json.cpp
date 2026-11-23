@@ -709,6 +709,8 @@ static bool ReadEffect(
         !ReadFloat(value, "brightness", effect.brightness) ||
         !ReadOptionalFloat(value, "opacity", effect.opacity) ||
         !ReadOptionalFloat(value, "speed", effect.speed) ||
+        !ReadUInt32(value, "durationMs", effect.durationMs) ||
+        effect.durationMs < 100 || effect.durationMs > 60000 ||
         !ReadString(value, "text", effect.text) ||
         !ReadOptionalFloat(value, "textSpacing", effect.textSpacing)) {
         return false;
@@ -911,6 +913,8 @@ static bool ValidateProfileReferences(
                 static_cast<int>(effect.colorMode) > static_cast<int>(LedColorMode::Rainbow) ||
                 !std::isfinite(effect.speed) ||
                 effect.speed <= 0.0f ||
+                effect.durationMs < 100 ||
+                effect.durationMs > 60000 ||
                 !std::isfinite(effect.textSpacing) ||
                 effect.textSpacing < 0.25f ||
                 effect.textSpacing > 4.0f ||
@@ -1174,6 +1178,8 @@ static bool AppendEffect(
 
     output += ",\"speed\":";
     if (!AppendFloat(output, effect.speed)) return false;
+    output += ",\"durationMs\":";
+    AppendUInt(output, effect.durationMs);
 
     output += ",\"text\":";
     if (!AppendJsonString(output, effect.text)) return false;
