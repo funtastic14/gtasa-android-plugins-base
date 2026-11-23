@@ -721,13 +721,27 @@ static bool ReadEffect(
     int colorMode = static_cast<int>(effect.colorMode);
     int motionPattern = static_cast<int>(effect.motionPattern);
     if (!ReadInt(value, "colorMode", colorMode) ||
-        colorMode < 0 || colorMode > static_cast<int>(LedColorMode::Rainbow) ||
+        colorMode < 0 || colorMode > static_cast<int>(LedColorMode::Alternating) ||
         !ReadUInt8(value, "secondaryRed", effect.secondaryRed) ||
         !ReadUInt8(value, "secondaryGreen", effect.secondaryGreen) ||
         !ReadUInt8(value, "secondaryBlue", effect.secondaryBlue)) {
         return false;
     }
     effect.colorMode = static_cast<LedColorMode>(colorMode);
+    const JsonValue* tertiaryRedValue = Find(value, "tertiaryRed");
+    const JsonValue* tertiaryGreenValue = Find(value, "tertiaryGreen");
+    const JsonValue* tertiaryBlueValue = Find(value, "tertiaryBlue");
+    if ((tertiaryRedValue && !ReadUInt8(value, "tertiaryRed", effect.tertiaryRed)) ||
+        (tertiaryGreenValue && !ReadUInt8(value, "tertiaryGreen", effect.tertiaryGreen)) ||
+        (tertiaryBlueValue && !ReadUInt8(value, "tertiaryBlue", effect.tertiaryBlue))) return false;
+    int colorDirection = static_cast<int>(effect.colorDirection);
+    if (Find(value, "colorDirection") &&
+        (!ReadInt(value, "colorDirection", colorDirection) || colorDirection < 0 ||
+         colorDirection > static_cast<int>(LedColorDirection::EdgeToCenter))) return false;
+    effect.colorDirection = static_cast<LedColorDirection>(colorDirection);
+    if (!ReadOptionalFloat(value, "colorSpread", effect.colorSpread) ||
+        !std::isfinite(effect.colorSpread) || effect.colorSpread < 0.1f || effect.colorSpread > 8.0f)
+        return false;
     if (!ReadInt(value, "motionPattern", motionPattern) || motionPattern < 0 || motionPattern > static_cast<int>(LedMotionPattern::Starburst)) return false;
     effect.motionPattern = static_cast<LedMotionPattern>(motionPattern);
     int motionPlayback = static_cast<int>(effect.motionPlayback);
@@ -922,7 +936,7 @@ static bool ValidateProfileReferences(
                 effect.opacity < 0.0f ||
                 effect.opacity > 1.0f ||
                 static_cast<int>(effect.colorMode) < 0 ||
-                static_cast<int>(effect.colorMode) > static_cast<int>(LedColorMode::Rainbow) ||
+                static_cast<int>(effect.colorMode) > static_cast<int>(LedColorMode::Alternating) ||
                 !std::isfinite(effect.speed) ||
                 effect.speed <= 0.0f ||
                 effect.durationMs < 100 ||
@@ -1193,6 +1207,16 @@ static bool AppendEffect(
     AppendUInt(output, effect.secondaryGreen);
     output += ",\"secondaryBlue\":";
     AppendUInt(output, effect.secondaryBlue);
+    output += ",\"tertiaryRed\":";
+    AppendUInt(output, effect.tertiaryRed);
+    output += ",\"tertiaryGreen\":";
+    AppendUInt(output, effect.tertiaryGreen);
+    output += ",\"tertiaryBlue\":";
+    AppendUInt(output, effect.tertiaryBlue);
+    output += ",\"colorDirection\":";
+    AppendInt(output, static_cast<int>(effect.colorDirection));
+    output += ",\"colorSpread\":";
+    if (!AppendFloat(output, effect.colorSpread)) return false;
 
     output += ",\"speed\":";
     if (!AppendFloat(output, effect.speed)) return false;
