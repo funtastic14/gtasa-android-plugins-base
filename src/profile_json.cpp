@@ -713,7 +713,8 @@ static bool ReadEffect(
         effect.durationMs < 100 || effect.durationMs > 60000 ||
         !ReadString(value, "text", effect.text) ||
         !ReadOptionalFloat(value, "textSpacing", effect.textSpacing) ||
-        !ReadString(value, "fontName", effect.fontName)) {
+        !ReadString(value, "fontName", effect.fontName) ||
+        !ReadString(value, "textureName", effect.textureName)) {
         return false;
     }
 
@@ -1205,6 +1206,8 @@ static bool AppendEffect(
     if (!AppendFloat(output, effect.textSpacing)) return false;
     output += ",\"fontName\":";
     if (!AppendJsonString(output, effect.fontName)) return false;
+    output += ",\"textureName\":";
+    if (!AppendJsonString(output, effect.textureName)) return false;
     output += ",\"textMotion\":";
     AppendInt(output, static_cast<int>(effect.textMotion));
 
