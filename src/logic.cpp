@@ -303,10 +303,10 @@ static const VLS::LedDirection g_directionTypes[] = {
 
 static const char* g_animationModeNames[] = {
     "Manual",
-    "Automatic",
-    "Random",
-    "Sequential",
-    "Custom"
+    "Automatic Motion",
+    "Random Motion",
+    "Sequential Motion",
+    "Custom Motion (Reserved)"
 };
 
 static const VLS::AnimationMode g_animationModeTypes[] = {
@@ -721,7 +721,7 @@ static void RenderEditor() {
     // -----------------------------------------------------
     // Per-placement animation controller.
     ImGui::Separator();
-    ImGui::Text("Animation Controller - This LED Only");
+    ImGui::Text("Motion Pattern Controller - This LED Only");
     int modeIndex = static_cast<int>(placement.animationMode);
     if (ImGui::Combo("Animation Mode", &modeIndex, g_animationModeNames, 5)) {
         if (modeIndex < 0) modeIndex = 0;
@@ -731,21 +731,21 @@ static void RenderEditor() {
         changed = true;
     }
     int interval = static_cast<int>(placement.animationIntervalMs);
-    if (ImGui::SliderInt("Pattern Switch Interval (ms)", &interval, 100, 30000)) {
+    if (ImGui::SliderInt("Motion Pattern Interval (ms)", &interval, 500, 30000)) {
         placement.animationIntervalMs = static_cast<uint32_t>(interval);
         g_placementControllers[placement.id].Reset();
         changed = true;
     }
     if (placement.animationMode == static_cast<uint8_t>(VLS::AnimationMode::Manual))
-        ImGui::TextWrapped("Manual: this LED keeps its selected effect.");
+        ImGui::TextWrapped("Manual: keeps the selected Motion Pattern and selected LED effect.");
     else if (placement.animationMode == static_cast<uint8_t>(VLS::AnimationMode::Automatic))
-        ImGui::TextWrapped("Automatic: this LED cycles its compatible patterns only.");
+        ImGui::TextWrapped("Automatic: cycles a curated Motion Pattern sequence. The selected LED effect never changes.");
     else if (placement.animationMode == static_cast<uint8_t>(VLS::AnimationMode::Random))
-        ImGui::TextWrapped("Random: this LED randomly selects its own enabled patterns.");
+        ImGui::TextWrapped("Random: chooses a new Motion Pattern at each interval. The selected LED effect never changes.");
     else if (placement.animationMode == static_cast<uint8_t>(VLS::AnimationMode::Sequential))
-        ImGui::TextWrapped("Sequential: this LED follows its own effect list.");
+        ImGui::TextWrapped("Sequential: steps through every Motion Pattern in order. The selected LED effect never changes.");
     else {
-        ImGui::TextWrapped("Custom: runs this LED's ordered effect list using each step's own duration.");
+        ImGui::TextWrapped("Custom motion sequence is reserved for the next editor stage. The selected LED effect remains fixed.");
         int stepDuration = static_cast<int>(effect.durationMs);
         if (ImGui::SliderInt("Selected Step Duration (ms)", &stepDuration, 100, 60000)) {
             effect.durationMs = static_cast<uint32_t>(stepDuration);
@@ -1318,13 +1318,11 @@ static void OnRenderEffects() {
             for (CVehicle* vehicle : g_frameVehicles) {
                 if (vehicle != currentVehicle || !IsVehiclePointerValid(vehicle)) continue;
                 for (const VLS::LedPlacement& led : profile->placements) {
-                    if (!led.enabled) continue;
-                    const auto it = g_placementControllers.find(led.id);
-                    if (it == g_placementControllers.end()) continue;
-                    const VLS::AnimationSelection& selection = it->second.GetSelection();
-                    if (!selection.valid) continue;
+                    if (!led.enabled || led.effects.empty()) continue;
+                    const uint32_t selected = led.activeEffectIndex < led.effects.size()
+                        ? led.activeEffectIndex : 0u;
                     VLS::ProfileRenderer::RenderSelectedEffect(
-                        vehicle, *profile, selection.placementId, selection.effectIndex
+                        vehicle, *profile, led.id, selected
                     );
                 }
             }
@@ -1503,7 +1501,6 @@ static void OnGameProcess() {
 
     g_currentProfile = &profile;
 
-    UpdateAnimationController();
     UpdateSequenceRuntime();
 }
 
