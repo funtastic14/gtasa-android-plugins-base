@@ -1,6 +1,7 @@
 
 #include "profile_renderer.h"
 #include "matrix_animation_engine.h"
+#include "led_motion_engine.h"
 #include "vehicle_geometry_reader.h"
 
 #include <algorithm>
@@ -617,54 +618,14 @@ static bool RenderEffect(
             return false;
         }
 
-        // Apply a named motion pattern separately from color animation.
+        // Sample the shared 2D motion field along the strip's centerline.
         const float phase01 = static_cast<float>(std::fmod(time / 1800.0, 1.0));
         const float nx = (static_cast<float>(i) + 0.5f) / static_cast<float>(SEGMENTS);
-        const float wave = static_cast<float>(time / 1800.0);
-        switch (effect.motionPattern) {
-        case LedMotionPattern::LeftToRight: {
-            float d = std::fmod(phase01 - nx + 1.0f, 1.0f);
-            intensity *= d < 0.34f ? 1.0f - d / 0.34f : 0.025f;
-            break;
-        }
-        case LedMotionPattern::RightToLeft: {
-            float d = std::fmod(phase01 - (1.0f - nx) + 1.0f, 1.0f);
-            intensity *= d < 0.34f ? 1.0f - d / 0.34f : 0.025f;
-            break;
-        }
-        case LedMotionPattern::CenterOut:
-        case LedMotionPattern::EdgeToCenter: {
-            float p = std::fabs(nx - 0.5f) * 2.0f;
-            if (effect.motionPattern == LedMotionPattern::EdgeToCenter) p = 1.0f - p;
-            float d = std::fmod(phase01 - p + 1.0f, 1.0f);
-            intensity *= d < 0.34f ? 1.0f - d / 0.34f : 0.025f;
-            break;
-        }
-        case LedMotionPattern::ZoomIn:
-        case LedMotionPattern::ZoomOut: {
-            // Match the matrix renderer: a normalized distance from center,
-            // not the raw X coordinate (which degenerates into an LTR sweep).
-            const float radial = std::fabs(nx - 0.5f) * 2.0f;
-            const float target = effect.motionPattern == LedMotionPattern::ZoomIn
-                ? phase01
-                : 1.0f - phase01;
-            intensity *= std::max(0.0f, 1.0f - std::fabs(radial - target) * 5.0f);
-            break;
-        }
-        case LedMotionPattern::FadeIn: intensity *= phase01; break;
-        case LedMotionPattern::FadeOut: intensity *= 1.0f - phase01; break;
-        case LedMotionPattern::Rolling: intensity *= std::fmod(nx * 3.0f + phase01, 1.0f) < 0.5f ? 1.0f : 0.04f; break;
-        case LedMotionPattern::Flow: intensity *= 0.15f + 0.85f * (0.5f + 0.5f * std::sin(wave * 6.2831853f - nx * 12.5663706f)); break;
-        case LedMotionPattern::Wave: intensity *= 0.5f + 0.5f * std::sin(wave * 6.2831853f + nx * 12.5663706f); break;
-        case LedMotionPattern::Diagonal: intensity *= (std::fmod(phase01 - nx + 1.0f, 1.0f) < 0.35f) ? 1.0f : 0.04f; break;
-        case LedMotionPattern::Ripple: intensity *= 0.5f + 0.5f * std::sin(std::fabs(nx - 0.5f) * 25.0f - wave * 12.5663706f); break;
-        case LedMotionPattern::Pulse: intensity *= 0.08f + 0.92f * (0.5f + 0.5f * std::sin(wave * 6.2831853f)); break;
-        case LedMotionPattern::AlternateRows:
-        case LedMotionPattern::AlternateColumns:
-        case LedMotionPattern::Checkerboard:
-            intensity *= (i + static_cast<uint32_t>(phase01 * 4.0f)) % 2u ? 0.08f : 1.0f;
-            break;
-        }
+        intensity *= EvaluateMotionIntensity(
+            effect.motionPattern, nx, 0.5f, phase01,
+            static_cast<uint16_t>(i), 0,
+            static_cast<uint16_t>(SEGMENTS), 1
+        );
 
         if (effect.colorMode == LedColorMode::Gradient) {
             const float blend = (static_cast<float>(i) + 0.5f) / static_cast<float>(SEGMENTS);
