@@ -34,6 +34,17 @@ jobs:
           cp libs/arm64-v8a/libVehicleLEDSystem.so ./libVehicleLEDSystem-arm64-v8a.so
           cp libs/armeabi-v7a/libVehicleLEDSystem.so ./libVehicleLEDSystem-armeabi-v7a.so
 
+      - name: Package VLS in-game test bundle
+        run: |
+          mkdir -p package/VehicleLEDSystem/fonts package/VehicleLEDSystem/textures
+          cp libVehicleLEDSystem-arm64-v8a.so package/
+          cp libVehicleLEDSystem-armeabi-v7a.so package/
+          cp assets/fonts/*.vlsfont package/VehicleLEDSystem/fonts/
+          cp assets/textures/*.ppm package/VehicleLEDSystem/textures/
+          cp assets/fonts/README.md package/VehicleLEDSystem/fonts/
+          cp assets/textures/README.md package/VehicleLEDSystem/textures/
+          cd package && zip -r ../VehicleLEDSystem-test-package.zip .
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
@@ -41,6 +52,7 @@ jobs:
           files: |
             libVehicleLEDSystem-arm64-v8a.so
             libVehicleLEDSystem-armeabi-v7a.so
+            VehicleLEDSystem-test-package.zip
           generate_release_notes: true
 
       - name: Upload Build Artifact
