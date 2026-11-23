@@ -618,14 +618,19 @@ static bool RenderEffect(
             return false;
         }
 
-        // Sample the shared 2D motion field along the strip's centerline.
-        const float phase01 = static_cast<float>(std::fmod(time / 1800.0, 1.0));
-        const float nx = (static_cast<float>(i) + 0.5f) / static_cast<float>(SEGMENTS);
-        intensity *= EvaluateMotionIntensity(
-            effect.motionPattern, nx, 0.5f, phase01,
-            static_cast<uint16_t>(i), 0,
-            static_cast<uint16_t>(SEGMENTS), 1
-        );
+        // Only general-purpose effects sample the shared motion field.
+        // Strobo Eyes and Running Text retain their dedicated movement engines.
+        if (effect.type == LedEffectType::RunningLED ||
+            effect.type == LedEffectType::RGB ||
+            effect.type == LedEffectType::StroboWave) {
+            const float phase01 = static_cast<float>(std::fmod(time / 1800.0, 1.0));
+            const float nx = (static_cast<float>(i) + 0.5f) / static_cast<float>(SEGMENTS);
+            intensity *= EvaluateMotionIntensity(
+                effect.motionPattern, nx, 0.5f, phase01,
+                static_cast<uint16_t>(i), 0,
+                static_cast<uint16_t>(SEGMENTS), 1
+            );
+        }
 
         if (effect.colorMode == LedColorMode::Gradient) {
             const float blend = (static_cast<float>(i) + 0.5f) / static_cast<float>(SEGMENTS);
