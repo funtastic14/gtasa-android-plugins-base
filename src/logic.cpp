@@ -719,7 +719,9 @@ static void RenderEditor() {
 
     if (g_editorPage == 0) {
     // -----------------------------------------------------
-    // Per-placement animation controller.
+    // General effects use the placement-level motion controller.
+    if (effect.type != VLS::LedEffectType::StroboEyes &&
+        effect.type != VLS::LedEffectType::RunningText) {
     ImGui::Separator();
     ImGui::Text("Motion Pattern Controller - This LED Only");
     int modeIndex = static_cast<int>(placement.animationMode);
@@ -746,6 +748,11 @@ static void RenderEditor() {
         ImGui::TextWrapped("Sequential: steps through every Motion Pattern in order. The selected LED effect never changes.");
     else {
         ImGui::TextWrapped("Custom Motion Sequence will be added in a later stage. The selected LED effect remains fixed.");
+    }
+    } else if (effect.type == VLS::LedEffectType::StroboEyes) {
+        ImGui::TextWrapped("Strobo Eyes uses its dedicated blink, pupil movement, and future expression controls.");
+    } else {
+        ImGui::TextWrapped("Running Text uses its dedicated direction, bounce, font, and texture controls.");
     }
 
         // LED Zone
