@@ -530,11 +530,6 @@ static bool RenderEffect(
         static_cast<double>(CTimer::GetTimeMS()) *
         static_cast<double>(effect.speed);
 
-    const double cycle = std::fmod(time / 1000.0, 1.0);
-
-    const uint32_t head =
-        static_cast<uint32_t>(cycle * SEGMENTS) % SEGMENTS;
-
     const bool isWindshieldZone =
         placement.zone == LedZone::Windshield ||
         placement.zone == LedZone::FrontUpWindshield;
