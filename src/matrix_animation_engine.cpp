@@ -512,7 +512,7 @@ bool MatrixAnimationEngine::EvaluatePixel(
     case LedEffectType::RGB: {
         const float hue =
             static_cast<float>(timeMs) * 0.06f * speed +
-            directionPosition * 360.0f;
+            colorPosition * effect.colorSpread * 360.0f;
 
         HSVtoRGB(hue, red, green, blue);
         break;
