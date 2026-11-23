@@ -106,17 +106,13 @@ bool AnimationController::Update(const LedPlacement& placement, uint32_t nowMs) 
     }
 
     uint32_t activeIntervalMs = m_intervalMs;
-    if (m_mode == AnimationMode::Custom && m_hasSelection) {
-        for (const LedEffectConfig& effect : placement.effects) {
-            if (effect.enabled && effect.type == m_selection.type &&
-                effect.durationMs >= 100 && effect.durationMs <= 60000) {
-                // The current effect's duration controls how long this LED holds its step.
-                if (&effect == &placement.effects[m_selection.effectIndex]) {
-                    activeIntervalMs = effect.durationMs;
-                    break;
-                }
-            }
-        }
+    if (m_mode == AnimationMode::Custom &&
+        m_hasSelection &&
+        m_selection.effectIndex < placement.effects.size()) {
+        const LedEffectConfig& activeEffect = placement.effects[m_selection.effectIndex];
+        if (activeEffect.enabled && activeEffect.durationMs >= 100 &&
+            activeEffect.durationMs <= 60000)
+            activeIntervalMs = activeEffect.durationMs;
     }
 
     if (m_mode == AnimationMode::Manual) {
