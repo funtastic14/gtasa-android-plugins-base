@@ -539,7 +539,9 @@ bool MatrixAnimationEngine::EvaluatePixel(
         Clamp01(pixel->brightness);
 
     if (effect.type != LedEffectType::RGB && !preserveEyeDetailColor) {
-        const float blend = Clamp01(colorPosition);
+        const float spread = effect.colorSpread < 0.1f ? 0.1f : effect.colorSpread;
+        const float rawPosition = colorPosition * spread;
+        const float blend = rawPosition - std::floor(rawPosition);
         switch (effect.colorMode) {
         case LedColorMode::Gradient:
             red = ClampColor(static_cast<float>(red) * (1.0f - blend) + effect.secondaryRed * blend);
