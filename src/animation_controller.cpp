@@ -105,6 +105,20 @@ bool AnimationController::Update(const LedPlacement& placement, uint32_t nowMs) 
         return false;
     }
 
+    uint32_t activeIntervalMs = m_intervalMs;
+    if (m_mode == AnimationMode::Custom && m_hasSelection) {
+        for (const LedEffectConfig& effect : placement.effects) {
+            if (effect.enabled && effect.type == m_selection.type &&
+                effect.durationMs >= 100 && effect.durationMs <= 60000) {
+                // The current effect's duration controls how long this LED holds its step.
+                if (&effect == &placement.effects[m_selection.effectIndex]) {
+                    activeIntervalMs = effect.durationMs;
+                    break;
+                }
+            }
+        }
+    }
+
     if (m_mode == AnimationMode::Manual) {
         uint32_t requested = m_manualEffectIndex;
         if (m_manualPlacementId != placement.id)
@@ -121,7 +135,7 @@ bool AnimationController::Update(const LedPlacement& placement, uint32_t nowMs) 
             m_currentCandidate = 0;
     } else if (!m_hasSelection) {
         m_currentCandidate = 0;
-    } else if (nowMs - m_lastChangeMs >= m_intervalMs && candidates.size() > 1) {
+    } else if (nowMs - m_lastChangeMs >= activeIntervalMs && candidates.size() > 1) {
         if (m_mode == AnimationMode::Random) {
             uint32_t next = NextRandom(m_randomState) % static_cast<uint32_t>(candidates.size());
             if (next == m_currentCandidate)
@@ -145,7 +159,7 @@ bool AnimationController::Update(const LedPlacement& placement, uint32_t nowMs) 
     m_hasSelection = true;
 
     if (m_mode != AnimationMode::Manual)
-        m_lastChangeMs = (m_lastChangeMs == 0 || nowMs - m_lastChangeMs >= m_intervalMs)
+        m_lastChangeMs = (m_lastChangeMs == 0 || nowMs - m_lastChangeMs >= activeIntervalMs)
             ? nowMs : m_lastChangeMs;
 
     return true;
