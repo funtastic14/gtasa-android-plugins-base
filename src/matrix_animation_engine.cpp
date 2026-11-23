@@ -91,9 +91,7 @@ void ApplyCustomTexture(
     const LedMatrixConfig& matrix,
     uint16_t column,
     uint16_t row,
-    MatrixPixelOutput& output,
-    MotionPlaybackMode playback,
-    uint32_t motionIntervalMs
+    MatrixPixelOutput& output
 ) {
     if (effect.textureName.empty() || matrix.columns == 0 || matrix.rows == 0)
         return;
@@ -283,7 +281,9 @@ bool MatrixAnimationEngine::EvaluatePixel(
     uint16_t column,
     uint16_t row,
     uint32_t timeMs,
-    MatrixPixelOutput& output
+    MatrixPixelOutput& output,
+    MotionPlaybackMode playback,
+    uint32_t motionIntervalMs
 ) {
     output = MatrixPixelOutput{};
 
