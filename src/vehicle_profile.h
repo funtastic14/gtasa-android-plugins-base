@@ -60,6 +60,16 @@ enum class LedMotionPattern : uint8_t {
     Starburst
 };
 
+enum class RunningTextMotion : uint8_t {
+    ScrollLeft,
+    ScrollRight,
+    BounceHorizontal,
+    ScrollUp,
+    ScrollDown,
+    BounceVertical,
+    Static
+};
+
 enum class LedDirection : uint8_t {
     LeftToRight,
     RightToLeft,
@@ -149,6 +159,7 @@ struct LedEffectConfig {
     // Teks untuk efek RunningText pada LED Matrix.
     std::string text;
     float textSpacing = 1.0f;
+    RunningTextMotion textMotion = RunningTextMotion::ScrollLeft;
 
     // Konfigurasi matriks untuk efek ini.
     LedMatrixConfig matrix;
