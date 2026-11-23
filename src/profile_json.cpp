@@ -865,7 +865,10 @@ static bool ValidateProfileReferences(
         int zone = static_cast<int>(placement.zone);
 
         if (zone < 0 ||
-            zone > static_cast<int>(LedZone::Roof)) {
+            zone > static_cast<int>(LedZone::Roof) ||
+            placement.animationMode > 4 ||
+            placement.animationIntervalMs < 100 ||
+            placement.animationIntervalMs > 30000) {
             return false;
         }
 
