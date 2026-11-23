@@ -728,6 +728,9 @@ static bool ReadEffect(
     effect.colorMode = static_cast<LedColorMode>(colorMode);
     if (!ReadInt(value, "motionPattern", motionPattern) || motionPattern < 0 || motionPattern > static_cast<int>(LedMotionPattern::Starburst)) return false;
     effect.motionPattern = static_cast<LedMotionPattern>(motionPattern);
+    int textMotion = static_cast<int>(effect.textMotion);
+    if (!ReadInt(value, "textMotion", textMotion) || textMotion < 0 || textMotion > static_cast<int>(RunningTextMotion::Static)) return false;
+    effect.textMotion = static_cast<RunningTextMotion>(textMotion);
 
     const JsonValue* matrix = Find(value, "matrix");
 
@@ -1191,6 +1194,8 @@ static bool AppendEffect(
 
     output += ",\"textSpacing\":";
     if (!AppendFloat(output, effect.textSpacing)) return false;
+    output += ",\"textMotion\":";
+    AppendInt(output, static_cast<int>(effect.textMotion));
 
     output += ",\"matrix\":";
 
