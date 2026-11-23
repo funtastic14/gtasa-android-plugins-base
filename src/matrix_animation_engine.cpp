@@ -295,41 +295,89 @@ bool MatrixAnimationEngine::EvaluatePixel(
     }
 
     case LedEffectType::RunningText: {
-        if (effect.text.empty() || matrix.rows < 7)
+        if (effect.text.empty() || matrix.rows < 7 || matrix.columns < 5)
             return true;
         const float spacing = effect.textSpacing < 0.25f ? 0.25f : effect.textSpacing;
         const float charWidth = 6.0f * spacing;
         const float totalWidth = charWidth * static_cast<float>(effect.text.size());
         if (totalWidth <= 0.0f)
             return true;
-        const float scroll = std::fmod(
-            static_cast<float>(timeMs) * speed / 180.0f,
-            totalWidth
-        );
-        // The vehicle-local X axis is viewed from the opposite side when
-        // the matrix is mounted on a forward-facing windshield. Reverse the
-        // sampling coordinate so the message reads left-to-right from outside.
-        const float travel = std::fmod(
-            static_cast<float>(column) + scroll,
-            totalWidth
-        );
-        float sample = totalWidth - 0.0001f - travel;
-        if (sample < 0.0f)
-            sample += totalWidth;
 
-        size_t charIndex = static_cast<size_t>(sample / charWidth);
-        if (charIndex >= effect.text.size())
-            charIndex = effect.text.size() - 1;
+        const float elapsed = static_cast<float>(timeMs) * speed / 180.0f;
+        const bool vertical = effect.textMotion == RunningTextMotion::ScrollUp ||
+                              effect.textMotion == RunningTextMotion::ScrollDown ||
+                              effect.textMotion == RunningTextMotion::BounceVertical;
+        const float axisLength = vertical ? static_cast<float>(matrix.rows) : static_cast<float>(matrix.columns);
+        const float contentLength = vertical ? totalWidth : totalWidth;
+        float offset = 0.0f;
+        bool reverse = false;
 
-        const float within =
-            sample - static_cast<float>(charIndex) * charWidth;
-        const int glyphColumn = static_cast<int>(within / spacing);
+        switch (effect.textMotion) {
+        case RunningTextMotion::ScrollRight:
+        case RunningTextMotion::ScrollDown:
+            offset = std::fmod(elapsed, contentLength + axisLength);
+            break;
+        case RunningTextMotion::BounceHorizontal:
+        case RunningTextMotion::BounceVertical: {
+            const float travel = contentLength + axisLength;
+            const float cycle = std::fmod(elapsed, travel * 2.0f);
+            reverse = cycle >= travel;
+            offset = reverse ? (travel * 2.0f - cycle) : cycle;
+            break;
+        }
+        case RunningTextMotion::Static:
+            offset = (axisLength - contentLength) * 0.5f;
+            break;
+        default:
+            offset = std::fmod(elapsed, contentLength + axisLength);
+            break;
+        }
 
-        if (glyphColumn >= 0 && glyphColumn < 5) {
-            const uint8_t bits = GetGlyphRow(effect.text[charIndex], row);
-            intensity = (bits & (1u << (4 - glyphColumn))) ? 1.0f : 0.0f;
+        float sample = 0.0f;
+        int glyphColumn = 0;
+        uint16_t glyphRow = 0;
+        if (!vertical) {
+            float coordinate = static_cast<float>(column);
+            if (effect.textMotion == RunningTextMotion::ScrollRight ||
+                effect.textMotion == RunningTextMotion::BounceHorizontal ||
+                effect.textMotion == RunningTextMotion::Static)
+                coordinate -= offset;
+            else
+                coordinate += offset;
+            if (effect.textMotion == RunningTextMotion::BounceHorizontal && reverse)
+                coordinate = static_cast<float>(matrix.columns - 1) - coordinate;
+            if (effect.textMotion == RunningTextMotion::Static)
+                coordinate -= (axisLength - contentLength) * 0.5f;
+            sample = coordinate;
+            if (sample >= 0.0f && sample < totalWidth) {
+                const size_t charIndex = static_cast<size_t>(sample / charWidth);
+                const float within = sample - static_cast<float>(charIndex) * charWidth;
+                glyphColumn = static_cast<int>(within / spacing);
+                glyphRow = row;
+                if (glyphColumn >= 0 && glyphColumn < 5)
+                    intensity = (GetGlyphRow(effect.text[charIndex], glyphRow) & (1u << (4 - glyphColumn))) ? 1.0f : 0.0f;
+                else
+                    intensity = 0.0f;
+            } else intensity = 0.0f;
         } else {
-            intensity = 0.0f;
+            float coordinate = static_cast<float>(row);
+            if (effect.textMotion == RunningTextMotion::ScrollDown ||
+                effect.textMotion == RunningTextMotion::BounceVertical)
+                coordinate -= offset;
+            else
+                coordinate += offset;
+            if (effect.textMotion == RunningTextMotion::BounceVertical && reverse)
+                coordinate = static_cast<float>(matrix.rows - 1) - coordinate;
+            sample = coordinate;
+            if (sample >= 0.0f && sample < totalWidth) {
+                const size_t charIndex = static_cast<size_t>(sample / charWidth);
+                const float within = sample - static_cast<float>(charIndex) * charWidth;
+                const int glyphRow = static_cast<int>(within / spacing);
+                if (column < 7 && glyphRow >= 0 && glyphRow < 5) {
+                    const uint8_t bits = GetGlyphRow(effect.text[charIndex], column);
+                    intensity = (bits & (1u << (4 - glyphRow))) ? 1.0f : 0.0f;
+                } else intensity = 0.0f;
+            } else intensity = 0.0f;
         }
         red = effect.red;
         green = effect.green;
