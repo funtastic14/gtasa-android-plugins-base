@@ -717,6 +717,7 @@ static bool ReadEffect(
     }
 
     int colorMode = static_cast<int>(effect.colorMode);
+    int motionPattern = static_cast<int>(effect.motionPattern);
     if (!ReadInt(value, "colorMode", colorMode) ||
         colorMode < 0 || colorMode > static_cast<int>(LedColorMode::Rainbow) ||
         !ReadUInt8(value, "secondaryRed", effect.secondaryRed) ||
@@ -725,6 +726,8 @@ static bool ReadEffect(
         return false;
     }
     effect.colorMode = static_cast<LedColorMode>(colorMode);
+    if (!ReadInt(value, "motionPattern", motionPattern) || motionPattern < 0 || motionPattern > static_cast<int>(LedMotionPattern::Checkerboard)) return false;
+    effect.motionPattern = static_cast<LedMotionPattern>(motionPattern);
 
     const JsonValue* matrix = Find(value, "matrix");
 
@@ -1168,6 +1171,8 @@ static bool AppendEffect(
 
     output += ",\"colorMode\":";
     AppendInt(output, static_cast<int>(effect.colorMode));
+    output += ",\"motionPattern\":";
+    AppendInt(output, static_cast<int>(effect.motionPattern));
 
     output += ",\"secondaryRed\":";
     AppendUInt(output, effect.secondaryRed);
