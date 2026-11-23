@@ -60,6 +60,13 @@ enum class LedMotionPattern : uint8_t {
     Starburst
 };
 
+enum class MotionPlaybackMode : uint8_t {
+    Manual,
+    Automatic,
+    Sequential,
+    Random
+};
+
 enum class RunningTextMotion : uint8_t {
     ScrollLeft,
     ScrollRight,
@@ -152,6 +159,8 @@ struct LedEffectConfig {
 
     LedColorMode colorMode = LedColorMode::Solid;
     LedMotionPattern motionPattern = LedMotionPattern::LeftToRight;
+    MotionPlaybackMode motionPlayback = MotionPlaybackMode::Manual;
+    uint32_t motionIntervalMs = 3000;
     uint8_t secondaryRed = 0;
     uint8_t secondaryGreen = 120;
     uint8_t secondaryBlue = 255;
