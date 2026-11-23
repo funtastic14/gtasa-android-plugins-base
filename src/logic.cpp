@@ -17,6 +17,7 @@
 #include <plugin-sdk/game_sa/base/Timer.h>
 #include <plugin-sdk/renderware/imgui/imgui_impl_renderware.h>
 
+#include <algorithm>
 #include <unordered_set>
 #include <unordered_map>
 #include <vector>
