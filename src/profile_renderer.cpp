@@ -587,39 +587,23 @@ static bool RenderEffect(
         uint8_t green = effect.green;
         uint8_t blue = effect.blue;
 
+        // The selected motion pattern is the sole spatial movement controller.
+        // Effect type supplies its visual character (flash/color/shape), not a
+        // second hidden left-to-right sweep that would fight Zoom/Center/Flow.
         switch (effect.type) {
-        case LedEffectType::RunningLED: {
-            const uint32_t distance =
-                (head + SEGMENTS - i) % SEGMENTS;
-
-            intensity = 0.08f;
-
-            if (distance < 4)
-                intensity = 1.0f - distance * 0.22f;
-
+        case LedEffectType::RunningLED:
+            intensity = 1.0f;
             break;
-        }
 
-        case LedEffectType::StroboWave: {
-            const uint32_t distance =
-                (head + SEGMENTS - i) % SEGMENTS;
-
-            intensity =
-                (distance < 3 && strobeOn) ? 1.0f : 0.0f;
-
+        case LedEffectType::StroboWave:
+            intensity = strobeOn ? 1.0f : 0.0f;
             break;
-        }
 
-        case LedEffectType::StroboEyes: {
-            const bool firstHalf = i < SEGMENTS / 2;
-            const bool alternate =
-                std::fmod(time / 180.0, 1.0) < 0.5;
-
-            intensity =
-                (firstHalf == alternate) ? 1.0f : 0.0f;
-
+        case LedEffectType::StroboEyes:
+            // The strip renderer has no 2D eye geometry; let the selected
+            // motion pattern control its spatial envelope consistently.
+            intensity = 1.0f;
             break;
-        }
 
         case LedEffectType::RGB: {
             HSVtoRGB(
@@ -663,8 +647,13 @@ static bool RenderEffect(
         }
         case LedMotionPattern::ZoomIn:
         case LedMotionPattern::ZoomOut: {
-            float p = effect.motionPattern == LedMotionPattern::ZoomIn ? nx : 1.0f - nx;
-            intensity *= std::max(0.0f, 1.0f - std::fabs(p - phase01) * 5.0f);
+            // Match the matrix renderer: a normalized distance from center,
+            // not the raw X coordinate (which degenerates into an LTR sweep).
+            const float radial = std::fabs(nx - 0.5f) * 2.0f;
+            const float target = effect.motionPattern == LedMotionPattern::ZoomIn
+                ? phase01
+                : 1.0f - phase01;
+            intensity *= std::max(0.0f, 1.0f - std::fabs(radial - target) * 5.0f);
             break;
         }
         case LedMotionPattern::FadeIn: intensity *= phase01; break;
