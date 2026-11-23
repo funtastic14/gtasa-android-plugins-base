@@ -1,0 +1,86 @@
+#pragma once
+
+#include "vehicle_profile.h"
+
+#include <cmath>
+#include <cstdint>
+
+namespace VLS {
+
+// Single source of truth for spatial motion. Both the strip renderer and
+// matrix renderer sample this field using normalized placement coordinates.
+inline float EvaluateMotionIntensity(
+    LedMotionPattern pattern,
+    float x,
+    float y,
+    float phase,
+    uint16_t column,
+    uint16_t row,
+    uint16_t columns,
+    uint16_t rows
+) {
+    constexpr float PI2 = 6.28318530717958647692f;
+    const float wavePhase = PI2 * phase;
+    const float dx = x - 0.5f;
+    const float dy = y - 0.5f;
+    const float radius = std::sqrt(dx * dx + dy * dy) * 1.41421356f;
+    const auto fract = [](float value) {
+        return value - std::floor(value);
+    };
+    const auto clamp01 = [](float value) {
+        return value < 0.0f ? 0.0f : (value > 1.0f ? 1.0f : value);
+    };
+
+    switch (pattern) {
+    case LedMotionPattern::LeftToRight: {
+        const float d = fract(phase - x);
+        return d < 0.24f ? 1.0f - d / 0.24f : 0.035f;
+    }
+    case LedMotionPattern::RightToLeft: {
+        const float d = fract(phase - (1.0f - x));
+        return d < 0.24f ? 1.0f - d / 0.24f : 0.035f;
+    }
+    case LedMotionPattern::CenterOut: {
+        const float d = fract(phase - std::fabs(x - 0.5f) * 2.0f);
+        return d < 0.22f ? 1.0f - d / 0.22f : 0.025f;
+    }
+    case LedMotionPattern::EdgeToCenter: {
+        const float d = fract(phase - (1.0f - std::fabs(x - 0.5f) * 2.0f));
+        return d < 0.22f ? 1.0f - d / 0.22f : 0.025f;
+    }
+    case LedMotionPattern::ZoomIn:
+        return clamp01(1.0f - std::fabs(radius - phase) * 5.0f);
+    case LedMotionPattern::ZoomOut:
+        return clamp01(1.0f - std::fabs(radius - (1.0f - phase)) * 5.0f);
+    case LedMotionPattern::FadeIn:
+        return phase;
+    case LedMotionPattern::FadeOut:
+        return 1.0f - phase;
+    case LedMotionPattern::Rolling:
+        return fract(x * 3.0f - phase) < 0.48f ? 1.0f : 0.04f;
+    case LedMotionPattern::Flow:
+        return 0.15f + 0.85f * (0.5f + 0.5f *
+            std::sin(wavePhase - (x + y) * PI2 * 2.0f));
+    case LedMotionPattern::Wave:
+        return 0.5f + 0.5f * std::sin(wavePhase + x * PI2 * 2.0f);
+    case LedMotionPattern::Diagonal: {
+        const float d = fract(phase - fract(x + y));
+        return d < 0.25f ? 1.0f - d / 0.25f : 0.03f;
+    }
+    case LedMotionPattern::Ripple:
+        return 0.5f + 0.5f * std::sin(radius * 18.0f - wavePhase * 2.0f);
+    case LedMotionPattern::Pulse:
+        return 0.08f + 0.92f * (0.5f + 0.5f * std::sin(wavePhase));
+    case LedMotionPattern::AlternateRows:
+        return ((row + static_cast<uint16_t>(phase * 4.0f)) % 2u) ? 0.08f : 1.0f;
+    case LedMotionPattern::AlternateColumns:
+        return ((column + static_cast<uint16_t>(phase * 4.0f)) % 2u) ? 0.08f : 1.0f;
+    case LedMotionPattern::Checkerboard:
+        return ((column + row + static_cast<uint16_t>(phase * 4.0f)) % 2u) ? 0.08f : 1.0f;
+    }
+    (void)columns;
+    (void)rows;
+    return 1.0f;
+}
+
+} // namespace VLS
