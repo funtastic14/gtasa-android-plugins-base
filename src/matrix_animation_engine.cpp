@@ -287,8 +287,8 @@ bool MatrixAnimationEngine::EvaluatePixel(
                 intensity = 0.0f;
             }
         } else {
-            // On narrow matrices there is no room to draw eye details.
-            // Leave spatial sequencing to the selected motion pattern.
+            // Narrow matrices cannot draw eye details; keep a simple lit field
+            // until a dedicated compact-eye layout is selected.
             intensity = 1.0f;
         }
         break;
@@ -351,13 +351,16 @@ bool MatrixAnimationEngine::EvaluatePixel(
         return false;
     }
 
-    // Same evaluator and phase as the strip renderer; only coordinates
-    // differ because this placement is a genuine 2D LED matrix.
-    const float phase = Fract(static_cast<float>(timeMs) * speed / 1800.0f);
-    intensity *= EvaluateMotionIntensity(
-        effect.motionPattern, x, y, phase,
-        column, row, matrix.columns, matrix.rows
-    );
+    // Only the three general-purpose LED effects share this motion field.
+    // Eyes and text have their own geometry, timing and movement systems.
+    if (effect.type != LedEffectType::StroboEyes &&
+        effect.type != LedEffectType::RunningText) {
+        const float phase = Fract(static_cast<float>(timeMs) * speed / 1800.0f);
+        intensity *= EvaluateMotionIntensity(
+            effect.motionPattern, x, y, phase,
+            column, row, matrix.columns, matrix.rows
+        );
+    }
 
     const float brightness =
         Clamp01(effect.brightness) *
