@@ -505,6 +505,16 @@ static bool ReadUInt32(
     return true;
 }
 
+static bool ReadOptionalUInt32(
+    const JsonValue& object,
+    const char* key,
+    uint32_t& output
+) {
+    if (Find(object, key) == nullptr)
+        return true;
+    return ReadUInt32(object, key, output);
+}
+
 static bool ReadUInt16(
     const JsonValue& object,
     const char* key,
