@@ -723,7 +723,7 @@ static void RenderEditor() {
     ImGui::Separator();
     ImGui::Text("Motion Pattern Controller - This LED Only");
     int modeIndex = static_cast<int>(placement.animationMode);
-    if (ImGui::Combo("Animation Mode", &modeIndex, g_animationModeNames, 5)) {
+    if (ImGui::Combo("Motion Mode", &modeIndex, g_animationModeNames, 5)) {
         if (modeIndex < 0) modeIndex = 0;
         if (modeIndex > 4) modeIndex = 4;
         placement.animationMode = static_cast<uint8_t>(modeIndex);
@@ -745,13 +745,7 @@ static void RenderEditor() {
     else if (placement.animationMode == static_cast<uint8_t>(VLS::AnimationMode::Sequential))
         ImGui::TextWrapped("Sequential: steps through every Motion Pattern in order. The selected LED effect never changes.");
     else {
-        ImGui::TextWrapped("Custom motion sequence is reserved for the next editor stage. The selected LED effect remains fixed.");
-        int stepDuration = static_cast<int>(effect.durationMs);
-        if (ImGui::SliderInt("Selected Step Duration (ms)", &stepDuration, 100, 60000)) {
-            effect.durationMs = static_cast<uint32_t>(stepDuration);
-            changed = true;
-        }
-        ImGui::TextWrapped("Use Move Effect Up/Down to customize the sequence order.");
+        ImGui::TextWrapped("Custom Motion Sequence will be added in a later stage. The selected LED effect remains fixed.");
     }
 
         // LED Zone
