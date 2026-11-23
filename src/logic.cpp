@@ -949,26 +949,65 @@ static void RenderEditor() {
         effect.type == VLS::LedEffectType::StroboWave ||
         effect.type == VLS::LedEffectType::StroboEyes;
     if (supportsPalette) {
-        const char* colorModeNames[] = {"Solid Color", "Two-Color Gradient", "Rainbow"};
+        const char* colorModeNames[] = {
+            "Solid Color", "Two-Color Gradient", "Rainbow",
+            "Three-Color Gradient", "Color Cycle", "Color Wave",
+            "Color Pulse", "Alternating Colors"
+        };
         int colorMode = static_cast<int>(effect.colorMode);
-        if (ImGui::Combo("Color Style", &colorMode, colorModeNames, 3)) {
+        if (ImGui::Combo("Color Style", &colorMode, colorModeNames, 8)) {
             effect.colorMode = static_cast<VLS::LedColorMode>(colorMode);
             changed = true;
         }
-        if (effect.colorMode == VLS::LedColorMode::Gradient) {
+
+        if (effect.colorMode == VLS::LedColorMode::Gradient ||
+            effect.colorMode == VLS::LedColorMode::ThreeColorGradient ||
+            effect.colorMode == VLS::LedColorMode::ColorPulse ||
+            effect.colorMode == VLS::LedColorMode::Alternating) {
             float secondaryColor[3] = {
                 effect.secondaryRed / 255.0f,
                 effect.secondaryGreen / 255.0f,
                 effect.secondaryBlue / 255.0f
             };
-            if (ImGui::ColorEdit3("Gradient End Color", secondaryColor)) {
+            if (ImGui::ColorEdit3("Secondary Color", secondaryColor)) {
                 effect.secondaryRed = static_cast<uint8_t>(secondaryColor[0] * 255.0f);
                 effect.secondaryGreen = static_cast<uint8_t>(secondaryColor[1] * 255.0f);
                 effect.secondaryBlue = static_cast<uint8_t>(secondaryColor[2] * 255.0f);
                 changed = true;
             }
         }
-        ImGui::TextWrapped("RGB remains a separate animated color mode.");
+        if (effect.colorMode == VLS::LedColorMode::ThreeColorGradient) {
+            float tertiaryColor[3] = {
+                effect.tertiaryRed / 255.0f,
+                effect.tertiaryGreen / 255.0f,
+                effect.tertiaryBlue / 255.0f
+            };
+            if (ImGui::ColorEdit3("Third Gradient Color", tertiaryColor)) {
+                effect.tertiaryRed = static_cast<uint8_t>(tertiaryColor[0] * 255.0f);
+                effect.tertiaryGreen = static_cast<uint8_t>(tertiaryColor[1] * 255.0f);
+                effect.tertiaryBlue = static_cast<uint8_t>(tertiaryColor[2] * 255.0f);
+                changed = true;
+            }
+        }
+        if (effect.colorMode != VLS::LedColorMode::Solid &&
+            effect.colorMode != VLS::LedColorMode::ColorCycle &&
+            effect.colorMode != VLS::LedColorMode::ColorPulse) {
+            const char* colorDirectionNames[] = {
+                "Left to Right", "Right to Left", "Top to Bottom", "Bottom to Top",
+                "Diagonal Down", "Diagonal Up", "Center Out", "Edges to Center"
+            };
+            int direction = static_cast<int>(effect.colorDirection);
+            if (ImGui::Combo("Color Direction", &direction, colorDirectionNames, 8)) {
+                effect.colorDirection = static_cast<VLS::LedColorDirection>(direction);
+                changed = true;
+            }
+            float spread = effect.colorSpread;
+            if (ImGui::SliderFloat("Color Spread", &spread, 0.25f, 4.0f)) {
+                effect.colorSpread = spread;
+                changed = true;
+            }
+        }
+        ImGui::TextWrapped("Color direction and spread are independent from the LED motion pattern. RGB keeps its own animated spectrum.");
     }
 
     float brightness = effect.brightness;
