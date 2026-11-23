@@ -726,7 +726,7 @@ static bool ReadEffect(
         return false;
     }
     effect.colorMode = static_cast<LedColorMode>(colorMode);
-    if (!ReadInt(value, "motionPattern", motionPattern) || motionPattern < 0 || motionPattern > static_cast<int>(LedMotionPattern::Checkerboard)) return false;
+    if (!ReadInt(value, "motionPattern", motionPattern) || motionPattern < 0 || motionPattern > static_cast<int>(LedMotionPattern::Starburst)) return false;
     effect.motionPattern = static_cast<LedMotionPattern>(motionPattern);
 
     const JsonValue* matrix = Find(value, "matrix");
