@@ -885,7 +885,8 @@ static void RenderEditor() {
             "Left to Right", "Right to Left", "Center Out", "Edges to Center",
             "Zoom In", "Zoom Out", "Fade In", "Fade Out", "Rolling",
             "Flow", "Wave", "Diagonal", "Ripple", "Pulse",
-            "Alternate Rows", "Alternate Columns", "Checkerboard"
+            "Alternate Rows", "Alternate Columns", "Checkerboard",
+            "Windmill", "Spiral", "Starburst"
         };
         int motionIndex = static_cast<int>(effect.motionPattern);
         if (ImGui::Combo("Motion Pattern", &motionIndex, motionNames, 17)) {
