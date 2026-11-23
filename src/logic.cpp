@@ -18,6 +18,7 @@
 #include <plugin-sdk/renderware/imgui/imgui_impl_renderware.h>
 
 #include <unordered_set>
+#include <unordered_map>
 #include <vector>
 #include <cstdint>
 #include <cstddef>
@@ -45,7 +46,8 @@ static bool g_runningTextKeyboardOpen = false;
 static VLS::VehicleManager g_vehicleManager;
 static VLS::VehicleProfileManager g_profileManager;
 static VLS::ProfileSequenceRuntime g_sequenceRuntime;
-static VLS::AnimationController g_animationController;
+static VLS::AnimationController g_animationController; // Legacy controller.
+static std::unordered_map<uint32_t, VLS::AnimationController> g_placementControllers;
 
 static VLS::AnimationMode g_animationMode =
     VLS::AnimationMode::Manual;
@@ -370,18 +372,14 @@ static void SetAnimationMode(VLS::AnimationMode mode) {
 static void UpdateAnimationController() {
     if (g_currentProfile == nullptr)
         return;
-
-    if (g_animationMode == VLS::AnimationMode::Custom)
-        return;
-
-    g_animationController.SetIntervalMs(
-        g_animationIntervalMs
-    );
-
-    g_animationController.Update(
-        *g_currentProfile,
-        CTimer::GetTimeMS()
-    );
+    const uint32_t nowMs = CTimer::GetTimeMS();
+    for (const VLS::LedPlacement& placement : g_currentProfile->placements) {
+        VLS::AnimationController& controller = g_placementControllers[placement.id];
+        controller.SetMode(static_cast<VLS::AnimationMode>(placement.animationMode));
+        controller.SetIntervalMs(placement.animationIntervalMs);
+        controller.SetManualSelection(placement.id, 0);
+        controller.Update(placement, nowMs);
+    }
 }
 
 
@@ -662,71 +660,35 @@ static void RenderEditor() {
 
     if (g_editorPage == 0) {
     // -----------------------------------------------------
-    // Animation Controller
-    // -----------------------------------------------------
-
+    // Per-placement animation controller.
     ImGui::Separator();
-    ImGui::Text("Animation Controller");
-
-    int modeIndex =
-        GetAnimationModeIndex(g_animationMode);
-
-    if (ImGui::Combo(
-            "Animation Mode",
-            &modeIndex,
-            g_animationModeNames,
-            5
-        )) {
-        SetAnimationMode(
-            g_animationModeTypes[modeIndex]
-        );
+    ImGui::Text("Animation Controller - This LED Only");
+    int modeIndex = static_cast<int>(placement.animationMode);
+    if (ImGui::Combo("Animation Mode", &modeIndex, g_animationModeNames, 5)) {
+        if (modeIndex < 0) modeIndex = 0;
+        if (modeIndex > 4) modeIndex = 4;
+        placement.animationMode = static_cast<uint8_t>(modeIndex);
+        g_placementControllers[placement.id].Reset();
+        changed = true;
     }
-
-    int interval = static_cast<int>(
-        g_animationIntervalMs
-    );
-
-    if (ImGui::SliderInt(
-            "Switch Interval (ms)",
-            &interval,
-            100,
-            30000
-        )) {
-        g_animationIntervalMs =
-            static_cast<uint32_t>(interval);
-
-        g_animationController.SetIntervalMs(
-            g_animationIntervalMs
-        );
+    int interval = static_cast<int>(placement.animationIntervalMs);
+    if (ImGui::SliderInt("Pattern Switch Interval (ms)", &interval, 100, 30000)) {
+        placement.animationIntervalMs = static_cast<uint32_t>(interval);
+        g_placementControllers[placement.id].Reset();
+        changed = true;
     }
+    if (placement.animationMode == static_cast<uint8_t>(VLS::AnimationMode::Manual))
+        ImGui::TextWrapped("Manual: this LED keeps its first enabled effect.");
+    else if (placement.animationMode == static_cast<uint8_t>(VLS::AnimationMode::Automatic))
+        ImGui::TextWrapped("Automatic: this LED cycles its compatible patterns only.");
+    else if (placement.animationMode == static_cast<uint8_t>(VLS::AnimationMode::Random))
+        ImGui::TextWrapped("Random: this LED randomly selects its own enabled patterns.");
+    else if (placement.animationMode == static_cast<uint8_t>(VLS::AnimationMode::Sequential))
+        ImGui::TextWrapped("Sequential: this LED follows its own effect list.");
+    else
+        ImGui::TextWrapped("Custom: currently uses this LED's effect order; editable custom timeline is next.");
 
-    if (g_animationMode ==
-        VLS::AnimationMode::Custom) {
-        ImGui::Text(
-            "Custom mode uses the profile sequence."
-        );
-    } else if (g_animationMode ==
-               VLS::AnimationMode::Manual) {
-        ImGui::Text(
-            "Manual mode renders all enabled LED placements together."
-        );
-    } else {
-        ImGui::Text(
-            "Controller selects compatible enabled effects."
-        );
-    }
-
-    // -----------------------------------------------------
-    // Manual selection
-    // -----------------------------------------------------
-
-    g_animationController.SetManualSelection(
-        placement.id,
-        0
-    );
-
-    // -----------------------------------------------------
-    // LED Zone
+        // LED Zone
     // -----------------------------------------------------
 
     ImGui::Separator();
@@ -1240,39 +1202,19 @@ static void OnRenderEffects() {
                 if (!IsVehiclePointerValid(vehicle))
                     continue;
 
-                if (g_animationMode ==
-                    VLS::AnimationMode::Custom) {
-
-                    const VLS::EffectSequenceStep* step =
-                        g_sequenceRuntime.GetCurrentStep(
-                            *profile
-                        );
-
-                    if (step != nullptr) {
-                        VLS::ProfileRenderer::RenderSelectedEffect(
-                            vehicle,
-                            *profile,
-                            step->placementId,
-                            step->effectIndex
-                        );
-                    }
-
-                } else if (g_animationMode == VLS::AnimationMode::Manual) {
-                    // Manual mode keeps every enabled placement visible together.
-                    VLS::ProfileRenderer::RenderVehicleProfile(vehicle, *profile);
-                } else {
-                    const VLS::AnimationSelection& selection =
-                        g_animationController.GetSelection();
-
+                for (const VLS::LedPlacement& led : profile->placements) {
+                    if (!led.enabled)
+                        continue;
+                    const auto controllerIt = g_placementControllers.find(led.id);
+                    if (controllerIt == g_placementControllers.end())
+                        continue;
+                    const VLS::AnimationSelection& selection = controllerIt->second.GetSelection();
                     if (selection.valid) {
                         VLS::ProfileRenderer::RenderSelectedEffect(
-                            vehicle,
-                            *profile,
-                            selection.placementId,
-                            selection.effectIndex
+                            vehicle, *profile, selection.placementId, selection.effectIndex
                         );
                     }
-                }
+                }    }
             }
         }
     }
