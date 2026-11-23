@@ -854,6 +854,14 @@ static void RenderEditor() {
             g_runningTextKeyboardOpen = !g_runningTextKeyboardOpen;
         DrawRunningTextKeyboard(effect, changed);
         changed |= ImGui::SliderFloat("Text Spacing", &effect.textSpacing, 0.25f, 3.0f);
+        static const char* textMotionNames[] = {"Scroll Left", "Scroll Right", "Bounce Horizontal", "Scroll Up", "Scroll Down", "Bounce Vertical", "Static / Center"};
+        int textMotionIndex = static_cast<int>(effect.textMotion);
+        if (ImGui::Combo("Text Motion", &textMotionIndex, textMotionNames, 7)) {
+            if (textMotionIndex < 0) textMotionIndex = 0;
+            if (textMotionIndex > 6) textMotionIndex = 6;
+            effect.textMotion = static_cast<VLS::RunningTextMotion>(textMotionIndex);
+            changed = true;
+        }
         ImGui::TextWrapped("Choose Pattern > Running Text, open the touch keyboard, type your message, then tap DONE and Save Profile.");
     }
 
