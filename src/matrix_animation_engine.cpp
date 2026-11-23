@@ -433,8 +433,36 @@ bool MatrixAnimationEngine::EvaluatePixel(
             }
 
             const float scaledY = dy / verticalScale;
-            const float eyeMetric = dx * dx + scaledY * scaledY;
-            const bool insideEye = eyeMetric <= 1.0f &&
+            const float absX = std::fabs(dx);
+            const float absY = std::fabs(scaledY);
+            bool shapeInside = false;
+            switch (effect.eyeShape) {
+            case EyeShape::Cat: {
+                // Almond silhouette: both corners taper instead of using a plain oval.
+                const float almondHalfHeight = 0.94f - 0.48f * absX;
+                shapeInside = absX <= 1.0f && absY <= almondHalfHeight;
+                break;
+            }
+            case EyeShape::Square: {
+                // Squared eye with clipped corners, suitable for coarse LED grids.
+                const float cornerX = absX - 0.70f;
+                const float cornerY = absY - 0.70f;
+                shapeInside = absX <= 0.96f && absY <= 0.96f &&
+                    (cornerX <= 0.0f || cornerY <= 0.0f ||
+                     cornerX * cornerX + cornerY * cornerY <= 0.26f * 0.26f);
+                break;
+            }
+            case EyeShape::Round:
+                shapeInside = dx * dx + scaledY * scaledY <= 0.86f;
+                break;
+            case EyeShape::Classic:
+            case EyeShape::Narrow:
+            case EyeShape::Wide:
+            default:
+                shapeInside = dx * dx + scaledY * scaledY <= 1.0f;
+                break;
+            }
+            const bool insideEye = shapeInside &&
                                    dy >= topLimit && dy <= bottomLimit;
 
             const uint32_t blinkInterval =
@@ -452,10 +480,18 @@ bool MatrixAnimationEngine::EvaluatePixel(
             case EyeMotion::LookUp: gazeY = -0.34f; break;
             case EyeMotion::LookDown: gazeY = 0.34f; break;
             case EyeMotion::Scan: gazeX = std::sin(t / 390.0f) * 0.36f; break;
-            case EyeMotion::Wink:
-                blinking = blinking || (!leftEye &&
-                    std::fmod(t, 2400.0f) < 420.0f);
+            case EyeMotion::Wink: {
+                // Alternate the wink so both eyes take turns; keep normal
+                // automatic blinking independent of the intentional wink.
+                const uint32_t winkCycle = static_cast<uint32_t>(
+                    std::fmod(t, 4800.0f)
+                );
+                const bool winkLeft = winkCycle < 420u;
+                const bool winkRight = winkCycle >= 2400u &&
+                                       winkCycle < 2820u;
+                blinking = blinking || (leftEye ? winkLeft : winkRight);
                 break;
+            }
             case EyeMotion::Shake: gazeX = std::sin(t / 85.0f) * 0.30f; break;
             case EyeMotion::RapidBlink:
                 blinking = std::fmod(t, 720.0f) < 115.0f;
@@ -472,12 +508,23 @@ bool MatrixAnimationEngine::EvaluatePixel(
                 ? 0.075f : 0.12f;
             if (effect.eyeExpression == EyeExpression::Love)
                 pupilRadius = 0.16f;
+            // Implicit heart equation gives Love a recognisable heart pupil
+            // instead of relying only on a pink circular iris.
+            const float heartX = pupilX * 2.8f;
+            const float heartY = -pupilY * 2.8f;
+            const float heartTerm = heartX * heartX +
+                                    heartY * heartY - 1.0f;
+            const bool heartPupil =
+                heartTerm * heartTerm * heartTerm -
+                heartX * heartX * heartY * heartY * heartY <= 0.0f;
 
             if (blinking) {
                 intensity = insideEye && std::fabs(dy - 0.05f) < 0.10f
                     ? 0.9f : 0.0f;
             } else if (insideEye) {
-                if (pupilDistance < pupilRadius) {
+                if ((effect.eyeExpression == EyeExpression::Love && heartPupil) ||
+                    (effect.eyeExpression != EyeExpression::Love &&
+                     pupilDistance < pupilRadius)) {
                     preserveEyeDetailColor = true;
                     if (effect.eyeExpression == EyeExpression::Love) {
                         red = 255; green = 70; blue = 150;
