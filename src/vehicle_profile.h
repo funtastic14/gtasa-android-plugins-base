@@ -169,6 +169,7 @@ struct LedEffectConfig {
     std::string text;
     float textSpacing = 1.0f;
     RunningTextMotion textMotion = RunningTextMotion::ScrollLeft;
+    std::string fontName = "default";
 
     // Konfigurasi matriks untuk efek ini.
     LedMatrixConfig matrix;
