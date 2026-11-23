@@ -613,15 +613,27 @@ static bool RenderEffect(
             break;
 
         case LedEffectType::RGB: {
+            float colorPosition = (static_cast<float>(i) + 0.5f) / static_cast<float>(SEGMENTS);
+            switch (effect.colorDirection) {
+            case LedColorDirection::RightToLeft:
+            case LedColorDirection::BottomToTop:
+            case LedColorDirection::DiagonalUp:
+                colorPosition = 1.0f - colorPosition;
+                break;
+            case LedColorDirection::CenterOut:
+                colorPosition = std::fabs(colorPosition - 0.5f) * 2.0f;
+                break;
+            case LedColorDirection::EdgeToCenter:
+                colorPosition = 1.0f - std::fabs(colorPosition - 0.5f) * 2.0f;
+                break;
+            default:
+                break;
+            }
             HSVtoRGB(
-                static_cast<float>(
-                    std::fmod(time * 0.06 + i * 30.0, 360.0)
-                ),
-                red,
-                green,
-                blue
+                static_cast<float>(time) * 0.06f * effect.speed +
+                    colorPosition * effect.colorSpread * 360.0f,
+                red, green, blue
             );
-
             break;
         }
 
