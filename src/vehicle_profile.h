@@ -133,6 +133,10 @@ struct LedPlacement {
     uint32_t id = 0;
     bool enabled = true;
 
+    // Animation control is independent for every physical LED placement.
+    uint8_t animationMode = 0; // AnimationMode::Manual (kept numeric to avoid header dependency).
+    uint32_t animationIntervalMs = 3000;
+
     LedZone zone = LedZone::ExteriorBody;
 
     LedTransform transform;
