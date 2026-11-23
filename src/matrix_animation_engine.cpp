@@ -375,35 +375,123 @@ bool MatrixAnimationEngine::EvaluatePixel(
 
     case LedEffectType::StroboEyes: {
         if (matrix.rows >= 7 && matrix.columns >= 14) {
-            const float eyeCenterX = column < matrix.columns / 2
+            const bool leftEye = column < matrix.columns / 2;
+            const float eyeCenterX = leftEye
                 ? static_cast<float>(matrix.columns) * 0.25f
                 : static_cast<float>(matrix.columns) * 0.75f;
             const float eyeCenterY = static_cast<float>(matrix.rows - 1) * 0.5f;
             const float eyeRadiusX = static_cast<float>(matrix.columns) * 0.19f;
-            const float eyeRadiusY = static_cast<float>(matrix.rows) * 0.43f;
+            float eyeRadiusY = static_cast<float>(matrix.rows) * 0.43f;
             const float dx = (static_cast<float>(column) - eyeCenterX) / eyeRadiusX;
             const float dy = (static_cast<float>(row) - eyeCenterY) / eyeRadiusY;
-            const float eyeShape = dx * dx + dy * dy;
+            const float inwardX = dx * (leftEye ? 1.0f : -1.0f);
+            const float t = static_cast<float>(timeMs) * speed;
 
-            const float blinkPhase = std::fmod(static_cast<float>(timeMs), 3200.0f);
-            const bool blinking = blinkPhase < 150.0f ||
-                                  (blinkPhase > 2050.0f && blinkPhase < 2190.0f);
-            const float pupilMotion = std::sin(static_cast<float>(timeMs) / 720.0f) * 0.22f;
-            const float side = column < matrix.columns / 2 ? -1.0f : 1.0f;
-            const float pupilX = dx - pupilMotion * side;
-            const float pupilY = dy;
+            if (effect.eyeExpression == EyeExpression::Surprised)
+                eyeRadiusY *= 1.14f;
+
+            float verticalScale = 1.0f;
+            switch (effect.eyeShape) {
+            case EyeShape::Narrow: verticalScale = 0.58f; break;
+            case EyeShape::Wide: verticalScale = 1.18f; break;
+            case EyeShape::Round: verticalScale = 0.92f; break;
+            case EyeShape::Cat: verticalScale = 0.72f; break;
+            case EyeShape::Square: verticalScale = 0.82f; break;
+            case EyeShape::Classic:
+            default: break;
+            }
+
+            float topLimit = -1.0f;
+            float bottomLimit = 1.0f;
+            switch (effect.eyeExpression) {
+            case EyeExpression::Happy:
+                topLimit = -0.88f + 0.38f * std::fabs(dx);
+                bottomLimit = 0.88f - 0.38f * std::fabs(dx);
+                break;
+            case EyeExpression::Angry:
+            case EyeExpression::Evil:
+                topLimit = -0.88f + 0.42f * inwardX;
+                bottomLimit = 0.92f;
+                verticalScale *= 0.88f;
+                break;
+            case EyeExpression::Sad:
+                topLimit = -0.72f - 0.12f * inwardX;
+                bottomLimit = 0.88f;
+                break;
+            case EyeExpression::Sleepy:
+                topLimit = -0.12f;
+                bottomLimit = 0.92f;
+                verticalScale *= 0.72f;
+                break;
+            case EyeExpression::Surprised:
+                verticalScale *= 1.12f;
+                break;
+            case EyeExpression::Neutral:
+            case EyeExpression::Love:
+            default:
+                break;
+            }
+
+            const float scaledY = dy / verticalScale;
+            const float eyeMetric = dx * dx + scaledY * scaledY;
+            const bool insideEye = eyeMetric <= 1.0f &&
+                                   dy >= topLimit && dy <= bottomLimit;
+
+            const uint32_t blinkInterval =
+                effect.eyeBlinkIntervalMs < 500 ? 500 : effect.eyeBlinkIntervalMs;
+            const float blinkPhase = std::fmod(t, static_cast<float>(blinkInterval));
+            bool blinking = blinkPhase < 135.0f ||
+                (blinkPhase > static_cast<float>(blinkInterval) * 0.68f &&
+                 blinkPhase < static_cast<float>(blinkInterval) * 0.68f + 115.0f);
+
+            float gazeX = std::sin(t / 720.0f) * 0.10f;
+            float gazeY = std::sin(t / 1050.0f) * 0.035f;
+            switch (effect.eyeMotion) {
+            case EyeMotion::LookLeft: gazeX = -0.34f; break;
+            case EyeMotion::LookRight: gazeX = 0.34f; break;
+            case EyeMotion::LookUp: gazeY = -0.34f; break;
+            case EyeMotion::LookDown: gazeY = 0.34f; break;
+            case EyeMotion::Scan: gazeX = std::sin(t / 390.0f) * 0.36f; break;
+            case EyeMotion::Wink:
+                blinking = blinking || (!leftEye &&
+                    std::fmod(t, 2400.0f) < 420.0f);
+                break;
+            case EyeMotion::Shake: gazeX = std::sin(t / 85.0f) * 0.30f; break;
+            case EyeMotion::RapidBlink:
+                blinking = std::fmod(t, 720.0f) < 115.0f;
+                break;
+            case EyeMotion::Idle:
+            default:
+                break;
+            }
+
+            const float pupilX = dx - gazeX;
+            const float pupilY = dy - gazeY;
             const float pupilDistance = pupilX * pupilX + pupilY * pupilY;
+            float pupilRadius = effect.eyeExpression == EyeExpression::Surprised
+                ? 0.075f : 0.12f;
+            if (effect.eyeExpression == EyeExpression::Love)
+                pupilRadius = 0.16f;
 
             if (blinking) {
-                intensity = std::fabs(dy) < 0.12f && eyeShape < 1.0f ? 0.8f : 0.0f;
-            } else if (eyeShape <= 1.0f) {
-                if (pupilDistance < 0.12f) {
+                intensity = insideEye && std::fabs(dy - 0.05f) < 0.10f
+                    ? 0.9f : 0.0f;
+            } else if (insideEye) {
+                if (pupilDistance < pupilRadius) {
                     preserveEyeDetailColor = true;
-                    red = 5; green = 8; blue = 18;
+                    if (effect.eyeExpression == EyeExpression::Love) {
+                        red = 255; green = 70; blue = 150;
+                    } else {
+                        red = 5; green = 8; blue = 18;
+                    }
                     intensity = 1.0f;
                 } else if (pupilDistance < 0.34f) {
                     preserveEyeDetailColor = true;
-                    red = 20; green = 155; blue = 255;
+                    if (effect.eyeExpression == EyeExpression::Love) {
+                        red = 255; green = 110; blue = 180;
+                    } else {
+                        red = 20; green = 155; blue = 255;
+                    }
                     intensity = 1.0f;
                 } else {
                     red = effect.red; green = effect.green; blue = effect.blue;
@@ -413,9 +501,12 @@ bool MatrixAnimationEngine::EvaluatePixel(
                 intensity = 0.0f;
             }
         } else {
-            // Narrow matrices cannot draw eye details; keep a simple lit field
-            // until a dedicated compact-eye layout is selected.
-            intensity = 1.0f;
+            // Small matrices fall back to a simple blink field.
+            const float blinkPhase = std::fmod(
+                static_cast<float>(timeMs) * speed,
+                static_cast<float>(effect.eyeBlinkIntervalMs < 500 ? 500 : effect.eyeBlinkIntervalMs)
+            );
+            intensity = blinkPhase < 140.0f ? 0.0f : 1.0f;
         }
         break;
     }
