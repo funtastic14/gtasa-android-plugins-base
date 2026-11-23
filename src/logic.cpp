@@ -734,36 +734,25 @@ static void OnVehicleRender(CVehicle* vehicle) {
 }
 
 static void OnRenderEffects() {
-
     if (!g_enabled) {
         g_frameVehicles.clear();
         g_frameVehicleSet.clear();
         return;
     }
 
-    CVehicle* currentVehicle =
-        g_vehicleManager.GetCurrentVehicle();
-
-    if (currentVehicle == nullptr ||
-        !IsVehiclePointerValid(currentVehicle)) {
+    CVehicle* currentVehicle = g_vehicleManager.GetCurrentVehicle();
+    if (currentVehicle == nullptr || !IsVehiclePointerValid(currentVehicle)) {
         g_frameVehicles.clear();
         g_frameVehicleSet.clear();
         return;
     }
 
-    const int modelId =
-        g_vehicleManager.GetCurrentModelId();
-
+    const int modelId = g_vehicleManager.GetCurrentModelId();
     if (modelId >= 0) {
-        const VLS::VehicleProfile* profile =
-            g_profileManager.Find(modelId);
-
+        const VLS::VehicleProfile* profile = g_profileManager.Find(modelId);
         if (profile != nullptr && profile->enabled) {
             for (CVehicle* vehicle : g_frameVehicles) {
-                if (vehicle != currentVehicle)
-                    continue;
-
-                if (!IsVehiclePointerValid(vehicle))
+                if (vehicle != currentVehicle || !IsVehiclePointerValid(vehicle))
                     continue;
 
                 for (const VLS::LedPlacement& led : profile->placements) {
@@ -772,13 +761,15 @@ static void OnRenderEffects() {
                     const auto controllerIt = g_placementControllers.find(led.id);
                     if (controllerIt == g_placementControllers.end())
                         continue;
+
                     const VLS::AnimationSelection& selection = controllerIt->second.GetSelection();
-                    if (selection.valid) {
-                        VLS::ProfileRenderer::RenderSelectedEffect(
-                            vehicle, *profile, selection.placementId, selection.effectIndex
-                        );
-                    }
-                }    }
+                    if (!selection.valid)
+                        continue;
+
+                    VLS::ProfileRenderer::RenderSelectedEffect(
+                        vehicle, *profile, selection.placementId, selection.effectIndex
+                    );
+                }
             }
         }
     }
@@ -788,7 +779,6 @@ static void OnRenderEffects() {
 }
 
 
-// ---------------------------------------------------------
 // Vehicle geometry scan
 // ---------------------------------------------------------
 
