@@ -644,9 +644,25 @@ static bool RenderEffect(
         }
 
         if (effect.type != LedEffectType::RGB) {
-            const float position = GetColorPosition(
-                effect.colorDirection, nx, 0.5f, effect.colorSpread
-            );
+            float position = nx;
+            switch (effect.colorDirection) {
+            case LedColorDirection::RightToLeft:
+            case LedColorDirection::BottomToTop:
+            case LedColorDirection::DiagonalUp:
+                position = 1.0f - nx;
+                break;
+            case LedColorDirection::CenterOut:
+                position = std::fabs(nx - 0.5f) * 2.0f;
+                break;
+            case LedColorDirection::EdgeToCenter:
+                position = 1.0f - std::fabs(nx - 0.5f) * 2.0f;
+                break;
+            default:
+                // A one-dimensional strip maps vertical/diagonal flow
+                // onto its own longitudinal axis.
+                position = nx;
+                break;
+            }
             const float spread = effect.colorSpread < 0.1f ? 0.1f : effect.colorSpread;
             const float rawPosition = position * spread;
             const float blend = rawPosition - std::floor(rawPosition);
