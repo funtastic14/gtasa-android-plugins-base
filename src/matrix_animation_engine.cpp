@@ -346,9 +346,7 @@ bool MatrixAnimationEngine::EvaluatePixel(
                 coordinate += offset;
             if (effect.textMotion == RunningTextMotion::BounceHorizontal && reverse)
                 coordinate = static_cast<float>(matrix.columns - 1) - coordinate;
-            if (effect.textMotion == RunningTextMotion::Static)
-                coordinate -= (axisLength - contentLength) * 0.5f;
-            sample = coordinate;
+            sample = totalWidth - 0.0001f - coordinate;
             if (sample >= 0.0f && sample < totalWidth) {
                 const size_t charIndex = static_cast<size_t>(sample / charWidth);
                 const float within = sample - static_cast<float>(charIndex) * charWidth;
@@ -368,7 +366,7 @@ bool MatrixAnimationEngine::EvaluatePixel(
                 coordinate += offset;
             if (effect.textMotion == RunningTextMotion::BounceVertical && reverse)
                 coordinate = static_cast<float>(matrix.rows - 1) - coordinate;
-            sample = coordinate;
+            sample = totalWidth - 0.0001f - coordinate;
             if (sample >= 0.0f && sample < totalWidth) {
                 const size_t charIndex = static_cast<size_t>(sample / charWidth);
                 const float within = sample - static_cast<float>(charIndex) * charWidth;
