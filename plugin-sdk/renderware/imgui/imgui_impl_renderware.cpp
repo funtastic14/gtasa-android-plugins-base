@@ -203,10 +203,10 @@ void ClientFrame(void *, const ImGuiShared::Touch *events, uint32_t count, int32
     // Queue touch scrolling before NewFrame so ImGui consumes the swipe in
     // this frame instead of introducing an avoidable one-frame input delay.
     // ActiveId from the previous frame still protects sliders and buttons.
-    if (std::fabs(g_PendingTouchScroll) >= 2.0f) {
+    if (std::fabs(g_PendingTouchScroll) >= 0.5f) {
         const ImGuiContext *ctx = ImGui::GetCurrentContext();
         if (ctx && ctx->ActiveId == 0)
-            io.AddMouseWheelEvent(0.0f, g_PendingTouchScroll / 60.0f);
+            io.AddMouseWheelEvent(0.0f, g_PendingTouchScroll / 30.0f);
     }
     g_PendingTouchScroll = 0.0f;
 
