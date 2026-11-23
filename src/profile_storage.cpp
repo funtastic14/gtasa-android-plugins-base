@@ -17,11 +17,13 @@ namespace {
 static std::string g_profilesDirectory;
 static std::string g_diagnosticsDirectory;
 static std::string g_fontsDirectory;
+static std::string g_texturesDirectory;
 static bool g_initialized = false;
 
 static const size_t MAX_PROFILE_SIZE = 1024 * 1024;
 static const size_t MAX_DIAGNOSTIC_SIZE = 256 * 1024;
 static const size_t MAX_FONT_SIZE = 4096;
+static const size_t MAX_TEXTURE_SIZE = 256 * 1024;
 
 static bool BuildProfilePath(
     int modelId,
@@ -166,6 +168,14 @@ bool Init() {
         }
     }
 
+    g_texturesDirectory = rootDirectory + "/textures";
+    if (!aml->IsDirectory(g_texturesDirectory.c_str())) {
+        if (!aml->CreateDirRecursive(g_texturesDirectory.c_str())) {
+            g_texturesDirectory.clear();
+            return false;
+        }
+    }
+
     g_initialized = true;
 
     return true;
@@ -287,6 +297,31 @@ bool LoadFontBitmap(const std::string& fontName, std::string& bitmap) {
     if (read <= 0 || static_cast<size_t>(read) > size)
         return false;
     bitmap.assign(buffer.data(), static_cast<size_t>(read));
+    return true;
+}
+
+bool LoadTexturePpm(const std::string& textureName, std::string& ppm) {
+    ppm.clear();
+    if (!g_initialized || aml == nullptr || textureName.empty() || textureName.size() > 32)
+        return false;
+    for (char c : textureName) {
+        const bool valid = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+                           (c >= '0' && c <= '9') || c == '_' || c == '-';
+        if (!valid) return false;
+    }
+    char path[512];
+    const int length = std::snprintf(path, sizeof(path), "%s/%s.ppm",
+        g_texturesDirectory.c_str(), textureName.c_str());
+    if (length <= 0 || static_cast<size_t>(length) >= sizeof(path) || !aml->FileExists(path))
+        return false;
+    const size_t size = aml->FileSize(path);
+    if (size == 0 || size > MAX_TEXTURE_SIZE)
+        return false;
+    std::vector<char> buffer(size + 1, 0);
+    const int read = aml->ReadFileToBuffer(path, buffer.data(), size + 1);
+    if (read <= 0 || static_cast<size_t>(read) > size)
+        return false;
+    ppm.assign(buffer.data(), static_cast<size_t>(read));
     return true;
 }
 
