@@ -35,6 +35,7 @@ static float g_animationSpeed = 1.0f;
 
 static int g_selectedPixel = 0;
 static int g_selectedPlacement = 0;
+static int g_selectedEffect = 0;
 static int g_editorPage = 0;
 static int g_adjustmentScaleMode = 1;
 static const char* g_adjustmentScaleNames[] = {"Very Fine", "Normal", "Fast", "Very Fast"};
@@ -171,485 +172,48 @@ static VLS::VehicleProfile* EnsureEditorProfile(int modelId) {
     VLS::LedPlacement& placement =
         profile->placements[0];
 
-    if (placement.effects.empty()) {
-        VLS::LedEffectConfig effect;
-
-        effect.type = VLS::LedEffectType::RunningLED;
-        effect.enabled = true;
-
-        effect.red = 0;
-        effect.green = 180;
-        effect.blue = 255;
-
-        effect.brightness = 1.0f;
-        effect.speed = 1.0f;
-
-        placement.effects.push_back(effect);
-        g_profileManager.MarkDirty(modelId);
-    }
-
-    return profile;
-}
-
-
-// ---------------------------------------------------------
-// Matrix helpers
-// ---------------------------------------------------------
-
-static bool SyncMatrixPixels(
-    VLS::LedEffectConfig& effect
-) {
-    VLS::LedMatrixConfig& matrix = effect.matrix;
-
-    if (matrix.columns == 0 || matrix.rows == 0)
-        return false;
-
-    uint32_t count =
-        static_cast<uint32_t>(matrix.columns) *
-        static_cast<uint32_t>(matrix.rows);
-
-    if (count == 0 || count > MAX_MATRIX_PIXELS)
-        return false;
-
-    const size_t oldSize = matrix.pixels.size();
-
-    if (oldSize == count)
-        return true;
-
-    matrix.pixels.resize(count);
-
-    for (size_t i = oldSize; i < matrix.pixels.size(); ++i) {
-        VLS::LedMatrixPixel& pixel = matrix.pixels[i];
-
-        pixel.enabled = true;
-        pixel.direction = VLS::LedDirection::LeftToRight;
-        pixel.customAngle = 0.0f;
-
-        pixel.red = effect.red;
-        pixel.green = effect.green;
-        pixel.blue = effect.blue;
-
-        pixel.brightness = 1.0f;
-        pixel.speed = 1.0f;
-    }
-
-    return true;
-}
-
-
-// ---------------------------------------------------------
-// ImGui definitions
-// ---------------------------------------------------------
-
-static const char* g_patternNames[] = {
-    "Running LED",
-    "Running Text",
-    "RGB",
-    "Strobo Wave",
-    "Strobo Eyes"
-};
-
-static const VLS::LedEffectType g_patternTypes[] = {
-    VLS::LedEffectType::RunningLED,
-    VLS::LedEffectType::RunningText,
-    VLS::LedEffectType::RGB,
-    VLS::LedEffectType::StroboWave,
-    VLS::LedEffectType::StroboEyes
-};
-
-static const char* g_zoneNames[] = {
-    "Front Windshield",
-    "Exterior Body",
-    "Headlight",
-    "Taillight",
-    "Interior",
-    "Front Up Windshield",
-    "Roof"
-};
-
-static const VLS::LedZone g_zoneTypes[] = {
-    VLS::LedZone::Windshield,
-    VLS::LedZone::ExteriorBody,
-    VLS::LedZone::Headlight,
-    VLS::LedZone::Taillight,
-    VLS::LedZone::Interior,
-    VLS::LedZone::FrontUpWindshield,
-    VLS::LedZone::Roof
-};
-
-static const char* g_directionNames[] = {
-    "Left to Right",
-    "Right to Left",
-    "Top to Bottom",
-    "Bottom to Top",
-    "Custom Angle"
-};
-
-static const VLS::LedDirection g_directionTypes[] = {
-    VLS::LedDirection::LeftToRight,
-    VLS::LedDirection::RightToLeft,
-    VLS::LedDirection::TopToBottom,
-    VLS::LedDirection::BottomToTop,
-    VLS::LedDirection::CustomAngle
-};
-
-static const char* g_animationModeNames[] = {
-    "Manual",
-    "Automatic",
-    "Random",
-    "Sequential",
-    "Custom"
-};
-
-static const VLS::AnimationMode g_animationModeTypes[] = {
-    VLS::AnimationMode::Manual,
-    VLS::AnimationMode::Automatic,
-    VLS::AnimationMode::Random,
-    VLS::AnimationMode::Sequential,
-    VLS::AnimationMode::Custom
-};
-
-static int GetPatternIndex(VLS::LedEffectType type) {
-    for (int i = 0; i < 5; ++i) {
-        if (g_patternTypes[i] == type)
-            return i;
-    }
-
-    return 0;
-}
-
-static int GetZoneIndex(VLS::LedZone zone) {
-    for (int i = 0; i < 7; ++i) {
-        if (g_zoneTypes[i] == zone)
-            return i;
-    }
-
-    return 0;
-}
-
-static int GetDirectionIndex(VLS::LedDirection direction) {
-    for (int i = 0; i < 5; ++i) {
-        if (g_directionTypes[i] == direction)
-            return i;
-    }
-
-    return 0;
-}
-
-static int GetAnimationModeIndex(VLS::AnimationMode mode) {
-    for (int i = 0; i < 5; ++i) {
-        if (g_animationModeTypes[i] == mode)
-            return i;
-    }
-
-    return 0;
-}
-
-
-// ---------------------------------------------------------
-// Animation controller helpers
-// ---------------------------------------------------------
-
-static void SetAnimationMode(VLS::AnimationMode mode) {
-    if (g_animationMode == mode)
-        return;
-
-    g_animationMode = mode;
-
-    g_animationController.SetMode(mode);
-    g_animationController.SetIntervalMs(
-        g_animationIntervalMs
-    );
-
-    ResetSequenceRuntime();
-
-    logger->Info(
-        "VLS animation mode changed: %d",
-        static_cast<int>(mode)
-    );
-}
-
-static void UpdateAnimationController() {
-    if (g_currentProfile == nullptr)
-        return;
-    const uint32_t nowMs = CTimer::GetTimeMS();
-    for (const VLS::LedPlacement& placement : g_currentProfile->placements) {
-        VLS::AnimationController& controller = g_placementControllers[placement.id];
-        controller.SetMode(static_cast<VLS::AnimationMode>(placement.animationMode));
-        controller.SetIntervalMs(placement.animationIntervalMs);
-        controller.SetManualSelection(placement.id, 0);
-        controller.Update(placement, nowMs);
-    }
-}
-
-
-// ---------------------------------------------------------
-// ImGui launcher and editor
-// ---------------------------------------------------------
-
-static bool DrawSpacedFloatControl(
-    const char* label, float* value, float minValue, float maxValue, float step
-) {
     bool changed = false;
-    const int scaleMode = g_adjustmentScaleMode < 0 ? 0 :
-        (g_adjustmentScaleMode > 3 ? 3 : g_adjustmentScaleMode);
-    step *= g_adjustmentScaleValues[scaleMode];
-    ImGui::PushID(label);
-    ImGui::Text("%s", label);
-    ImGui::SameLine();
-    if (ImGui::Button("-", ImVec2(76.0f, 40.0f))) {
-        *value -= step;
-        if (*value < minValue) *value = minValue;
+
+    if (g_selectedEffect < 0)
+        g_selectedEffect = 0;
+    if (g_selectedEffect >= static_cast<int>(placement.effects.size()))
+        g_selectedEffect = placement.effects.empty() ? 0 : static_cast<int>(placement.effects.size()) - 1;
+
+    if (ImGui::Button("Add Effect", ImVec2(125.0f, 38.0f))) {
+        VLS::LedEffectConfig addedEffect;
+        addedEffect.type = VLS::LedEffectType::RunningLED;
+        addedEffect.red = 0;
+        addedEffect.green = 180;
+        addedEffect.blue = 255;
+        placement.effects.push_back(addedEffect);
+        g_selectedEffect = static_cast<int>(placement.effects.size()) - 1;
         changed = true;
     }
     ImGui::SameLine();
-    ImGui::Text("%.3f", *value);
-    ImGui::SameLine();
-    if (ImGui::Button("+", ImVec2(76.0f, 40.0f))) {
-        *value += step;
-        if (*value > maxValue) *value = maxValue;
-        changed = true;
-    }
-    ImGui::PopID();
-    ImGui::Dummy(ImVec2(0.0f, 7.0f));
-    return changed;
-}
-
-static void DrawRunningTextKeyboard(VLS::LedEffectConfig& effect, bool& changed) {
-    if (!g_runningTextKeyboardOpen)
-        return;
-
-    ImGui::Separator();
-    ImGui::TextWrapped("VLS Touch Keyboard - tap letters or numbers to compose text.");
-    const char* rows[] = {"ABCDEFG", "HIJKLMN", "OPQRSTU", "VWXYZ012", "3456789"};
-    for (const char* row : rows) {
-        for (const char* key = row; *key; ++key) {
-            char label[2] = {*key, '\0'};
-            if (ImGui::Button(label, ImVec2(43.0f, 40.0f))) {
-                const size_t len = std::strlen(g_runningTextBuffer);
-                if (len + 1 < sizeof(g_runningTextBuffer)) {
-                    g_runningTextBuffer[len] = *key;
-                    g_runningTextBuffer[len + 1] = '\0';
-                    effect.text = g_runningTextBuffer;
-                    changed = true;
-                }
-            }
-            if (key[1]) ImGui::SameLine();
-        }
-    }
-
-    if (ImGui::Button("SPACE", ImVec2(92.0f, 40.0f))) {
-        const size_t len = std::strlen(g_runningTextBuffer);
-        if (len + 1 < sizeof(g_runningTextBuffer)) {
-            g_runningTextBuffer[len] = ' ';
-            g_runningTextBuffer[len + 1] = '\0';
-            effect.text = g_runningTextBuffer;
-            changed = true;
-        }
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("DEL", ImVec2(72.0f, 40.0f))) {
-        size_t len = std::strlen(g_runningTextBuffer);
-        if (len > 0) {
-            g_runningTextBuffer[len - 1] = '\0';
-            effect.text = g_runningTextBuffer;
-            changed = true;
-        }
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("CLEAR", ImVec2(82.0f, 40.0f))) {
-        g_runningTextBuffer[0] = '\0';
-        effect.text.clear();
+    if (ImGui::Button("Copy Effect", ImVec2(125.0f, 38.0f)) && !placement.effects.empty()) {
+        placement.effects.push_back(placement.effects[g_selectedEffect]);
+        g_selectedEffect = static_cast<int>(placement.effects.size()) - 1;
         changed = true;
     }
     ImGui::SameLine();
-    if (ImGui::Button("DONE", ImVec2(72.0f, 40.0f)))
-        g_runningTextKeyboardOpen = false;
-}
-
-static void RenderEditor() {
-
-    ImGui::SetNextWindowPos(
-        ImVec2(20.0f, 100.0f),
-        ImGuiCond_FirstUseEver
-    );
-
-    const ImGuiWindowFlags launcherFlags =
-        ImGuiWindowFlags_NoTitleBar |
-        ImGuiWindowFlags_NoResize |
-        ImGuiWindowFlags_NoMove |
-        ImGuiWindowFlags_AlwaysAutoResize |
-        ImGuiWindowFlags_NoSavedSettings;
-
-    ImGui::Begin(
-        "VLS Launcher",
-        nullptr,
-        launcherFlags
-    );
-
-    if (ImGui::Button(
-            g_editorOpen ? "LED Editor: OPEN" : "LED",
-            ImVec2(110.0f, 42.0f)
-        )) {
-        g_editorOpen = !g_editorOpen;
+    if (ImGui::Button("Delete Effect", ImVec2(125.0f, 38.0f)) && placement.effects.size() > 1) {
+        placement.effects.erase(placement.effects.begin() + g_selectedEffect);
+        if (g_selectedEffect >= static_cast<int>(placement.effects.size()))
+            g_selectedEffect = static_cast<int>(placement.effects.size()) - 1;
+        changed = true;
     }
-
-    ImGui::End();
-
-    if (!g_editorOpen)
-        return;
-
-    ImGui::SetNextWindowSize(
-        ImVec2(460.0f, 580.0f),
-        ImGuiCond_FirstUseEver
-    );
-
-    const ImGuiWindowFlags editorFlags =
-        ImGuiWindowFlags_NoMove |
-        ImGuiWindowFlags_NoResize |
-        ImGuiWindowFlags_NoCollapse;
-
-    if (!ImGui::Begin(
-            "Vehicle LED System",
-            &g_editorOpen,
-            editorFlags
-        )) {
-        ImGui::End();
-        return;
-    }
-
-    ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarSize, 30.0f);
-    ImGui::BeginChild("VLSContent", ImVec2(0.0f, 0.0f), false, ImGuiWindowFlags_AlwaysVerticalScrollbar);
-    ImGui::Text("Vehicle LED System");
-    if (ImGui::Button("Scroll Up Fast", ImVec2(180.0f, 38.0f)))
-        ImGui::SetScrollY(ImGui::GetScrollY() - 300.0f);
-    ImGui::SameLine();
-    if (ImGui::Button("Scroll Down Fast", ImVec2(180.0f, 38.0f)))
-        ImGui::SetScrollY(ImGui::GetScrollY() + 300.0f);
-    ImGui::Separator();
-
-    ImGui::Checkbox(
-        "LED System Enabled",
-        &g_enabled
-    );
-
-    const int modelId =
-        g_vehicleManager.GetCurrentModelId();
-
-    if (modelId < 0) {
-        ImGui::Spacing();
-        ImGui::Text(
-            "Enter a vehicle to edit its profile."
-        );
-
-        ImGui::EndChild();
-    ImGui::PopStyleVar();
-        ImGui::End();
-        return;
-    }
-
-    ImGui::Text(
-        "Vehicle Model ID: %d",
-        modelId
-    );
-
-    VLS::VehicleProfile* profile =
-        EnsureEditorProfile(modelId);
-
-    if (profile == nullptr ||
-        profile->placements.empty()) {
-        ImGui::Text("Profile unavailable.");
-        ImGui::EndChild();
-    ImGui::PopStyleVar();
-        ImGui::End();
-        return;
-    }
-
-    if (g_selectedPlacement < 0)
-        g_selectedPlacement = 0;
-    if (g_selectedPlacement >= static_cast<int>(profile->placements.size()))
-        g_selectedPlacement = static_cast<int>(profile->placements.size()) - 1;
-
-    if (g_editorPage == 0) {
-    auto nextPlacementId = [&]() {
-        uint32_t nextId = 1;
-        for (const VLS::LedPlacement& existing : profile->placements)
-            if (existing.id >= nextId) nextId = existing.id + 1;
-        return nextId;
-    };
-
-    if (ImGui::Button("Add LED", ImVec2(112.0f, 40.0f))) {
-        VLS::LedPlacement added;
-        added.id = nextPlacementId();
-        added.zone = VLS::LedZone::Windshield;
-        added.transform.width = 1.0f;
-        added.transform.height = 0.12f;
-        VLS::LedEffectConfig newEffect;
-        newEffect.type = VLS::LedEffectType::RunningLED;
-        newEffect.enabled = true;
-        newEffect.red = 0;
-        newEffect.green = 180;
-        newEffect.blue = 255;
-        newEffect.brightness = 1.0f;
-        newEffect.speed = 1.0f;
-        added.effects.push_back(newEffect);
-        profile->placements.push_back(added);
-        g_selectedPlacement = static_cast<int>(profile->placements.size()) - 1;
-        g_profileManager.MarkDirty(modelId);
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("Copy LED", ImVec2(112.0f, 40.0f))) {
-        VLS::LedPlacement copied = profile->placements[g_selectedPlacement];
-        copied.id = nextPlacementId();
-        profile->placements.push_back(copied);
-        g_selectedPlacement = static_cast<int>(profile->placements.size()) - 1;
-        g_profileManager.MarkDirty(modelId);
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("Delete LED", ImVec2(112.0f, 40.0f))) {
-        if (profile->placements.size() > 1) {
-            profile->placements.erase(profile->placements.begin() + g_selectedPlacement);
-            if (g_selectedPlacement >= static_cast<int>(profile->placements.size()))
-                g_selectedPlacement = static_cast<int>(profile->placements.size()) - 1;
-            g_profileManager.MarkDirty(modelId);
-        }
-    }
-    ImGui::Text("LED placements: %d (copy duplicates position + effects)", static_cast<int>(profile->placements.size()));
-    ImGui::Dummy(ImVec2(0.0f, 8.0f));
-    }
-
-    if (profile->placements.size() > 1) {
-        if (ImGui::Button("<< LED", ImVec2(90.0f, 32.0f))) {
-            if (g_selectedPlacement > 0) --g_selectedPlacement;
-        }
-        ImGui::SameLine();
-        ImGui::Text("Placement %d / %d", g_selectedPlacement + 1,
-            static_cast<int>(profile->placements.size()));
-        ImGui::SameLine();
-        if (ImGui::Button("LED >>", ImVec2(90.0f, 32.0f))) {
-            if (g_selectedPlacement + 1 < static_cast<int>(profile->placements.size()))
-                ++g_selectedPlacement;
-        }
-    }
-
-    VLS::LedPlacement& placement =
-        profile->placements[g_selectedPlacement];
-
-    if (ImGui::Checkbox("LED Placement Always On", &placement.enabled))
-        g_profileManager.MarkDirty(modelId);
 
     if (placement.effects.empty()) {
-        ImGui::Text("No LED effect available.");
+        ImGui::TextWrapped("Add an effect to this LED placement to begin.");
         ImGui::EndChild();
-    ImGui::PopStyleVar();
+        ImGui::PopStyleVar();
         ImGui::End();
         return;
     }
 
-    VLS::LedEffectConfig& effect =
-        placement.effects[0];
-
-    bool changed = false;
+    ImGui::Text("Effects on this LED: %d", static_cast<int>(placement.effects.size()));
+    ImGui::SliderInt("Selected Effect", &g_selectedEffect, 0, static_cast<int>(placement.effects.size()) - 1);
+    VLS::LedEffectConfig& effect = placement.effects[g_selectedEffect];
 
     if (ImGui::Button("LED & EFFECT", ImVec2(190.0f, 36.0f)))
         g_editorPage = 0;
