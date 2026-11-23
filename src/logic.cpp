@@ -43,7 +43,9 @@ static int g_adjustmentScaleMode = 1;
 static const char* g_adjustmentScaleNames[] = {"Very Fine", "Normal", "Fast", "Very Fast"};
 static const float g_adjustmentScaleValues[] = {0.1f, 1.0f, 5.0f, 20.0f};
 static char g_runningTextBuffer[129] = {};
+static char g_runningFontBuffer[33] = {};
 static const VLS::LedEffectConfig* g_runningTextBufferEffect = nullptr;
+static const VLS::LedEffectConfig* g_runningFontBufferEffect = nullptr;
 static bool g_runningTextKeyboardOpen = false;
 
 static VLS::VehicleManager g_vehicleManager;
@@ -854,6 +856,17 @@ static void RenderEditor() {
             g_runningTextKeyboardOpen = !g_runningTextKeyboardOpen;
         DrawRunningTextKeyboard(effect, changed);
         changed |= ImGui::SliderFloat("Text Spacing", &effect.textSpacing, 0.25f, 3.0f);
+        if (g_runningFontBufferEffect != &effect) {
+            std::memset(g_runningFontBuffer, 0, sizeof(g_runningFontBuffer));
+            std::strncpy(g_runningFontBuffer, effect.fontName.c_str(), sizeof(g_runningFontBuffer) - 1);
+            g_runningFontBufferEffect = &effect;
+        }
+        ImGui::Text("Custom bitmap font (.vlsfont)");
+        if (ImGui::InputText("Font Name", g_runningFontBuffer, sizeof(g_runningFontBuffer))) {
+            effect.fontName = g_runningFontBuffer;
+            changed = true;
+        }
+        ImGui::TextWrapped("Place a 5x7 bitmap font file at VehicleLEDSystem/fonts/<name>.vlsfont. Use 95 ASCII glyphs (space through ~), 7 rows per glyph, 2 hexadecimal digits per row.");
         static const char* textMotionNames[] = {"Scroll Left", "Scroll Right", "Bounce Horizontal", "Scroll Up", "Scroll Down", "Bounce Vertical", "Static / Center"};
         int textMotionIndex = static_cast<int>(effect.textMotion);
         if (ImGui::Combo("Text Motion", &textMotionIndex, textMotionNames, 7)) {
