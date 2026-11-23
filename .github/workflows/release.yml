@@ -53,6 +53,7 @@ jobs:
             libVehicleLEDSystem-arm64-v8a.so
             libVehicleLEDSystem-armeabi-v7a.so
             VehicleLEDSystem-test-package.zip
+            VehicleLEDSystem-test-package.zip
           generate_release_notes: true
 
       - name: Upload Build Artifact
