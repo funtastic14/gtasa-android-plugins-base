@@ -761,7 +761,8 @@ static bool ReadPlacement(
         placement.animationMode > 4 ||
         !ReadUInt32(value, "animationIntervalMs", placement.animationIntervalMs) ||
         placement.animationIntervalMs < 100 ||
-        placement.animationIntervalMs > 30000)
+        placement.animationIntervalMs > 30000 ||
+        !ReadUInt32(value, "activeEffectIndex", placement.activeEffectIndex))
         return false;
 
     const JsonValue* transform = Find(value, "transform");
@@ -868,7 +869,8 @@ static bool ValidateProfileReferences(
             zone > static_cast<int>(LedZone::Roof) ||
             placement.animationMode > 4 ||
             placement.animationIntervalMs < 100 ||
-            placement.animationIntervalMs > 30000) {
+            placement.animationIntervalMs > 30000 ||
+            (!placement.effects.empty() && placement.activeEffectIndex >= placement.effects.size())) {
             return false;
         }
 
@@ -1209,6 +1211,8 @@ static bool AppendPlacement(
     AppendUInt(output, placement.animationMode);
     output += ",\"animationIntervalMs\":";
     AppendUInt(output, placement.animationIntervalMs);
+    output += ",\"activeEffectIndex\":";
+    AppendUInt(output, placement.activeEffectIndex);
 
     output += ",\"transform\":";
 
