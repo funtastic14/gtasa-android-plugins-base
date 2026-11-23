@@ -11,16 +11,18 @@ namespace VLS {
 // matrix renderer sample this field using normalized placement coordinates.
 inline LedMotionPattern ResolveMotionPattern(
     const LedEffectConfig& effect,
-    uint32_t timeMs
+    uint32_t timeMs,
+    MotionPlaybackMode playback,
+    uint32_t intervalMs
 ) {
-    if (effect.motionPlayback == MotionPlaybackMode::Manual)
+    if (playback == MotionPlaybackMode::Manual)
         return effect.motionPattern;
-    const uint32_t interval = effect.motionIntervalMs < 500 ? 500 : effect.motionIntervalMs;
+    const uint32_t interval = intervalMs < 500 ? 500 : intervalMs;
     const uint32_t step = timeMs / interval;
     const uint32_t count = static_cast<uint32_t>(LedMotionPattern::Starburst) + 1u;
-    if (effect.motionPlayback == MotionPlaybackMode::Sequential)
+    if (playback == MotionPlaybackMode::Sequential)
         return static_cast<LedMotionPattern>(step % count);
-    if (effect.motionPlayback == MotionPlaybackMode::Automatic) {
+    if (playback == MotionPlaybackMode::Automatic) {
         static const LedMotionPattern automaticOrder[] = {
             LedMotionPattern::LeftToRight, LedMotionPattern::CenterOut,
             LedMotionPattern::ZoomIn, LedMotionPattern::Wave,
