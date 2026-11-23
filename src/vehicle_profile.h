@@ -114,6 +114,7 @@ struct LedEffectConfig {
     float brightness = 1.0f;
     float opacity = 1.0f;
     float speed = 1.0f;
+    uint32_t durationMs = 1000; // Per-step duration for this LED's Custom sequence.
 
     LedColorMode colorMode = LedColorMode::Solid;
     uint8_t secondaryRed = 0;
