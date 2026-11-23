@@ -27,7 +27,8 @@ inline float GetColorPosition(
     case LedColorDirection::CenterOut: position = std::fabs(x - 0.5f) * 2.0f; break;
     case LedColorDirection::EdgeToCenter: position = 1.0f - std::fabs(x - 0.5f) * 2.0f; break;
     }
-    return clamp01(position * (spread < 0.01f ? 0.01f : spread));
+    (void)spread;
+    return clamp01(position);
 }
 
 // Single source of truth for spatial motion. Both the strip renderer and
