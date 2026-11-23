@@ -92,6 +92,7 @@ static void ResetAnimationRuntime() {
     ResetSequenceRuntime();
     g_animationController.Reset();
     g_animationController.SetMode(g_animationMode);
+    g_placementControllers.clear();
 }
 
 static void EnsureProfileLoaded(int modelId) {
@@ -375,7 +376,10 @@ static void UpdateAnimationController() {
         return;
     const uint32_t nowMs = CTimer::GetTimeMS();
     for (const VLS::LedPlacement& placement : g_currentProfile->placements) {
-        VLS::AnimationController& controller = g_placementControllers[placement.id];
+        auto inserted = g_placementControllers.emplace(placement.id, VLS::AnimationController());
+        VLS::AnimationController& controller = inserted.first->second;
+        if (inserted.second)
+            controller.SetRandomSeed(static_cast<uint32_t>(g_currentProfile->modelId * 2654435761u) ^ (placement.id * 2246822519u));
         controller.SetMode(static_cast<VLS::AnimationMode>(placement.animationMode));
         controller.SetIntervalMs(placement.animationIntervalMs);
         controller.SetManualSelection(placement.id, 0);
@@ -674,6 +678,18 @@ static void RenderEditor() {
     }
     ImGui::Text("Effects on this LED: %d", static_cast<int>(placement.effects.size()));
     ImGui::SliderInt("Selected Effect", &g_selectedEffect, 0, static_cast<int>(placement.effects.size()) - 1);
+    if (ImGui::Button("Move Effect Up", ImVec2(145.0f, 34.0f)) && g_selectedEffect > 0) {
+        std::swap(placement.effects[g_selectedEffect], placement.effects[g_selectedEffect - 1]);
+        --g_selectedEffect;
+        changed = true;
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Move Effect Down", ImVec2(145.0f, 34.0f)) &&
+        g_selectedEffect + 1 < static_cast<int>(placement.effects.size())) {
+        std::swap(placement.effects[g_selectedEffect], placement.effects[g_selectedEffect + 1]);
+        ++g_selectedEffect;
+        changed = true;
+    }
     VLS::LedEffectConfig& effect = placement.effects[g_selectedEffect];
 
     if (ImGui::Button("LED & EFFECT", ImVec2(190.0f, 36.0f)))
