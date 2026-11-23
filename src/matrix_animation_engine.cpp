@@ -550,13 +550,15 @@ bool MatrixAnimationEngine::EvaluatePixel(
             break;
         case LedColorMode::ThreeColorGradient: {
             const float localBlend = blend < 0.5f ? blend * 2.0f : (blend - 0.5f) * 2.0f;
-            const uint8_t* start = blend < 0.5f
-                ? &effect.red : &effect.secondaryRed;
-            const uint8_t* end = blend < 0.5f
-                ? &effect.secondaryRed : &effect.tertiaryRed;
-            red = ClampColor(start[0] * (1.0f - localBlend) + end[0] * localBlend);
-            green = ClampColor(start[1] * (1.0f - localBlend) + end[1] * localBlend);
-            blue = ClampColor(start[2] * (1.0f - localBlend) + end[2] * localBlend);
+            const float startR = blend < 0.5f ? effect.red : effect.secondaryRed;
+            const float startG = blend < 0.5f ? effect.green : effect.secondaryGreen;
+            const float startB = blend < 0.5f ? effect.blue : effect.secondaryBlue;
+            const float endR = blend < 0.5f ? effect.secondaryRed : effect.tertiaryRed;
+            const float endG = blend < 0.5f ? effect.secondaryGreen : effect.tertiaryGreen;
+            const float endB = blend < 0.5f ? effect.secondaryBlue : effect.tertiaryBlue;
+            red = ClampColor(startR * (1.0f - localBlend) + endR * localBlend);
+            green = ClampColor(startG * (1.0f - localBlend) + endG * localBlend);
+            blue = ClampColor(startB * (1.0f - localBlend) + endB * localBlend);
             break;
         }
         case LedColorMode::Rainbow: {
