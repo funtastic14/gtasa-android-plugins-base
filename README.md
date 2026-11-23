@@ -13,6 +13,17 @@ A template for building GTA San Andreas Android plugins with Android Mod Loader 
 - ARM32 (`armeabi-v7a`) and ARM64 (`arm64-v8a`) build targets for GTA SA v2.00/v2.10.
 - Build and formatting scripts, plus a GitHub Actions workflow.
 
+## Vehicle LED System test assets
+
+The VLS build uses external bitmap assets for LED Matrix Running Text:
+
+- Extract `VehicleLEDSystem/fonts/default.vlsfont` into the AML internal mods directory.
+- Extract `VehicleLEDSystem/textures/demo.ppm` into the same `VehicleLEDSystem/textures/` folder.
+- Keep the folder names exactly as shown. VLS creates the `VehicleLEDSystem/profiles`, `fonts`, `textures`, and `diagnostics` directories when it initializes; the bundled font and texture files must be copied into the matching folders.
+- The CI test bundle contains both Android libraries (`arm64-v8a` and `armeabi-v7a`) and the sample VLS font/texture assets.
+
+Custom fonts use the `.vlsfont` 5x7 bitmap format. Custom LED Matrix textures currently use ASCII PPM P3 (`.ppm`), up to 128x128 pixels. See the README files inside `assets/fonts/` and `assets/textures/` for their exact data formats.
+
 ## Example mod
 
 `main.cpp` registers the mod and passes `Gui::Draw` to `ImGui_ImplRenderWare_Init`. `src/gui.cpp` draws a launcher button, a trainer window with time, weather, teleport and music tabs, and a text box that says "mod loaded!" when the player first spawns. The game code behind those buttons lives in `src/logic.cpp`.
