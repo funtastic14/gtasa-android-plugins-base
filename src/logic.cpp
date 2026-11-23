@@ -879,20 +879,27 @@ static void RenderEditor() {
         }
     }
 
-    static const char* motionNames[] = {
-        "Left to Right", "Right to Left", "Center Out", "Edges to Center",
-        "Zoom In", "Zoom Out", "Fade In", "Fade Out", "Rolling",
-        "Flow", "Wave", "Diagonal", "Ripple", "Pulse",
-        "Alternate Rows", "Alternate Columns", "Checkerboard"
-    };
-    int motionIndex = static_cast<int>(effect.motionPattern);
-    if (ImGui::Combo("Motion Pattern", &motionIndex, motionNames, 17)) {
-        if (motionIndex < 0) motionIndex = 0;
-        if (motionIndex > 16) motionIndex = 16;
-        effect.motionPattern = static_cast<VLS::LedMotionPattern>(motionIndex);
-        changed = true;
+    if (effect.type != VLS::LedEffectType::StroboEyes &&
+        effect.type != VLS::LedEffectType::RunningText) {
+        static const char* motionNames[] = {
+            "Left to Right", "Right to Left", "Center Out", "Edges to Center",
+            "Zoom In", "Zoom Out", "Fade In", "Fade Out", "Rolling",
+            "Flow", "Wave", "Diagonal", "Ripple", "Pulse",
+            "Alternate Rows", "Alternate Columns", "Checkerboard"
+        };
+        int motionIndex = static_cast<int>(effect.motionPattern);
+        if (ImGui::Combo("Motion Pattern", &motionIndex, motionNames, 17)) {
+            if (motionIndex < 0) motionIndex = 0;
+            if (motionIndex > 16) motionIndex = 16;
+            effect.motionPattern = static_cast<VLS::LedMotionPattern>(motionIndex);
+            changed = true;
+        }
+        ImGui::TextWrapped("Motion controls the LED movement; Color Style controls only its palette.");
+    } else if (effect.type == VLS::LedEffectType::StroboEyes) {
+        ImGui::TextWrapped("Eye movement and expressions use dedicated eye controls, separate from general LED motion patterns.");
+    } else if (effect.type == VLS::LedEffectType::RunningText) {
+        ImGui::TextWrapped("Text scrolling, transitions and text patterns use dedicated text controls, separate from general LED motion patterns.");
     }
-    ImGui::TextWrapped("Motion controls the LED movement; Color Style controls only its palette.");
 
     float opacity = effect.opacity;
     if (ImGui::SliderFloat("LED Transparency (0=hidden, 1=solid)", &opacity, 0.0f, 1.0f)) {
