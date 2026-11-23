@@ -637,7 +637,7 @@ static bool RenderEffect(
             const float phase01 = static_cast<float>(std::fmod(time / 1800.0, 1.0));
             const float nx = (static_cast<float>(i) + 0.5f) / static_cast<float>(SEGMENTS);
             intensity *= EvaluateMotionIntensity(
-                ResolveMotionPattern(effect, static_cast<uint32_t>(time), GetPlacementMotionPlayback(placement), placement.animationIntervalMs), nx, 0.5f, phase01,
+                ResolveMotionPattern(effect, CTimer::GetTimeMS(), GetPlacementMotionPlayback(placement), placement.animationIntervalMs), nx, 0.5f, phase01,
                 static_cast<uint16_t>(i), 0,
                 static_cast<uint16_t>(SEGMENTS), 1
             );
