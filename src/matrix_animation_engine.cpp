@@ -345,6 +345,9 @@ bool MatrixAnimationEngine::EvaluatePixel(
     );
 
     const float speed = effect.speed * pixel->speed;
+    const float colorPosition = GetColorPosition(
+        effect.colorDirection, x, y, effect.colorSpread
+    );
 
     // Motion is evaluated once below from the selected LedMotionPattern.
     // Do not retain the legacy per-effect directional sweep here.
@@ -535,15 +538,60 @@ bool MatrixAnimationEngine::EvaluatePixel(
         Clamp01(effect.brightness) *
         Clamp01(pixel->brightness);
 
-    if (effect.colorMode == LedColorMode::Gradient && !preserveEyeDetailColor) {
-        const float blend = Clamp01(directionPosition);
-        red = ClampColor(static_cast<float>(red) * (1.0f - blend) + effect.secondaryRed * blend);
-        green = ClampColor(static_cast<float>(green) * (1.0f - blend) + effect.secondaryGreen * blend);
-        blue = ClampColor(static_cast<float>(blue) * (1.0f - blend) + effect.secondaryBlue * blend);
-    } else if (effect.colorMode == LedColorMode::Rainbow &&
-               effect.type != LedEffectType::RGB && !preserveEyeDetailColor) {
-        const float hue = static_cast<float>(timeMs) * 0.06f * speed + directionPosition * 360.0f;
-        HSVtoRGB(hue, red, green, blue);
+    if (effect.type != LedEffectType::RGB && !preserveEyeDetailColor) {
+        const float blend = Clamp01(colorPosition);
+        switch (effect.colorMode) {
+        case LedColorMode::Gradient:
+            red = ClampColor(static_cast<float>(red) * (1.0f - blend) + effect.secondaryRed * blend);
+            green = ClampColor(static_cast<float>(green) * (1.0f - blend) + effect.secondaryGreen * blend);
+            blue = ClampColor(static_cast<float>(blue) * (1.0f - blend) + effect.secondaryBlue * blend);
+            break;
+        case LedColorMode::ThreeColorGradient: {
+            const float localBlend = blend < 0.5f ? blend * 2.0f : (blend - 0.5f) * 2.0f;
+            const uint8_t* start = blend < 0.5f
+                ? &effect.red : &effect.secondaryRed;
+            const uint8_t* end = blend < 0.5f
+                ? &effect.secondaryRed : &effect.tertiaryRed;
+            red = ClampColor(start[0] * (1.0f - localBlend) + end[0] * localBlend);
+            green = ClampColor(start[1] * (1.0f - localBlend) + end[1] * localBlend);
+            blue = ClampColor(start[2] * (1.0f - localBlend) + end[2] * localBlend);
+            break;
+        }
+        case LedColorMode::Rainbow: {
+            const float hue = static_cast<float>(timeMs) * 0.06f * speed + blend * 360.0f;
+            HSVtoRGB(hue, red, green, blue);
+            break;
+        }
+        case LedColorMode::ColorCycle:
+            HSVtoRGB(static_cast<float>(timeMs) * 0.06f * speed, red, green, blue);
+            break;
+        case LedColorMode::ColorWave: {
+            const float wave = 0.5f + 0.5f * std::sin(
+                blend * TWO_PI * 2.0f - static_cast<float>(timeMs) * 0.004f * speed
+            );
+            HSVtoRGB(wave * 360.0f + static_cast<float>(timeMs) * 0.02f * speed, red, green, blue);
+            break;
+        }
+        case LedColorMode::ColorPulse: {
+            const float pulse = 0.5f + 0.5f * std::sin(static_cast<float>(timeMs) * 0.006f * speed);
+            red = ClampColor(static_cast<float>(red) * (1.0f - pulse) + effect.secondaryRed * pulse);
+            green = ClampColor(static_cast<float>(green) * (1.0f - pulse) + effect.secondaryGreen * pulse);
+            blue = ClampColor(static_cast<float>(blue) * (1.0f - pulse) + effect.secondaryBlue * pulse);
+            break;
+        }
+        case LedColorMode::Alternating: {
+            const uint32_t band = static_cast<uint32_t>(
+                std::floor(blend * 8.0f + static_cast<float>(timeMs) * 0.002f * speed)
+            );
+            if ((band & 1u) != 0u) {
+                red = effect.secondaryRed; green = effect.secondaryGreen; blue = effect.secondaryBlue;
+            }
+            break;
+        }
+        case LedColorMode::Solid:
+        default:
+            break;
+        }
     }
 
     output.red = red;
