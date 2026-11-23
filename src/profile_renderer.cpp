@@ -329,6 +329,15 @@ static void SetVertex(
     vertex.v = 0.0f;
 }
 
+static MotionPlaybackMode GetPlacementMotionPlayback(const LedPlacement& placement) {
+    switch (placement.animationMode) {
+    case 1: return MotionPlaybackMode::Automatic;
+    case 2: return MotionPlaybackMode::Random;
+    case 3: return MotionPlaybackMode::Sequential;
+    default: return MotionPlaybackMode::Manual;
+    }
+}
+
 static bool RenderMatrixEffect(
     CVehicle* vehicle,
     const LedPlacement& placement,
@@ -403,7 +412,9 @@ static bool RenderMatrixEffect(
                     static_cast<uint16_t>(column),
                     static_cast<uint16_t>(row),
                     timeMs,
-                    output
+                    output,
+                    GetPlacementMotionPlayback(placement),
+                    placement.animationIntervalMs
                 ))
                 return false;
 
@@ -626,7 +637,7 @@ static bool RenderEffect(
             const float phase01 = static_cast<float>(std::fmod(time / 1800.0, 1.0));
             const float nx = (static_cast<float>(i) + 0.5f) / static_cast<float>(SEGMENTS);
             intensity *= EvaluateMotionIntensity(
-                ResolveMotionPattern(effect, static_cast<uint32_t>(time)), nx, 0.5f, phase01,
+                ResolveMotionPattern(effect, static_cast<uint32_t>(time), GetPlacementMotionPlayback(placement), placement.animationIntervalMs), nx, 0.5f, phase01,
                 static_cast<uint16_t>(i), 0,
                 static_cast<uint16_t>(SEGMENTS), 1
             );
