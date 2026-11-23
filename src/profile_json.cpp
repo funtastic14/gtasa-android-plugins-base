@@ -742,6 +742,24 @@ static bool ReadEffect(
     if (!ReadOptionalFloat(value, "colorSpread", effect.colorSpread) ||
         !std::isfinite(effect.colorSpread) || effect.colorSpread < 0.1f || effect.colorSpread > 8.0f)
         return false;
+    int eyeShape = static_cast<int>(effect.eyeShape);
+    int eyeMotion = static_cast<int>(effect.eyeMotion);
+    int eyeExpression = static_cast<int>(effect.eyeExpression);
+    if ((Find(value, "eyeShape") &&
+         (!ReadInt(value, "eyeShape", eyeShape) || eyeShape < 0 ||
+          eyeShape > static_cast<int>(EyeShape::Square))) ||
+        (Find(value, "eyeMotion") &&
+         (!ReadInt(value, "eyeMotion", eyeMotion) || eyeMotion < 0 ||
+          eyeMotion > static_cast<int>(EyeMotion::RapidBlink))) ||
+        (Find(value, "eyeExpression") &&
+         (!ReadInt(value, "eyeExpression", eyeExpression) || eyeExpression < 0 ||
+          eyeExpression > static_cast<int>(EyeExpression::Evil))) ||
+        !ReadOptionalUInt32(value, "eyeBlinkIntervalMs", effect.eyeBlinkIntervalMs) ||
+        effect.eyeBlinkIntervalMs < 500 || effect.eyeBlinkIntervalMs > 8000)
+        return false;
+    effect.eyeShape = static_cast<EyeShape>(eyeShape);
+    effect.eyeMotion = static_cast<EyeMotion>(eyeMotion);
+    effect.eyeExpression = static_cast<EyeExpression>(eyeExpression);
     if (!ReadInt(value, "motionPattern", motionPattern) || motionPattern < 0 || motionPattern > static_cast<int>(LedMotionPattern::Starburst)) return false;
     effect.motionPattern = static_cast<LedMotionPattern>(motionPattern);
     int motionPlayback = static_cast<int>(effect.motionPlayback);
@@ -1221,6 +1239,14 @@ static bool AppendEffect(
     AppendInt(output, static_cast<int>(effect.colorDirection));
     output += ",\"colorSpread\":";
     if (!AppendFloat(output, effect.colorSpread)) return false;
+    output += ",\"eyeShape\":";
+    AppendInt(output, static_cast<int>(effect.eyeShape));
+    output += ",\"eyeMotion\":";
+    AppendInt(output, static_cast<int>(effect.eyeMotion));
+    output += ",\"eyeExpression\":";
+    AppendInt(output, static_cast<int>(effect.eyeExpression));
+    output += ",\"eyeBlinkIntervalMs\":";
+    AppendUInt(output, effect.eyeBlinkIntervalMs);
 
     output += ",\"speed\":";
     if (!AppendFloat(output, effect.speed)) return false;
