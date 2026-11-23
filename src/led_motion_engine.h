@@ -7,6 +7,29 @@
 
 namespace VLS {
 
+inline float GetColorPosition(
+    LedColorDirection direction,
+    float x,
+    float y,
+    float spread
+) {
+    const auto clamp01 = [](float value) {
+        return value < 0.0f ? 0.0f : (value > 1.0f ? 1.0f : value);
+    };
+    float position = x;
+    switch (direction) {
+    case LedColorDirection::LeftToRight: position = x; break;
+    case LedColorDirection::RightToLeft: position = 1.0f - x; break;
+    case LedColorDirection::TopToBottom: position = y; break;
+    case LedColorDirection::BottomToTop: position = 1.0f - y; break;
+    case LedColorDirection::DiagonalDown: position = (x + y) * 0.5f; break;
+    case LedColorDirection::DiagonalUp: position = (x + (1.0f - y)) * 0.5f; break;
+    case LedColorDirection::CenterOut: position = std::fabs(x - 0.5f) * 2.0f; break;
+    case LedColorDirection::EdgeToCenter: position = 1.0f - std::fabs(x - 0.5f) * 2.0f; break;
+    }
+    return clamp01(position * (spread < 0.01f ? 0.01f : spread));
+}
+
 // Single source of truth for spatial motion. Both the strip renderer and
 // matrix renderer sample this field using normalized placement coordinates.
 inline LedMotionPattern ResolveMotionPattern(
