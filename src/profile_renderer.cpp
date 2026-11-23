@@ -647,7 +647,9 @@ static bool RenderEffect(
             const float position = GetColorPosition(
                 effect.colorDirection, nx, 0.5f, effect.colorSpread
             );
-            const float blend = Clamp01(position);
+            const float spread = effect.colorSpread < 0.1f ? 0.1f : effect.colorSpread;
+            const float rawPosition = position * spread;
+            const float blend = rawPosition - std::floor(rawPosition);
             switch (effect.colorMode) {
             case LedColorMode::Gradient:
                 red = ClampColor(static_cast<float>(red) * (1.0f - blend) + effect.secondaryRed * blend);
