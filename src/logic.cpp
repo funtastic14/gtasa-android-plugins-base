@@ -922,21 +922,6 @@ static void RenderEditor() {
             "Alternate Rows", "Alternate Columns", "Checkerboard",
             "Windmill", "Spiral", "Starburst"
         };
-        static const char* motionPlaybackNames[] = {"Manual", "Automatic", "Sequential", "Random"};
-        int playbackIndex = static_cast<int>(effect.motionPlayback);
-        if (ImGui::Combo("Motion Playback", &playbackIndex, motionPlaybackNames, 4)) {
-            if (playbackIndex < 0) playbackIndex = 0;
-            if (playbackIndex > 3) playbackIndex = 3;
-            effect.motionPlayback = static_cast<VLS::MotionPlaybackMode>(playbackIndex);
-            changed = true;
-        }
-        if (effect.motionPlayback != VLS::MotionPlaybackMode::Manual) {
-            int interval = static_cast<int>(effect.motionIntervalMs);
-            if (ImGui::SliderInt("Pattern Change Interval (ms)", &interval, 500, 10000)) {
-                effect.motionIntervalMs = static_cast<uint32_t>(interval);
-                changed = true;
-            }
-        }
         int motionIndex = static_cast<int>(effect.motionPattern);
         if (ImGui::Combo("Motion Pattern", &motionIndex, motionNames, 20)) {
             if (motionIndex < 0) motionIndex = 0;
