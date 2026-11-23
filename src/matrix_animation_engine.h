@@ -22,7 +22,9 @@ public:
         uint16_t column,
         uint16_t row,
         uint32_t timeMs,
-        MatrixPixelOutput& output
+        MatrixPixelOutput& output,
+        MotionPlaybackMode playback = MotionPlaybackMode::Manual,
+        uint32_t motionIntervalMs = 3000
     );
 };
 
