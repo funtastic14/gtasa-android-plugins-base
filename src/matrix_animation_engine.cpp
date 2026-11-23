@@ -91,7 +91,9 @@ void ApplyCustomTexture(
     const LedMatrixConfig& matrix,
     uint16_t column,
     uint16_t row,
-    MatrixPixelOutput& output
+    MatrixPixelOutput& output,
+    MotionPlaybackMode playback,
+    uint32_t motionIntervalMs
 ) {
     if (effect.textureName.empty() || matrix.columns == 0 || matrix.rows == 0)
         return;
@@ -524,7 +526,7 @@ bool MatrixAnimationEngine::EvaluatePixel(
         effect.type != LedEffectType::RunningText) {
         const float phase = Fract(static_cast<float>(timeMs) * speed / 1800.0f);
         intensity *= EvaluateMotionIntensity(
-            ResolveMotionPattern(effect, timeMs), x, y, phase,
+            ResolveMotionPattern(effect, timeMs, playback, motionIntervalMs), x, y, phase,
             column, row, matrix.columns, matrix.rows
         );
     }
