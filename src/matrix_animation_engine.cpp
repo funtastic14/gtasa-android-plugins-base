@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cctype>
 #include <cstddef>
+#include <cstdlib>
 
 namespace VLS {
 
@@ -65,6 +66,84 @@ void HSVtoRGB(
     red = ClampColor(r * 255.0f);
     green = ClampColor(g * 255.0f);
     blue = ClampColor(b * 255.0f);
+}
+
+bool ReadPpmToken(const std::string& data, size_t& position, std::string& token) {
+    token.clear();
+    while (position < data.size()) {
+        if (std::isspace(static_cast<unsigned char>(data[position]))) { ++position; continue; }
+        if (data[position] == '#') {
+            while (position < data.size() && data[position] != '\n') ++position;
+            continue;
+        }
+        break;
+    }
+    while (position < data.size() &&
+           !std::isspace(static_cast<unsigned char>(data[position])) &&
+           data[position] != '#') {
+        token.push_back(data[position++]);
+    }
+    return !token.empty();
+}
+
+void ApplyCustomTexture(
+    const LedEffectConfig& effect,
+    const LedMatrixConfig& matrix,
+    uint16_t column,
+    uint16_t row,
+    MatrixPixelOutput& output
+) {
+    if (effect.textureName.empty() || matrix.columns == 0 || matrix.rows == 0)
+        return;
+    static std::string cachedName;
+    static uint8_t pixels[128 * 128 * 3] = {};
+    static uint16_t width = 0;
+    static uint16_t height = 0;
+    static bool valid = false;
+    if (cachedName != effect.textureName) {
+        cachedName = effect.textureName;
+        valid = false;
+        width = height = 0;
+        std::string data, token;
+        if (ProfileStorage::LoadTexturePpm(effect.textureName, data)) {
+            size_t pos = 0;
+            if (ReadPpmToken(data, pos, token) && token == "P3" &&
+                ReadPpmToken(data, pos, token)) {
+                const int w = std::atoi(token.c_str());
+                if (ReadPpmToken(data, pos, token)) {
+                    const int h = std::atoi(token.c_str());
+                    if (ReadPpmToken(data, pos, token)) {
+                        const int maxValue = std::atoi(token.c_str());
+                        if (w > 0 && w <= 128 && h > 0 && h <= 128 &&
+                            maxValue > 0 && maxValue <= 255) {
+                            bool ok = true;
+                            for (int i = 0; i < w * h * 3; ++i) {
+                                if (!ReadPpmToken(data, pos, token)) { ok = false; break; }
+                                const int value = std::atoi(token.c_str());
+                                if (value < 0 || value > maxValue) { ok = false; break; }
+                                pixels[i] = static_cast<uint8_t>((value * 255) / maxValue);
+                            }
+                            if (ok) {
+                                width = static_cast<uint16_t>(w);
+                                height = static_cast<uint16_t>(h);
+                                valid = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if (!valid || !output.visible)
+        return;
+    const uint16_t tx = static_cast<uint16_t>(
+        (static_cast<uint32_t>(column) * width) / matrix.columns);
+    const uint16_t ty = static_cast<uint16_t>(
+        (static_cast<uint32_t>(row) * height) / matrix.rows);
+    const size_t index = (static_cast<size_t>(ty) * width + tx) * 3;
+    output.red = pixels[index];
+    output.green = pixels[index + 1];
+    output.blue = pixels[index + 2];
 }
 
 uint8_t GetGlyphRow(char input, uint16_t row, const std::string& fontName) {
@@ -471,6 +550,7 @@ bool MatrixAnimationEngine::EvaluatePixel(
     output.intensity = Clamp01(intensity) * brightness;
     output.alpha = static_cast<uint8_t>(Clamp01(effect.opacity) * 255.0f);
     output.visible = output.intensity > 0.001f && output.alpha > 0;
+    ApplyCustomTexture(effect, matrix, column, row, output);
 
     return true;
 }
