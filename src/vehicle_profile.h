@@ -54,7 +54,10 @@ enum class LedMotionPattern : uint8_t {
     Pulse,
     AlternateRows,
     AlternateColumns,
-    Checkerboard
+    Checkerboard,
+    Windmill,
+    Spiral,
+    Starburst
 };
 
 enum class LedDirection : uint8_t {
