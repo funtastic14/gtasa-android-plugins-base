@@ -86,6 +86,14 @@ bool ReadPpmToken(const std::string& data, size_t& position, std::string& token)
     return !token.empty();
 }
 
+struct TextureCacheEntry {
+    std::string name;
+    uint8_t pixels[128 * 128 * 3] = {};
+    uint16_t width = 0;
+    uint16_t height = 0;
+    bool valid = false;
+};
+
 void ApplyCustomTexture(
     const LedEffectConfig& effect,
     const LedMatrixConfig& matrix,
@@ -93,17 +101,27 @@ void ApplyCustomTexture(
     uint16_t row,
     MatrixPixelOutput& output
 ) {
-    if (effect.textureName.empty() || matrix.columns == 0 || matrix.rows == 0)
+    if (effect.textureName.empty() || matrix.columns == 0 ||
+        matrix.rows == 0 || !output.visible)
         return;
-    static std::string cachedName;
-    static uint8_t pixels[128 * 128 * 3] = {};
-    static uint16_t width = 0;
-    static uint16_t height = 0;
-    static bool valid = false;
-    if (cachedName != effect.textureName) {
-        cachedName = effect.textureName;
-        valid = false;
-        width = height = 0;
+
+    // Four small fixed cache slots allow simultaneous effects to retain
+    // different textures without allocating memory during pixel rendering.
+    static TextureCacheEntry cache[4];
+    static uint32_t nextSlot = 0;
+    TextureCacheEntry* entry = nullptr;
+    for (size_t i = 0; i < 4; ++i) {
+        if (cache[i].name == effect.textureName) {
+            entry = &cache[i];
+            break;
+        }
+    }
+    if (entry == nullptr) {
+        entry = &cache[nextSlot++ % 4u];
+        entry->name = effect.textureName;
+        entry->valid = false;
+        entry->width = entry->height = 0;
+
         std::string data, token;
         if (ProfileStorage::LoadTexturePpm(effect.textureName, data)) {
             size_t pos = 0;
@@ -118,15 +136,22 @@ void ApplyCustomTexture(
                             maxValue > 0 && maxValue <= 255) {
                             bool ok = true;
                             for (int i = 0; i < w * h * 3; ++i) {
-                                if (!ReadPpmToken(data, pos, token)) { ok = false; break; }
+                                if (!ReadPpmToken(data, pos, token)) {
+                                    ok = false;
+                                    break;
+                                }
                                 const int value = std::atoi(token.c_str());
-                                if (value < 0 || value > maxValue) { ok = false; break; }
-                                pixels[i] = static_cast<uint8_t>((value * 255) / maxValue);
+                                if (value < 0 || value > maxValue) {
+                                    ok = false;
+                                    break;
+                                }
+                                entry->pixels[i] =
+                                    static_cast<uint8_t>((value * 255) / maxValue);
                             }
                             if (ok) {
-                                width = static_cast<uint16_t>(w);
-                                height = static_cast<uint16_t>(h);
-                                valid = true;
+                                entry->width = static_cast<uint16_t>(w);
+                                entry->height = static_cast<uint16_t>(h);
+                                entry->valid = true;
                             }
                         }
                     }
@@ -134,32 +159,51 @@ void ApplyCustomTexture(
             }
         }
     }
-    if (!valid || !output.visible)
+
+    if (!entry->valid)
         return;
     const uint16_t tx = static_cast<uint16_t>(
-        (static_cast<uint32_t>(column) * width) / matrix.columns);
+        (static_cast<uint32_t>(column) * entry->width) / matrix.columns);
     const uint16_t ty = static_cast<uint16_t>(
-        (static_cast<uint32_t>(row) * height) / matrix.rows);
-    const size_t index = (static_cast<size_t>(ty) * width + tx) * 3;
-    output.red = pixels[index];
-    output.green = pixels[index + 1];
-    output.blue = pixels[index + 2];
+        (static_cast<uint32_t>(row) * entry->height) / matrix.rows);
+    const size_t index =
+        (static_cast<size_t>(ty) * entry->width + tx) * 3;
+    output.red = entry->pixels[index];
+    output.green = entry->pixels[index + 1];
+    output.blue = entry->pixels[index + 2];
 }
 
-uint8_t GetGlyphRow(char input, uint16_t row, const std::string& fontName) {
-    static std::string cachedFontName;
-    static uint8_t customFont[95][7] = {};
-    static bool customFontValid = false;
-    if (fontName != cachedFontName) {
-        cachedFontName = fontName;
-        customFontValid = false;
+struct FontCacheEntry {
+    std::string name;
+    uint8_t glyphs[95][7] = {};
+    bool valid = false;
+};
+
+uint8_t GetGlyphRow(
+    char input,
+    uint16_t row,
+    const std::string& fontName
+) {
+    static FontCacheEntry cache[4];
+    static uint32_t nextSlot = 0;
+    FontCacheEntry* entry = nullptr;
+    for (size_t i = 0; i < 4; ++i) {
+        if (cache[i].name == fontName) {
+            entry = &cache[i];
+            break;
+        }
+    }
+    if (entry == nullptr) {
+        entry = &cache[nextSlot++ % 4u];
+        entry->name = fontName;
+        entry->valid = false;
         std::string bitmap;
         if (ProfileStorage::LoadFontBitmap(fontName, bitmap)) {
             std::string digits;
             digits.reserve(1330);
             for (char c : bitmap) {
-                if (std::isspace(static_cast<unsigned char>(c))) continue;
-                digits.push_back(c);
+                if (!std::isspace(static_cast<unsigned char>(c)))
+                    digits.push_back(c);
             }
             if (digits.size() == 1330) {
                 bool valid = true;
@@ -170,27 +214,41 @@ uint8_t GetGlyphRow(char input, uint16_t row, const std::string& fontName) {
                         for (size_t k = 0; k < 2; ++k) {
                             const char ch = digits[pos + k];
                             value <<= 4;
-                            if (ch >= '0' && ch <= '9') value |= static_cast<unsigned int>(ch - '0');
-                            else if (ch >= 'a' && ch <= 'f') value |= static_cast<unsigned int>(ch - 'a' + 10);
-                            else if (ch >= 'A' && ch <= 'F') value |= static_cast<unsigned int>(ch - 'A' + 10);
-                            else { valid = false; break; }
+                            if (ch >= '0' && ch <= '9')
+                                value |= static_cast<unsigned int>(ch - '0');
+                            else if (ch >= 'a' && ch <= 'f')
+                                value |= static_cast<unsigned int>(ch - 'a' + 10);
+                            else if (ch >= 'A' && ch <= 'F')
+                                value |= static_cast<unsigned int>(ch - 'A' + 10);
+                            else {
+                                valid = false;
+                                break;
+                            }
                         }
-                        if (!valid || value > 31u) { valid = false; break; }
-                        customFont[glyph][y] = static_cast<uint8_t>(value);
+                        if (!valid || value > 31u) {
+                            valid = false;
+                            break;
+                        }
+                        entry->glyphs[glyph][y] =
+                            static_cast<uint8_t>(value);
                     }
                 }
-                customFontValid = valid;
+                entry->valid = valid;
             }
         }
     }
-    if (customFontValid && row < 7) {
+
+    if (entry->valid && row < 7) {
         const unsigned char code = static_cast<unsigned char>(input);
         if (code >= 32 && code <= 126)
-            return customFont[code - 32][row];
+            return entry->glyphs[code - 32][row];
     }
     if (row >= 7)
         return 0;
-    char ch = static_cast<char>(std::toupper(static_cast<unsigned char>(input)));
+
+    const char ch = static_cast<char>(
+        std::toupper(static_cast<unsigned char>(input))
+    );
     static const uint8_t font[36][7] = {
         {14,17,19,21,25,17,14}, {4,12,4,4,4,4,14},
         {14,17,1,2,4,8,31}, {30,1,1,14,1,1,30},
