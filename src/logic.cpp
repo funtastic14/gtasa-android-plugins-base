@@ -932,7 +932,40 @@ static void RenderEditor() {
         }
         ImGui::TextWrapped("Motion controls the LED movement; Color Style controls only its palette.");
     } else if (effect.type == VLS::LedEffectType::StroboEyes) {
-        ImGui::TextWrapped("Eye movement and expressions use dedicated eye controls, separate from general LED motion patterns.");
+        ImGui::Separator();
+        ImGui::Text("STROBO EYES - Dedicated Eye Engine");
+        static const char* eyeShapeNames[] = {
+            "Classic", "Narrow", "Wide", "Round", "Cat Eye", "Square"
+        };
+        int eyeShape = static_cast<int>(effect.eyeShape);
+        if (ImGui::Combo("Eye Shape", &eyeShape, eyeShapeNames, 6)) {
+            effect.eyeShape = static_cast<VLS::EyeShape>(eyeShape);
+            changed = true;
+        }
+        static const char* eyeMotionNames[] = {
+            "Idle", "Look Left", "Look Right", "Look Up", "Look Down",
+            "Scan", "Wink", "Shake", "Rapid Blink"
+        };
+        int eyeMotion = static_cast<int>(effect.eyeMotion);
+        if (ImGui::Combo("Eye Motion", &eyeMotion, eyeMotionNames, 9)) {
+            effect.eyeMotion = static_cast<VLS::EyeMotion>(eyeMotion);
+            changed = true;
+        }
+        static const char* eyeExpressionNames[] = {
+            "Neutral", "Happy", "Angry", "Sad", "Surprised",
+            "Sleepy", "Love", "Evil"
+        };
+        int eyeExpression = static_cast<int>(effect.eyeExpression);
+        if (ImGui::Combo("Eye Expression", &eyeExpression, eyeExpressionNames, 8)) {
+            effect.eyeExpression = static_cast<VLS::EyeExpression>(eyeExpression);
+            changed = true;
+        }
+        int blinkInterval = static_cast<int>(effect.eyeBlinkIntervalMs);
+        if (ImGui::SliderInt("Blink Interval (ms)", &blinkInterval, 500, 8000)) {
+            effect.eyeBlinkIntervalMs = static_cast<uint32_t>(blinkInterval);
+            changed = true;
+        }
+        ImGui::TextWrapped("Eye shape, gaze, blinking and expression are controlled independently from general Motion Patterns.");
     } else if (effect.type == VLS::LedEffectType::RunningText) {
         ImGui::TextWrapped("Text scrolling, transitions and text patterns use dedicated text controls, separate from general LED motion patterns.");
     }
