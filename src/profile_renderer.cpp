@@ -383,8 +383,10 @@ static bool RenderMatrixEffect(
     const float cellWidth = effectiveWidth / static_cast<float>(columns);
     const float cellHeight = effectiveHeight / static_cast<float>(rows);
 
-    const float gapX = cellWidth * 0.12f;
-    const float gapZ = cellHeight * 0.12f;
+    const float matrixGap = motionFrame.pattern == LedMotionPattern::Checkerboard
+        ? 0.34f : 0.12f;
+    const float gapX = cellWidth * matrixGap;
+    const float gapZ = cellHeight * matrixGap;
 
     const float pixelWidth = cellWidth - gapX;
     const float pixelHeight = cellHeight - gapZ;

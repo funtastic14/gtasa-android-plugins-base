@@ -824,7 +824,7 @@ static bool ReadEffect(
     effect.eyeVisualStyle = static_cast<EyeVisualStyle>(eyeVisualStyle);
     effect.eyeBrowStyle = static_cast<EyeBrowStyle>(eyeBrowStyle);
 
-    if (!ReadInt(value, "motionPattern", motionPattern) || motionPattern < 0 || motionPattern > static_cast<int>(LedMotionPattern::DiagonalCenterBurst)) return false;
+    if (!ReadInt(value, "motionPattern", motionPattern) || motionPattern < 0 || motionPattern > static_cast<int>(LedMotionPattern::DoubleRebound)) return false;
     effect.motionPattern = static_cast<LedMotionPattern>(motionPattern);
     // Migrate profiles saved by the earlier modifier-based UI. A legacy
     // modifier becomes a first-class pattern; diagonal combinations retain
@@ -858,6 +858,8 @@ static bool ReadEffect(
         !ReadMatrix(*matrix, effect.matrix)) {
         return false;
     }
+    if (!ReadBool(value, "transparentMatrixBackground", effect.transparentMatrixBackground))
+        return false;
 
     return true;
 }
@@ -1391,6 +1393,8 @@ static bool AppendEffect(
 
     if (!AppendMatrix(output, effect.matrix))
         return false;
+    output += ",\"transparentMatrixBackground\":";
+    output += effect.transparentMatrixBackground ? "true" : "false";
 
     output += "}";
     return true;

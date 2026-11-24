@@ -2,6 +2,7 @@
 
 #include "vehicle_profile.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 
@@ -43,7 +44,7 @@ inline LedMotionPattern ResolveMotionPattern(
         return effect.motionPattern;
     const uint32_t interval = intervalMs < 500 ? 500 : intervalMs;
     const uint32_t step = timeMs / interval;
-    const uint32_t count = static_cast<uint32_t>(LedMotionPattern::DiagonalCenterBurst) + 1u;
+    const uint32_t count = static_cast<uint32_t>(LedMotionPattern::DoubleRebound) + 1u;
     if (playback == MotionPlaybackMode::Sequential)
         return static_cast<LedMotionPattern>(step % count);
     if (playback == MotionPlaybackMode::Automatic) {
@@ -58,6 +59,12 @@ inline LedMotionPattern ResolveMotionPattern(
             LedMotionPattern::OpposingArrows,
             LedMotionPattern::CenterCollision, LedMotionPattern::CenterBurst,
             LedMotionPattern::DiagonalCollision, LedMotionPattern::DiagonalCenterBurst,
+            LedMotionPattern::MultiCollision, LedMotionPattern::CrossBurst,
+            LedMotionPattern::RadialBurst, LedMotionPattern::PingPong,
+            LedMotionPattern::MirrorReflection, LedMotionPattern::ReflectiveWave,
+            LedMotionPattern::CollisionRebound, LedMotionPattern::CenterSplit,
+            LedMotionPattern::DualFlow, LedMotionPattern::MirroredDiagonal,
+            LedMotionPattern::DoubleRebound,
             LedMotionPattern::RightToLeft, LedMotionPattern::EdgeToCenter,
             LedMotionPattern::ZoomOut, LedMotionPattern::Flow
         };
@@ -192,6 +199,80 @@ inline float EvaluateMotionIntensity(
             std::fabs(radialDistance - front) * 13.0f);
         return 0.025f + 0.975f * wave;
     }
+    case LedMotionPattern::MultiCollision: {
+        const float edgeDistance = std::min(std::min(x, 1.0f - x), std::min(y, 1.0f - y));
+        if (phase < 0.62f) {
+            const float front = 0.5f * (1.0f - phase / 0.62f);
+            const float beam = clamp01(1.0f - std::fabs(edgeDistance - front) * 18.0f);
+            return 0.025f + 0.975f * beam;
+        }
+        if (phase < 0.72f) return 1.0f;
+        const float shock = (phase - 0.72f) / 0.28f;
+        return 0.025f + 0.975f * clamp01(1.0f - std::fabs(radius - shock) * 14.0f);
+    }
+    case LedMotionPattern::CrossBurst: {
+        const float front = phase * 0.5f;
+        const float horizontal = clamp01(1.0f - std::fabs(std::fabs(y - 0.5f) - front) * 20.0f);
+        const float vertical = clamp01(1.0f - std::fabs(std::fabs(x - 0.5f) - front) * 20.0f);
+        return 0.025f + 0.975f * std::max(horizontal, vertical);
+    }
+    case LedMotionPattern::RadialBurst: {
+        const float first = clamp01(1.0f - std::fabs(radius - phase) * 18.0f);
+        const float second = clamp01(1.0f - std::fabs(radius - (phase * 0.72f + 0.22f)) * 18.0f);
+        return 0.025f + 0.975f * std::max(first, second * 0.72f);
+    }
+    case LedMotionPattern::PingPong: {
+        const float travel = phase < 0.5f ? phase * 2.0f : (1.0f - phase) * 2.0f;
+        const float d = std::fabs(x - travel);
+        return d < 0.13f ? 1.0f - d / 0.13f : 0.035f;
+    }
+    case LedMotionPattern::MirrorReflection: {
+        const float unfolded = fract(phase * 2.0f + x);
+        const float reflected = unfolded < 0.5f ? unfolded * 2.0f : (1.0f - unfolded) * 2.0f;
+        const float d = std::fabs(reflected - 0.5f);
+        return clamp01(1.0f - d * 3.8f);
+    }
+    case LedMotionPattern::ReflectiveWave: {
+        const float standing = std::sin(x * PI2 * 3.0f) * std::cos(wavePhase * 1.5f);
+        const float moving = std::sin(x * PI2 * 2.0f - wavePhase);
+        return 0.08f + 0.92f * (0.5f + 0.25f * standing + 0.25f * moving);
+    }
+    case LedMotionPattern::CollisionRebound: {
+        if (phase < 0.34f) {
+            const float front = 0.5f * (1.0f - phase / 0.34f);
+            return 0.025f + 0.975f * clamp01(1.0f - std::fabs(std::fabs(x - 0.5f) - front) * 22.0f);
+        }
+        if (phase < 0.43f) return 1.0f;
+        const float reboundPhase = (phase - 0.43f) / 0.57f;
+        const float front = reboundPhase < 0.62f
+            ? reboundPhase / 0.62f * 0.5f
+            : (1.0f - (reboundPhase - 0.62f) / 0.38f) * 0.5f;
+        return 0.025f + 0.975f * clamp01(1.0f - std::fabs(std::fabs(x - 0.5f) - front) * 18.0f);
+    }
+    case LedMotionPattern::CenterSplit: {
+        const float front = phase * 0.5f;
+        const float d = std::fabs(std::fabs(x - 0.5f) - front);
+        return d < 0.12f ? 1.0f - d / 0.12f : 0.03f;
+    }
+    case LedMotionPattern::DualFlow: {
+        const float left = fract(x * 2.0f - phase * 2.0f);
+        const float right = fract((1.0f - x) * 2.0f - phase * 2.0f);
+        const float a = left < 0.24f ? 1.0f - left / 0.24f : 0.04f;
+        const float b = right < 0.24f ? 1.0f - right / 0.24f : 0.04f;
+        return std::max(a, b);
+    }
+    case LedMotionPattern::MirroredDiagonal: {
+        const float axis = x < 0.5f ? (x + y) * 0.5f : ((1.0f - x) + y) * 0.5f;
+        const float d = fract(phase - axis);
+        return d < 0.22f ? 1.0f - d / 0.22f : 0.035f;
+    }
+    case LedMotionPattern::DoubleRebound: {
+        const float triangle = phase < 0.25f ? phase * 4.0f :
+            (phase < 0.5f ? 1.0f - (phase - 0.25f) * 4.0f :
+             (phase < 0.75f ? (phase - 0.5f) * 4.0f : 1.0f - (phase - 0.75f) * 4.0f));
+        const float d = std::fabs(x - triangle);
+        return d < 0.11f ? 1.0f - d / 0.11f : 0.03f;
+    }
     case LedMotionPattern::Ripple:
         return 0.5f + 0.5f * std::sin(radius * 18.0f - wavePhase * 2.0f);
     case LedMotionPattern::Pulse:
@@ -248,14 +329,24 @@ inline float EvaluateMotionIntensity(
         // Full-matrix arrow field: repeated arrow glyphs occupy the whole
         // matrix. The glyph field itself translates, rather than merely
         // animating color inside one stationary arrow.
-        const auto arrowShape = [](float u, float v) {
-            // Slightly thicker shaft and a broad triangular head so the
-            // arrow remains legible on low-resolution LED matrices.
-            const bool shaft = u >= 0.04f && u <= 0.70f &&
-                std::fabs(v - 0.5f) <= 0.105f;
-            const bool head = u >= 0.55f && u <= 0.98f &&
-                std::fabs(v - 0.5f) <= (0.98f - u) * 0.88f + 0.015f;
-            return shaft || head;
+        const auto lineDistance = [](float px, float py, float ax, float ay, float bx, float by) {
+            const float vx = bx - ax, vy = by - ay;
+            const float wx = px - ax, wy = py - ay;
+            const float length2 = vx * vx + vy * vy;
+            const float t = length2 > 0.0001f
+                ? clamp01((wx * vx + wy * vy) / length2) : 0.0f;
+            const float dxLine = px - (ax + t * vx);
+            const float dyLine = py - (ay + t * vy);
+            return std::sqrt(dxLine * dxLine + dyLine * dyLine);
+        };
+        const auto arrowShape = [&](float u, float v) {
+            const float upper = lineDistance(u, v, 0.16f, 0.12f, 0.84f, 0.50f);
+            const float lower = lineDistance(u, v, 0.84f, 0.50f, 0.16f, 0.88f);
+            const float first = std::min(upper, lower);
+            const float innerUpper = lineDistance(u, v, 0.38f, 0.12f, 0.94f, 0.50f);
+            const float innerLower = lineDistance(u, v, 0.94f, 0.50f, 0.38f, 0.88f);
+            const float second = std::min(innerUpper, innerLower);
+            return first < 0.095f || (columns >= 20u && second < 0.075f);
         };
 
         // Select a compact grid based on the actual matrix resolution.

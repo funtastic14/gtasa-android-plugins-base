@@ -859,8 +859,8 @@ static void RenderEditor() {
             g_runningTextKeyboardOpen = !g_runningTextKeyboardOpen;
         DrawRunningTextKeyboard(effect, changed);
         changed |= ImGui::SliderFloat("Text Spacing", &effect.textSpacing, 0.25f, 3.0f);
-        changed |= ImGui::SliderFloat("Font Size", &effect.textScale, 0.05f, 2.0f);
-        ImGui::TextWrapped("Font Size scales the glyphs independently from vehicle Position XYZ. Reduce it to fit longer messages on one horizontal line; increase Matrix Columns when more LED resolution is needed.");
+        changed |= ImGui::SliderFloat("Font Size", &effect.textScale, 0.35f, 2.0f);
+        ImGui::TextWrapped("For clear small text, keep Font Size around 0.65 or higher. Very small glyphs merge because each LED is one physical pixel; increase Matrix Columns for finer detail.");
         if (g_runningFontBufferEffect != &effect) {
             std::memset(g_runningFontBuffer, 0, sizeof(g_runningFontBuffer));
             std::strncpy(g_runningFontBuffer, effect.fontName.c_str(), sizeof(g_runningFontBuffer) - 1);
@@ -942,16 +942,19 @@ static void RenderEditor() {
             "Alternate Rows", "Alternate Columns", "Checkerboard",
             "Windmill", "Spiral", "Starburst", "Laser Write", "Laser Weld",
             "Arrow Left", "Arrow Right", "Arrow Up", "Arrow Down", "Opposing Arrows",
-            "Center Collision", "Center Burst", "Diagonal + Collision", "Diagonal + Center Burst"
+            "Center Collision", "Center Burst", "Diagonal + Collision", "Diagonal + Center Burst",
+            "Multi Collision", "Cross Burst", "Radial Burst", "Ping-Pong",
+            "Mirror Reflection", "Reflective Wave", "Collision Rebound", "Center Split",
+            "Dual Flow", "Mirrored Diagonal", "Double Rebound"
         };
         int motionIndex = static_cast<int>(effect.motionPattern);
-        if (ImGui::Combo("Motion Pattern", &motionIndex, motionNames, 31)) {
+        if (ImGui::Combo("Motion Pattern", &motionIndex, motionNames, 42)) {
             if (motionIndex < 0) motionIndex = 0;
-            if (motionIndex > 30) motionIndex = 30;
+            if (motionIndex > 41) motionIndex = 41;
             effect.motionPattern = static_cast<VLS::LedMotionPattern>(motionIndex);
             changed = true;
         }
-        ImGui::TextWrapped("Collision patterns move two fronts toward one another, create an impact flash, then send a shockwave outward. Center Burst expands from the center; diagonal variants use a diagonal approach or ignition sweep.");
+        ImGui::TextWrapped("Collision / Burst: Multi Collision, Cross Burst and Radial Burst add intersecting or expanding fronts. Rebound patterns bounce after impact; Reflection patterns reverse or mirror their wave direction.");
         ImGui::TextWrapped("Laser Write draws a moving beam with a fading trace. Laser Weld adds a hot core and spark-like trail. Color Style controls the beam palette.");
     } else if (effect.type == VLS::LedEffectType::StroboEyes) {
         ImGui::Separator();
@@ -1011,6 +1014,12 @@ static void RenderEditor() {
     } else if (effect.type == VLS::LedEffectType::RunningText) {
         ImGui::TextWrapped("Text scrolling, transitions and text patterns use dedicated text controls, separate from general LED motion patterns.");
     }
+
+    if (effect.matrix.enabled &&
+        ImGui::Checkbox("Transparent Matrix Background", &effect.transparentMatrixBackground)) {
+        changed = true;
+    }
+    ImGui::TextWrapped("When enabled, dim/off matrix cells are skipped so the black inner background becomes transparent.");
 
     float opacity = effect.opacity;
     if (ImGui::SliderFloat("LED Transparency (0=hidden, 1=solid)", &opacity, 0.0f, 1.0f)) {

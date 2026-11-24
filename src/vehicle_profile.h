@@ -136,7 +136,18 @@ enum class LedMotionPattern : uint8_t {
     CenterCollision,
     CenterBurst,
     DiagonalCollision,
-    DiagonalCenterBurst
+    DiagonalCenterBurst,
+    MultiCollision,
+    CrossBurst,
+    RadialBurst,
+    PingPong,
+    MirrorReflection,
+    ReflectiveWave,
+    CollisionRebound,
+    CenterSplit,
+    DualFlow,
+    MirroredDiagonal,
+    DoubleRebound
 };
 
 enum class MotionPlaybackMode : uint8_t {
@@ -301,6 +312,8 @@ struct LedEffectConfig {
 
     // Konfigurasi matriks untuk efek ini.
     LedMatrixConfig matrix;
+    // Skip dim/off matrix cells so the vehicle surface remains visible behind them.
+    bool transparentMatrixBackground = false;
 };
 
 // Satu titik pemasangan LED.

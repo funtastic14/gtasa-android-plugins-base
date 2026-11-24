@@ -294,11 +294,12 @@ bool IsGlyphPixelCovered(
     const float pixelRight = pixelLeft + 1.0f;
     const float pixelBottom = pixelTop + 1.0f;
     const float epsilon = 0.0001f;
-
-    int firstColumn = static_cast<int>(std::floor(pixelLeft / glyphStep));
-    int lastColumn = static_cast<int>(std::floor((pixelRight - epsilon) / glyphStep));
-    int firstRow = static_cast<int>(std::floor(pixelTop / glyphStep));
-    int lastRow = static_cast<int>(std::floor((pixelBottom - epsilon) / glyphStep));
+    const float strokeBoost = glyphStep < 1.0f
+        ? (1.0f - glyphStep) * 0.18f : 0.0f;
+    int firstColumn = static_cast<int>(std::floor((pixelLeft - strokeBoost) / glyphStep));
+    int lastColumn = static_cast<int>(std::floor((pixelRight + strokeBoost - epsilon) / glyphStep));
+    int firstRow = static_cast<int>(std::floor((pixelTop - strokeBoost) / glyphStep));
+    int lastRow = static_cast<int>(std::floor((pixelBottom + strokeBoost - epsilon) / glyphStep));
 
     if (firstColumn < 0) firstColumn = 0;
     if (firstRow < 0) firstRow = 0;
@@ -310,16 +311,16 @@ bool IsGlyphPixelCovered(
     // Area-aware nearest-cell sampling: when glyph cells are smaller than one
     // LED pixel, retain any lit source cell covered by that output pixel.
     for (int glyphRow = firstRow; glyphRow <= lastRow; ++glyphRow) {
-        const float rowTop = static_cast<float>(glyphRow) * glyphStep;
-        const float rowBottom = rowTop + glyphStep;
+        const float rowTop = static_cast<float>(glyphRow) * glyphStep - strokeBoost;
+        const float rowBottom = static_cast<float>(glyphRow + 1) * glyphStep + strokeBoost;
         if (rowBottom <= pixelTop || rowTop >= pixelBottom)
             continue;
         const uint8_t bits = GetGlyphRow(
             character, static_cast<uint16_t>(glyphRow), fontName
         );
         for (int glyphColumn = firstColumn; glyphColumn <= lastColumn; ++glyphColumn) {
-            const float columnLeft = static_cast<float>(glyphColumn) * glyphStep;
-            const float columnRight = columnLeft + glyphStep;
+            const float columnLeft = static_cast<float>(glyphColumn) * glyphStep - strokeBoost;
+            const float columnRight = static_cast<float>(glyphColumn + 1) * glyphStep + strokeBoost;
             if (columnRight <= pixelLeft || columnLeft >= pixelRight)
                 continue;
             if ((bits & (1u << (4 - glyphColumn))) != 0u)
@@ -656,9 +657,18 @@ bool MatrixAnimationEngine::EvaluatePixel(
             const uint32_t blinkInterval =
                 effect.eyeBlinkIntervalMs < 500 ? 500 : effect.eyeBlinkIntervalMs;
             const float blinkPhase = std::fmod(t, static_cast<float>(blinkInterval));
-            bool blinking = blinkPhase < 135.0f ||
-                (blinkPhase > static_cast<float>(blinkInterval) * 0.68f &&
-                 blinkPhase < static_cast<float>(blinkInterval) * 0.68f + 115.0f);
+            float blinkAmount = 0.0f;
+            const auto blinkEnvelope = [](float elapsed, float duration) {
+                const float p = Clamp01(elapsed / duration);
+                const float triangle = 1.0f - std::fabs(2.0f * p - 1.0f);
+                return triangle * triangle * (3.0f - 2.0f * triangle);
+            };
+            if (blinkPhase < 170.0f)
+                blinkAmount = blinkEnvelope(blinkPhase, 170.0f);
+            const float secondBlinkStart = static_cast<float>(blinkInterval) * 0.68f;
+            if (blinkPhase >= secondBlinkStart && blinkPhase < secondBlinkStart + 150.0f)
+                blinkAmount = std::max(blinkAmount,
+                    blinkEnvelope(blinkPhase - secondBlinkStart, 150.0f));
             // Motif selection is now part of Eye Motion. Do not let the legacy
             // timed transformation setting replace the selected motif.
 
@@ -679,13 +689,17 @@ bool MatrixAnimationEngine::EvaluatePixel(
                 const bool winkLeft = winkCycle < 420u;
                 const bool winkRight = winkCycle >= 2400u &&
                                        winkCycle < 2820u;
-                blinking = blinking || (leftEye ? winkLeft : winkRight);
+                if (leftEye ? winkLeft : winkRight)
+                    blinkAmount = 1.0f;
                 break;
             }
             case EyeMotion::Shake: gazeX = std::sin(t / 85.0f) * 0.30f; break;
-            case EyeMotion::RapidBlink:
-                blinking = std::fmod(t, 720.0f) < 115.0f;
+            case EyeMotion::RapidBlink: {
+                const float rapidPhase = std::fmod(t, 720.0f);
+                blinkAmount = rapidPhase < 150.0f
+                    ? blinkEnvelope(rapidPhase, 150.0f) : 0.0f;
                 break;
+            }
             case EyeMotion::Sharingan:
             case EyeMotion::Mangekyou:
             case EyeMotion::Rinnegan:
@@ -736,9 +750,11 @@ bool MatrixAnimationEngine::EvaluatePixel(
                 green = effect.eyeBrowGreen;
                 blue = effect.eyeBrowBlue;
                 intensity = 1.0f;
-            } else if (blinking) {
-                intensity = insideEye && std::fabs(dy - 0.05f) < 0.10f
-                    ? 0.9f : 0.0f;
+            } else if (blinkAmount > 0.01f) {
+                const float lidOpening = 1.0f - blinkAmount;
+                const float lidBand = 0.025f + lidOpening * 0.72f;
+                intensity = insideEye && std::fabs(dy - 0.05f) < lidBand
+                    ? 0.52f + lidOpening * 0.38f : 0.0f;
             } else if (insideEye) {
                 if ((activeExpression == EyeExpression::Love && heartPupil) ||
                     (activeExpression != EyeExpression::Love &&
@@ -1080,6 +1096,8 @@ bool MatrixAnimationEngine::EvaluatePixel(
     output.blue = blue;
     output.intensity = Clamp01(intensity) * brightness;
     output.alpha = static_cast<uint8_t>(Clamp01(effect.opacity) * 255.0f);
+    if (effect.transparentMatrixBackground && intensity <= 0.055f)
+        output.alpha = 0;
     output.visible = output.intensity > 0.001f && output.alpha > 0;
     ApplyCustomTexture(effect, matrix, column, row, output);
 
