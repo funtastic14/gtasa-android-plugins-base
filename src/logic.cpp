@@ -932,12 +932,13 @@ static void RenderEditor() {
             "Zoom In", "Zoom Out", "Fade In", "Fade Out", "Rolling",
             "Flow", "Wave", "Diagonal", "Ripple", "Pulse",
             "Alternate Rows", "Alternate Columns", "Checkerboard",
-            "Windmill", "Spiral", "Starburst", "Laser Write", "Laser Weld"
+            "Windmill", "Spiral", "Starburst", "Laser Write", "Laser Weld",
+            "Arrow Left", "Arrow Right", "Arrow Up", "Arrow Down", "Opposing Arrows"
         };
         int motionIndex = static_cast<int>(effect.motionPattern);
-        if (ImGui::Combo("Motion Pattern", &motionIndex, motionNames, 22)) {
+        if (ImGui::Combo("Motion Pattern", &motionIndex, motionNames, 27)) {
             if (motionIndex < 0) motionIndex = 0;
-            if (motionIndex > 21) motionIndex = 21;
+            if (motionIndex > 26) motionIndex = 26;
             effect.motionPattern = static_cast<VLS::LedMotionPattern>(motionIndex);
             changed = true;
         }
