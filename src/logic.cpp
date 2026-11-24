@@ -859,7 +859,7 @@ static void RenderEditor() {
             g_runningTextKeyboardOpen = !g_runningTextKeyboardOpen;
         DrawRunningTextKeyboard(effect, changed);
         changed |= ImGui::SliderFloat("Text Spacing", &effect.textSpacing, 0.25f, 3.0f);
-        changed |= ImGui::SliderFloat("Font Size", &effect.textScale, 0.15f, 2.0f);
+        changed |= ImGui::SliderFloat("Font Size", &effect.textScale, 0.05f, 2.0f);
         ImGui::TextWrapped("Font Size scales the glyphs independently from vehicle Position XYZ. Reduce it to fit longer messages on one horizontal line; increase Matrix Columns when more LED resolution is needed.");
         if (g_runningFontBufferEffect != &effect) {
             std::memset(g_runningFontBuffer, 0, sizeof(g_runningFontBuffer));

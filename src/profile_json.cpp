@@ -1036,7 +1036,7 @@ static bool ValidateProfileReferences(
                 effect.textSpacing < 0.25f ||
                 effect.textSpacing > 4.0f ||
                 !std::isfinite(effect.textScale) ||
-                effect.textScale < 0.1f || effect.textScale > 3.0f ||
+                effect.textScale < 0.05f || effect.textScale > 3.0f ||
                 effect.text.size() > 128) {
                 return false;
             }

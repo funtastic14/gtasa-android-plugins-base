@@ -280,6 +280,55 @@ uint8_t GetGlyphRow(
     return row == 0 || row == 6 ? 31 : 17;
 }
 
+
+bool IsGlyphPixelCovered(
+    char character,
+    float pixelLeft,
+    float pixelTop,
+    float glyphStep,
+    const std::string& fontName
+) {
+    if (glyphStep <= 0.0f)
+        return false;
+
+    const float pixelRight = pixelLeft + 1.0f;
+    const float pixelBottom = pixelTop + 1.0f;
+    const float epsilon = 0.0001f;
+
+    int firstColumn = static_cast<int>(std::floor(pixelLeft / glyphStep));
+    int lastColumn = static_cast<int>(std::floor((pixelRight - epsilon) / glyphStep));
+    int firstRow = static_cast<int>(std::floor(pixelTop / glyphStep));
+    int lastRow = static_cast<int>(std::floor((pixelBottom - epsilon) / glyphStep));
+
+    if (firstColumn < 0) firstColumn = 0;
+    if (firstRow < 0) firstRow = 0;
+    if (lastColumn > 4) lastColumn = 4;
+    if (lastRow > 6) lastRow = 6;
+    if (firstColumn > 4 || firstRow > 6 || lastColumn < 0 || lastRow < 0)
+        return false;
+
+    // Area-aware nearest-cell sampling: when glyph cells are smaller than one
+    // LED pixel, retain any lit source cell covered by that output pixel.
+    for (int glyphRow = firstRow; glyphRow <= lastRow; ++glyphRow) {
+        const float rowTop = static_cast<float>(glyphRow) * glyphStep;
+        const float rowBottom = rowTop + glyphStep;
+        if (rowBottom <= pixelTop || rowTop >= pixelBottom)
+            continue;
+        const uint8_t bits = GetGlyphRow(
+            character, static_cast<uint16_t>(glyphRow), fontName
+        );
+        for (int glyphColumn = firstColumn; glyphColumn <= lastColumn; ++glyphColumn) {
+            const float columnLeft = static_cast<float>(glyphColumn) * glyphStep;
+            const float columnRight = columnLeft + glyphStep;
+            if (columnRight <= pixelLeft || columnLeft >= pixelRight)
+                continue;
+            if ((bits & (1u << (4 - glyphColumn))) != 0u)
+                return true;
+        }
+    }
+    return false;
+}
+
 EyeMotion ResolveEyeMotion(
     const LedEffectConfig& effect,
     uint32_t timeMs
@@ -810,7 +859,7 @@ bool MatrixAnimationEngine::EvaluatePixel(
     }
 
     case LedEffectType::RunningText: {
-        if (effect.text.empty() || matrix.rows < 7 || matrix.columns < 5)
+        if (effect.text.empty())
             return true;
 
         const float spacing = effect.textSpacing < 0.25f ? 0.25f : effect.textSpacing;
@@ -863,22 +912,24 @@ bool MatrixAnimationEngine::EvaluatePixel(
         }
 
         if (!vertical) {
-            // Horizontal scrolling: the complete message shares one origin.
+            // Horizontal text is centered vertically and scaled on both axes.
+            // Each output LED samples the source glyph area it actually covers,
+            // preventing thin strokes/colors from vanishing below 1x scale.
             const float localX = static_cast<float>(column) - textOrigin;
-            if (localX >= 0.0f && localX < textWidth) {
+            const float verticalOrigin =
+                (static_cast<float>(matrix.rows) - textHeight) * 0.5f;
+            const float localY = static_cast<float>(row) - verticalOrigin;
+            if (localX >= 0.0f && localX < textWidth &&
+                localY >= 0.0f && localY < textHeight) {
                 const size_t charIndex =
                     static_cast<size_t>(localX / charWidth);
-                const float within = localX -
+                const float withinX = localX -
                     static_cast<float>(charIndex) * charWidth;
-                const int glyphColumn =
-                    static_cast<int>(within / glyphStep);
-                if (charIndex < effect.text.size() &&
-                    glyphColumn >= 0 && glyphColumn < 5) {
-                    const uint8_t bits = GetGlyphRow(
-                        effect.text[charIndex], row, effect.fontName
-                    );
-                    intensity = (bits & (1u << (4 - glyphColumn)))
-                        ? 1.0f : 0.0f;
+                if (charIndex < effect.text.size() && withinX < 5.0f * glyphStep) {
+                    intensity = IsGlyphPixelCovered(
+                        effect.text[charIndex], withinX, localY,
+                        glyphStep, effect.fontName
+                    ) ? 1.0f : 0.0f;
                 } else {
                     intensity = 0.0f;
                 }
@@ -901,20 +952,11 @@ bool MatrixAnimationEngine::EvaluatePixel(
                     static_cast<size_t>(localX / charWidth);
                 const float withinX =
                     localX - static_cast<float>(charIndex) * charWidth;
-                const int glyphColumn =
-                    static_cast<int>(withinX / glyphStep);
-                const int glyphRow =
-                    static_cast<int>(localY / glyphStep);
-                if (charIndex < effect.text.size() &&
-                    glyphColumn >= 0 && glyphColumn < 5 &&
-                    glyphRow >= 0 && glyphRow < 7) {
-                    const uint8_t bits = GetGlyphRow(
-                        effect.text[charIndex],
-                        static_cast<uint16_t>(glyphRow),
-                        effect.fontName
-                    );
-                    intensity = (bits & (1u << (4 - glyphColumn)))
-                        ? 1.0f : 0.0f;
+                if (charIndex < effect.text.size() && withinX < 5.0f * glyphStep) {
+                    intensity = IsGlyphPixelCovered(
+                        effect.text[charIndex], withinX, localY,
+                        glyphStep, effect.fontName
+                    ) ? 1.0f : 0.0f;
                 } else {
                     intensity = 0.0f;
                 }
