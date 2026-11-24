@@ -731,7 +731,6 @@ static bool ReadEffect(
 
     int colorMode = static_cast<int>(effect.colorMode);
     int motionPattern = static_cast<int>(effect.motionPattern);
-    int motionModifier = static_cast<int>(effect.motionModifier);
     if (!ReadInt(value, "colorMode", colorMode) ||
         colorMode < 0 || colorMode > static_cast<int>(LedColorMode::Alternating) ||
         !ReadUInt8(value, "secondaryRed", effect.secondaryRed) ||
@@ -825,13 +824,26 @@ static bool ReadEffect(
     effect.eyeVisualStyle = static_cast<EyeVisualStyle>(eyeVisualStyle);
     effect.eyeBrowStyle = static_cast<EyeBrowStyle>(eyeBrowStyle);
 
-    if (!ReadInt(value, "motionPattern", motionPattern) || motionPattern < 0 || motionPattern > static_cast<int>(LedMotionPattern::OpposingArrows)) return false;
+    if (!ReadInt(value, "motionPattern", motionPattern) || motionPattern < 0 || motionPattern > static_cast<int>(LedMotionPattern::DiagonalCenterBurst)) return false;
     effect.motionPattern = static_cast<LedMotionPattern>(motionPattern);
+    // Migrate profiles saved by the earlier modifier-based UI. A legacy
+    // modifier becomes a first-class pattern; diagonal combinations retain
+    // their intended diagonal character.
     const char* modifierKey = Find(value, "motionModifier") ? "motionModifier" : "motionTransition";
-    if (Find(value, modifierKey) &&
-        (!ReadInt(value, modifierKey, motionModifier) ||
-         motionModifier < 0 || motionModifier > static_cast<int>(LedMotionModifier::CenterBurst))) return false;
-    effect.motionModifier = static_cast<LedMotionModifier>(motionModifier);
+    int legacyModifier = 0;
+    if (Find(value, modifierKey)) {
+        if (!ReadInt(value, modifierKey, legacyModifier) || legacyModifier < 0 || legacyModifier > 2)
+            return false;
+        if (motionPattern <= static_cast<int>(LedMotionPattern::OpposingArrows)) {
+            if (legacyModifier == 1) {
+                effect.motionPattern = motionPattern == static_cast<int>(LedMotionPattern::Diagonal)
+                    ? LedMotionPattern::DiagonalCollision : LedMotionPattern::CenterCollision;
+            } else if (legacyModifier == 2) {
+                effect.motionPattern = motionPattern == static_cast<int>(LedMotionPattern::Diagonal)
+                    ? LedMotionPattern::DiagonalCenterBurst : LedMotionPattern::CenterBurst;
+            }
+        }
+    }
     int motionPlayback = static_cast<int>(effect.motionPlayback);
     if (!ReadInt(value, "motionPlayback", motionPlayback) || motionPlayback < 0 || motionPlayback > static_cast<int>(MotionPlaybackMode::Random)) return false;
     effect.motionPlayback = static_cast<MotionPlaybackMode>(motionPlayback);
@@ -1290,8 +1302,6 @@ static bool AppendEffect(
     AppendInt(output, static_cast<int>(effect.colorMode));
     output += ",\"motionPattern\":";
     AppendInt(output, static_cast<int>(effect.motionPattern));
-    output += ",\"motionModifier\":";
-    AppendInt(output, static_cast<int>(effect.motionModifier));
     output += ",\"motionPlayback\":";
     AppendInt(output, static_cast<int>(effect.motionPlayback));
     output += ",\"motionIntervalMs\":";

@@ -1007,8 +1007,7 @@ bool MatrixAnimationEngine::EvaluatePixel(
         const float motionY = effect.type == LedEffectType::RunningText && verticalText ? x : y;
         intensity *= EvaluateMotionIntensity(
             activePattern, motionX, motionY, phase,
-            column, row, matrix.columns, matrix.rows,
-            localMotionFrame.modifier
+            column, row, matrix.columns, matrix.rows
         );
     }
 

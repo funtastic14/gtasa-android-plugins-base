@@ -43,7 +43,7 @@ inline LedMotionPattern ResolveMotionPattern(
         return effect.motionPattern;
     const uint32_t interval = intervalMs < 500 ? 500 : intervalMs;
     const uint32_t step = timeMs / interval;
-    const uint32_t count = static_cast<uint32_t>(LedMotionPattern::OpposingArrows) + 1u;
+    const uint32_t count = static_cast<uint32_t>(LedMotionPattern::DiagonalCenterBurst) + 1u;
     if (playback == MotionPlaybackMode::Sequential)
         return static_cast<LedMotionPattern>(step % count);
     if (playback == MotionPlaybackMode::Automatic) {
@@ -56,6 +56,8 @@ inline LedMotionPattern ResolveMotionPattern(
             LedMotionPattern::ArrowLeft, LedMotionPattern::ArrowRight,
             LedMotionPattern::ArrowUp, LedMotionPattern::ArrowDown,
             LedMotionPattern::OpposingArrows,
+            LedMotionPattern::CenterCollision, LedMotionPattern::CenterBurst,
+            LedMotionPattern::DiagonalCollision, LedMotionPattern::DiagonalCenterBurst,
             LedMotionPattern::RightToLeft, LedMotionPattern::EdgeToCenter,
             LedMotionPattern::ZoomOut, LedMotionPattern::Flow
         };
@@ -89,11 +91,10 @@ inline MotionFrameState BuildMotionFrameState(
     state.cycleIndex = timeMs / state.intervalMs;
     state.phase = GetMotionPhase(timeMs, effect.speed);
     state.pattern = ResolveMotionPattern(effect, timeMs, playback, state.intervalMs);
-    state.modifier = effect.motionModifier;
     return state;
 }
 
-inline float EvaluateBaseMotionIntensity(
+inline float EvaluateMotionIntensity(
     LedMotionPattern pattern,
     float x,
     float y,
@@ -150,6 +151,46 @@ inline float EvaluateBaseMotionIntensity(
     case LedMotionPattern::Diagonal: {
         const float d = fract(phase - fract(x + y));
         return d < 0.25f ? 1.0f - d / 0.25f : 0.03f;
+    }
+    case LedMotionPattern::CenterCollision:
+    case LedMotionPattern::DiagonalCollision: {
+        // Two opposing fronts converge on the center, flash at impact,
+        // then send one expanding shockwave back along the same axis.
+        const float axis = pattern == LedMotionPattern::DiagonalCollision
+            ? (x + y) * 0.5f : x;
+        const float distanceFromCenter = std::fabs(axis - 0.5f);
+        if (phase < 0.68f) {
+            const float front = 0.5f * (1.0f - phase / 0.68f);
+            const float beam = clamp01(1.0f -
+                std::fabs(distanceFromCenter - front) * 20.0f);
+            return 0.025f + 0.975f * beam;
+        }
+        if (phase < 0.78f) {
+            const float flashPhase = (phase - 0.68f) / 0.10f;
+            return 0.35f + 0.65f * (0.5f + 0.5f *
+                std::sin(flashPhase * PI2));
+        }
+        const float shockPhase = (phase - 0.78f) / 0.22f;
+        const float shockFront = shockPhase * 0.5f;
+        const float shock = clamp01(1.0f -
+            std::fabs(distanceFromCenter - shockFront) * 17.0f);
+        return 0.025f + 0.975f * shock;
+    }
+    case LedMotionPattern::CenterBurst:
+    case LedMotionPattern::DiagonalCenterBurst: {
+        // A center-originating wave expands outward. The diagonal variant
+        // adds a moving diagonal ignition sweep before the radial burst.
+        const float radialDistance = std::sqrt(dx * dx + dy * dy) * 1.41421356f;
+        if (pattern == LedMotionPattern::DiagonalCenterBurst && phase < 0.28f) {
+            const float sweep = fract(phase / 0.28f - fract(x + y));
+            return sweep < 0.18f ? 1.0f - sweep / 0.18f : 0.025f;
+        }
+        const float burstPhase = pattern == LedMotionPattern::DiagonalCenterBurst
+            ? (phase - 0.28f) / 0.72f : phase;
+        const float front = burstPhase;
+        const float wave = clamp01(1.0f -
+            std::fabs(radialDistance - front) * 13.0f);
+        return 0.025f + 0.975f * wave;
     }
     case LedMotionPattern::Ripple:
         return 0.5f + 0.5f * std::sin(radius * 18.0f - wavePhase * 2.0f);
@@ -306,76 +347,6 @@ inline float EvaluateBaseMotionIntensity(
     (void)columns;
     (void)rows;
     return 1.0f;
-}
-
-inline float EvaluateMotionModifier(
-    LedMotionModifier modifier,
-    float x,
-    float y,
-    float phase
-) {
-    constexpr float PI2 = 6.28318530717958647692f;
-    const auto clamp01 = [](float value) {
-        return value < 0.0f ? 0.0f : (value > 1.0f ? 1.0f : value);
-    };
-    const float distanceFromCenter = std::fabs(x - 0.5f);
-    switch (modifier) {
-    case LedMotionModifier::CenterCollision:
-        // Two fronts converge, produce a center impact flash, then a short
-        // expanding shockwave. Evaluated as a modifier of the selected field.
-        if (phase < 0.72f) {
-            const float front = 0.5f * (1.0f - phase / 0.72f);
-            const float beam = clamp01(1.0f -
-                std::fabs(distanceFromCenter - front) * 18.0f);
-            return 0.025f + 0.975f * beam;
-        }
-        if (phase < 0.82f) {
-            const float flash = 0.5f + 0.5f * std::sin(
-                (phase - 0.72f) * PI2 / 0.10f);
-            return 0.35f + 0.65f * flash;
-        }
-        {
-            const float burst = (phase - 0.82f) / 0.18f;
-            const float front = burst * 0.5f;
-            const float wave = clamp01(1.0f -
-                std::fabs(distanceFromCenter - front) * 15.0f);
-            return 0.035f + 0.965f * wave;
-        }
-    case LedMotionModifier::CenterBurst: {
-        const float radius = std::sqrt(
-            (x - 0.5f) * (x - 0.5f) + (y - 0.5f) * (y - 0.5f));
-        const float front = phase * 0.70710678f;
-        const float wave = clamp01(1.0f - std::fabs(radius - front) * 14.0f);
-        return 0.025f + 0.975f * wave;
-    }
-    case LedMotionModifier::None:
-    default:
-        return 1.0f;
-    }
-}
-
-
-inline float EvaluateMotionIntensity(
-    LedMotionPattern pattern,
-    float x,
-    float y,
-    float phase,
-    uint16_t column,
-    uint16_t row,
-    uint16_t columns,
-    uint16_t rows,
-    LedMotionModifier modifier
-) {
-    // The selected base pattern and modifier form one spatial field and
-    // produce one intensity result per LED pixel. Collision/Burst never
-    // create a second render pass or an additional LED layer.
-    const float base = EvaluateBaseMotionIntensity(
-        pattern, x, y, phase, column, row, columns, rows
-    );
-    const float modifierField = EvaluateMotionModifier(
-        modifier, x, y, phase
-    );
-    return base * modifierField;
 }
 
 } // namespace VLS

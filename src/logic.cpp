@@ -941,24 +941,17 @@ static void RenderEditor() {
             "Flow", "Wave", "Diagonal", "Ripple", "Pulse",
             "Alternate Rows", "Alternate Columns", "Checkerboard",
             "Windmill", "Spiral", "Starburst", "Laser Write", "Laser Weld",
-            "Arrow Left", "Arrow Right", "Arrow Up", "Arrow Down", "Opposing Arrows"
+            "Arrow Left", "Arrow Right", "Arrow Up", "Arrow Down", "Opposing Arrows",
+            "Center Collision", "Center Burst", "Diagonal + Collision", "Diagonal + Center Burst"
         };
         int motionIndex = static_cast<int>(effect.motionPattern);
-        if (ImGui::Combo("Motion Pattern", &motionIndex, motionNames, 27)) {
+        if (ImGui::Combo("Motion Pattern", &motionIndex, motionNames, 31)) {
             if (motionIndex < 0) motionIndex = 0;
-            if (motionIndex > 26) motionIndex = 26;
+            if (motionIndex > 30) motionIndex = 30;
             effect.motionPattern = static_cast<VLS::LedMotionPattern>(motionIndex);
             changed = true;
         }
-        static const char* modifierNames[] = {"None", "Center Collision", "Center Burst"};
-        int modifierIndex = static_cast<int>(effect.motionModifier);
-        if (ImGui::Combo("Motion Pattern Modifier", &modifierIndex, modifierNames, 3)) {
-            if (modifierIndex < 0) modifierIndex = 0;
-            if (modifierIndex > 2) modifierIndex = 2;
-            effect.motionModifier = static_cast<VLS::LedMotionModifier>(modifierIndex);
-            changed = true;
-        }
-        ImGui::TextWrapped("Combines with the selected Motion Pattern as one unified LED motion field. Center Collision converges two fronts, flashes at impact, then expands a shockwave. Center Burst radiates outward from the center. Neither creates a separate LED effect or layer.");
+        ImGui::TextWrapped("Collision patterns move two fronts toward one another, create an impact flash, then send a shockwave outward. Center Burst expands from the center; diagonal variants use a diagonal approach or ignition sweep.");
         ImGui::TextWrapped("Laser Write draws a moving beam with a fading trace. Laser Weld adds a hot core and spark-like trail. Color Style controls the beam palette.");
     } else if (effect.type == VLS::LedEffectType::StroboEyes) {
         ImGui::Separator();
