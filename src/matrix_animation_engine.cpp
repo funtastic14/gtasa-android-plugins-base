@@ -866,7 +866,7 @@ bool MatrixAnimationEngine::EvaluatePixel(
             return true;
 
         const float spacing = effect.textSpacing < 0.25f ? 0.25f : effect.textSpacing;
-        const float textScale = effect.textScale < 0.1f ? 0.1f :
+        const float textScale = effect.textScale < 0.05f ? 0.05f :
             (effect.textScale > 3.0f ? 3.0f : effect.textScale);
         const float glyphStep = spacing * textScale;
         const bool vertical =
