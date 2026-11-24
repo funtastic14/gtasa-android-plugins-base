@@ -322,7 +322,7 @@ inline float EvaluateMotionModifier(
     switch (modifier) {
     case LedMotionModifier::CenterCollision:
         // Two fronts converge, produce a center impact flash, then a short
-        // expanding shockwave. The same overlay works on any base artwork.
+        // expanding shockwave. Evaluated as a modifier of the selected field.
         if (phase < 0.72f) {
             const float front = 0.5f * (1.0f - phase / 0.72f);
             const float beam = clamp01(1.0f -
@@ -366,9 +366,9 @@ inline float EvaluateMotionIntensity(
     uint16_t rows,
     LedMotionModifier modifier
 ) {
-    // The selected base pattern and its modifier are evaluated as one
-    // spatial field. This produces one intensity result per LED pixel,
-    // rather than rendering Collision/Burst as a second LED layer.
+    // The selected base pattern and modifier form one spatial field and
+    // produce one intensity result per LED pixel. Collision/Burst never
+    // create a second render pass or an additional LED layer.
     const float base = EvaluateBaseMotionIntensity(
         pattern, x, y, phase, column, row, columns, rows
     );
