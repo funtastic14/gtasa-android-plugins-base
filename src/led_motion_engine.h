@@ -329,7 +329,7 @@ inline float EvaluateMotionIntensity(
         // Full-matrix arrow field: repeated arrow glyphs occupy the whole
         // matrix. The glyph field itself translates, rather than merely
         // animating color inside one stationary arrow.
-        const auto lineDistance = [](float px, float py, float ax, float ay, float bx, float by) {
+        const auto lineDistance = [&](float px, float py, float ax, float ay, float bx, float by) {
             const float vx = bx - ax, vy = by - ay;
             const float wx = px - ax, wy = py - ay;
             const float length2 = vx * vx + vy * vy;
