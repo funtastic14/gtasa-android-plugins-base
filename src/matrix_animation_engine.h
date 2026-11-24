@@ -24,7 +24,8 @@ public:
         uint32_t timeMs,
         MatrixPixelOutput& output,
         MotionPlaybackMode playback = MotionPlaybackMode::Manual,
-        uint32_t motionIntervalMs = 3000
+        uint32_t motionIntervalMs = 3000,
+        const MotionFrameState* motionFrame = nullptr
     );
 };
 

@@ -405,7 +405,8 @@ bool MatrixAnimationEngine::EvaluatePixel(
     uint32_t timeMs,
     MatrixPixelOutput& output,
     MotionPlaybackMode playback,
-    uint32_t motionIntervalMs
+    uint32_t motionIntervalMs,
+    const MotionFrameState* motionFrame
 ) {
     output = MatrixPixelOutput{};
 
@@ -467,6 +468,9 @@ bool MatrixAnimationEngine::EvaluatePixel(
     );
 
     const float speed = effect.speed * pixel->speed;
+    const MotionFrameState localMotionFrame = motionFrame != nullptr
+        ? *motionFrame
+        : BuildMotionFrameState(effect, timeMs, playback, motionIntervalMs);
     const float colorPosition = GetColorPosition(
         effect.colorDirection, x, y, effect.colorSpread
     );
@@ -934,12 +938,16 @@ bool MatrixAnimationEngine::EvaluatePixel(
     const LedMotionPattern activePattern =
         effect.type == LedEffectType::RunningText
             ? effect.motionPattern
-            : ResolveMotionPattern(effect, timeMs, playback, motionIntervalMs);
+            : localMotionFrame.pattern;
     if (effect.type != LedEffectType::StroboEyes &&
         (effect.type != LedEffectType::RunningText ||
          activePattern == LedMotionPattern::LaserWrite ||
          activePattern == LedMotionPattern::LaserWeld)) {
-        const float phase = GetMotionPhase(timeMs, speed);
+        // Use the frame snapshot's master phase. A per-pixel speed multiplier
+        // remains available for custom matrix pixels without reselecting patterns.
+        const float phase = pixel->speed == 1.0f
+            ? localMotionFrame.phase
+            : GetMotionPhase(localMotionFrame.timeMs, speed);
         const bool verticalText =
             effect.textMotion == RunningTextMotion::ScrollUp ||
             effect.textMotion == RunningTextMotion::ScrollDown ||
@@ -951,7 +959,7 @@ bool MatrixAnimationEngine::EvaluatePixel(
             column, row, matrix.columns, matrix.rows
         );
         intensity *= EvaluateMotionTransition(
-            effect.motionTransition, motionX, motionY, phase
+            localMotionFrame.transition, motionX, motionY, phase
         );
     }
 

@@ -77,6 +77,22 @@ inline float GetMotionPhase(uint32_t timeMs, float speed) {
     return static_cast<float>(cycles - std::floor(cycles));
 }
 
+inline MotionFrameState BuildMotionFrameState(
+    const LedEffectConfig& effect,
+    uint32_t timeMs,
+    MotionPlaybackMode playback,
+    uint32_t intervalMs
+) {
+    MotionFrameState state;
+    state.timeMs = timeMs;
+    state.intervalMs = intervalMs < 500u ? 500u : intervalMs;
+    state.cycleIndex = timeMs / state.intervalMs;
+    state.phase = GetMotionPhase(timeMs, effect.speed);
+    state.pattern = ResolveMotionPattern(effect, timeMs, playback, state.intervalMs);
+    state.transition = effect.motionTransition;
+    return state;
+}
+
 inline float EvaluateMotionIntensity(
     LedMotionPattern pattern,
     float x,

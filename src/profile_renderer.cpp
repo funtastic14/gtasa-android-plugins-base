@@ -341,7 +341,8 @@ static MotionPlaybackMode GetPlacementMotionPlayback(const LedPlacement& placeme
 static bool RenderMatrixEffect(
     CVehicle* vehicle,
     const LedPlacement& placement,
-    const LedEffectConfig& effect
+    const LedEffectConfig& effect,
+    uint32_t motionTimeMs
 ) {
     if (vehicle == nullptr || !effect.matrix.enabled)
         return false;
@@ -401,7 +402,10 @@ static bool RenderMatrixEffect(
     if (indices.capacity() < pixelCount * 6)
         indices.reserve(pixelCount * 6);
 
-    const uint32_t timeMs = CTimer::GetTimeMS();
+    const MotionPlaybackMode playback = GetPlacementMotionPlayback(placement);
+    const MotionFrameState motionFrame = BuildMotionFrameState(
+        effect, motionTimeMs, playback, placement.animationIntervalMs
+    );
 
     for (uint32_t row = 0; row < rows; ++row) {
         for (uint32_t column = 0; column < columns; ++column) {
@@ -411,10 +415,11 @@ static bool RenderMatrixEffect(
                     effect,
                     static_cast<uint16_t>(column),
                     static_cast<uint16_t>(row),
-                    timeMs,
+                    motionTimeMs,
                     output,
-                    GetPlacementMotionPlayback(placement),
-                    placement.animationIntervalMs
+                    playback,
+                    placement.animationIntervalMs,
+                    &motionFrame
                 ))
                 return false;
 
@@ -498,8 +503,10 @@ static bool RenderEffect(
     if (vehicle == nullptr || !effect.enabled)
         return false;
 
+    // One clock sample feeds both possible render paths for this effect.
+    const uint32_t motionTimeMs = CTimer::GetTimeMS();
     if (effect.matrix.enabled)
-        return RenderMatrixEffect(vehicle, placement, effect);
+        return RenderMatrixEffect(vehicle, placement, effect, motionTimeMs);
 
     CMatrix* matrix = vehicle->GetMatrix();
     if (matrix == nullptr)
@@ -538,10 +545,11 @@ static bool RenderEffect(
     if (brightness > 1.0f)
         brightness = 1.0f;
 
-    // Capture one clock sample for the strip. The matrix renderer uses
-    // the same raw clock multiplied by effect.speed, so both surfaces share
-    // an identical motion phase instead of drifting by frame/update timing.
-    const uint32_t motionTimeMs = CTimer::GetTimeMS();
+    // The clock was sampled once at the start of RenderEffect.
+    const MotionFrameState motionFrame = BuildMotionFrameState(
+        effect, motionTimeMs, GetPlacementMotionPlayback(placement),
+        placement.animationIntervalMs
+    );
     const double time =
         static_cast<double>(motionTimeMs) *
         static_cast<double>(effect.speed);
@@ -652,14 +660,14 @@ static bool RenderEffect(
         if (effect.type == LedEffectType::RunningLED ||
             effect.type == LedEffectType::RGB ||
             effect.type == LedEffectType::StroboWave) {
-            const float phase01 = GetMotionPhase(motionTimeMs, effect.speed);
+            const float phase01 = motionFrame.phase;
             intensity *= EvaluateMotionIntensity(
-                ResolveMotionPattern(effect, motionTimeMs, GetPlacementMotionPlayback(placement), placement.animationIntervalMs), nx, 0.5f, phase01,
+                motionFrame.pattern, nx, 0.5f, phase01,
                 static_cast<uint16_t>(i), 0,
                 static_cast<uint16_t>(SEGMENTS), 1
             );
             intensity *= EvaluateMotionTransition(
-                effect.motionTransition, nx, 0.5f, phase01
+                motionFrame.transition, nx, 0.5f, phase01
             );
         }
 

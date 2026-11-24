@@ -144,6 +144,17 @@ enum class MotionPlaybackMode : uint8_t {
     Random
 };
 
+// Immutable per-frame snapshot shared by strip and matrix renderers.
+// Pattern selection and base animation phase are resolved once, not per pixel.
+struct MotionFrameState {
+    uint32_t timeMs = 0;
+    uint32_t intervalMs = 3000;
+    uint32_t cycleIndex = 0;
+    float phase = 0.0f;
+    LedMotionPattern pattern = LedMotionPattern::LeftToRight;
+    LedMotionTransition transition = LedMotionTransition::None;
+};
+
 enum class RunningTextMotion : uint8_t {
     ScrollLeft,
     ScrollRight,
