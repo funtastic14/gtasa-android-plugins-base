@@ -770,7 +770,7 @@ static bool ReadEffect(
     effect.eyeShape = static_cast<EyeShape>(eyeShape);
     effect.eyeMotion = static_cast<EyeMotion>(eyeMotion);
     effect.eyeExpression = static_cast<EyeExpression>(eyeExpression);
-    if (!ReadInt(value, "motionPattern", motionPattern) || motionPattern < 0 || motionPattern > static_cast<int>(LedMotionPattern::Starburst)) return false;
+    if (!ReadInt(value, "motionPattern", motionPattern) || motionPattern < 0 || motionPattern > static_cast<int>(LedMotionPattern::LaserWeld)) return false;
     effect.motionPattern = static_cast<LedMotionPattern>(motionPattern);
     int motionPlayback = static_cast<int>(effect.motionPlayback);
     if (!ReadInt(value, "motionPlayback", motionPlayback) || motionPlayback < 0 || motionPlayback > static_cast<int>(MotionPlaybackMode::Random)) return false;
