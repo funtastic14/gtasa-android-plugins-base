@@ -151,6 +151,28 @@ inline float EvaluateMotionIntensity(
         const float radial = clamp01(1.0f - radius * 0.55f);
         return 0.06f + 0.94f * rays * radial;
     }
+    case LedMotionPattern::LaserWrite: {
+        // A bright writing head leaves a short, fading trail behind it.
+        const float distance = phase - x;
+        if (std::fabs(distance) < 0.025f)
+            return 1.0f;
+        if (distance >= 0.0f && distance < 0.30f)
+            return 0.12f + 0.88f * (1.0f - distance / 0.30f);
+        return 0.025f;
+    }
+    case LedMotionPattern::LaserWeld: {
+        // A diagonal welding path with a hot core, molten trail and tiny sparks.
+        const float path = (x + y) * 0.5f;
+        const float distance = phase - path;
+        if (std::fabs(distance) < 0.035f)
+            return 1.0f;
+        if (distance >= 0.0f && distance < 0.19f) {
+            const float trail = 1.0f - distance / 0.19f;
+            const float spark = fract(x * 37.0f + y * 19.0f + phase * 11.0f);
+            return spark > 0.88f ? 1.0f : 0.18f + 0.72f * trail;
+        }
+        return 0.025f;
+    }
     }
     (void)columns;
     (void)rows;
