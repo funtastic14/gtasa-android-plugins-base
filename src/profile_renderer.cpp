@@ -658,6 +658,9 @@ static bool RenderEffect(
                 static_cast<uint16_t>(i), 0,
                 static_cast<uint16_t>(SEGMENTS), 1
             );
+            intensity *= EvaluateMotionTransition(
+                effect.motionTransition, nx, 0.5f, phase01
+            );
         }
 
         if (effect.type != LedEffectType::RGB) {
