@@ -7,6 +7,7 @@
 #include "profile_sequence_runtime.h"
 #include "profile_renderer.h"
 #include "vehicle_geometry_reader.h"
+#include "vehicle_light_engine.h"
 #include "animation_controller.h"
 #include "vehicle_profile.h"
 
@@ -567,9 +568,28 @@ static void RenderEditor() {
     VLS::VehicleProfile* profile =
         EnsureEditorProfile(modelId);
 
-    if (profile == nullptr ||
-        profile->placements.empty()) {
+    if (profile == nullptr) {
         ImGui::Text("Profile unavailable.");
+        ImGui::EndChild();
+        ImGui::PopStyleVar();
+        ImGui::End();
+        return;
+    }
+
+    ImGui::Separator();
+    ImGui::Text("Native Vehicle Lighting");
+    bool highBeamChanged = false;
+    highBeamChanged |= ImGui::Checkbox("High Beam", &profile->nativeLights.highBeamEnabled);
+    if (profile->nativeLights.highBeamEnabled) {
+        highBeamChanged |= ImGui::SliderFloat("High Beam Range", &profile->nativeLights.highBeamRange, 10.0f, 100.0f);
+        highBeamChanged |= ImGui::SliderFloat("High Beam Intensity", &profile->nativeLights.highBeamIntensity, 0.1f, 4.0f);
+        ImGui::TextWrapped("Adds forward illumination while keeping the game's original low beam behavior.");
+    }
+    if (highBeamChanged)
+        g_profileManager.MarkDirty(modelId);
+
+    if (profile->placements.empty()) {
+        ImGui::Text("No LED placements yet. Add an LED placement to configure strips.");
         ImGui::EndChild();
     ImGui::PopStyleVar();
         ImGui::End();
@@ -1439,6 +1459,8 @@ static void OnRenderEffects() {
     if (modelId >= 0) {
         const VLS::VehicleProfile* profile = g_profileManager.Find(modelId);
         if (profile != nullptr && profile->enabled) {
+            if (profile->nativeLights.highBeamEnabled)
+                VLS::VehicleLightEngine::AddHighBeam(currentVehicle, *profile);
             for (CVehicle* vehicle : g_frameVehicles) {
                 if (vehicle != currentVehicle || !IsVehiclePointerValid(vehicle)) continue;
                 for (const VLS::LedPlacement& led : profile->placements) {

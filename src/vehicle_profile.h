@@ -350,10 +350,17 @@ struct EffectSequence {
 };
 
 // Profil konfigurasi satu model kendaraan.
+struct NativeVehicleLightConfig {
+    bool highBeamEnabled = false;
+    float highBeamRange = 45.0f;
+    float highBeamIntensity = 1.25f;
+};
+
 struct VehicleProfile {
     int modelId = -1;
 
     bool enabled = true;
+    NativeVehicleLightConfig nativeLights;
 
     std::vector<LedPlacement> placements;
 

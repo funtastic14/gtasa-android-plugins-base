@@ -1501,6 +1501,14 @@ bool Serialize(
     json += ",\"enabled\":";
     json += profile.enabled ? "true" : "false";
 
+    json += ",\"nativeLights\":{\"highBeamEnabled\":";
+    json += profile.nativeLights.highBeamEnabled ? "true" : "false";
+    json += ",\"highBeamRange\":";
+    if (!AppendFloat(json, profile.nativeLights.highBeamRange)) return false;
+    json += ",\"highBeamIntensity\":";
+    if (!AppendFloat(json, profile.nativeLights.highBeamIntensity)) return false;
+    json += "}";
+
     json += ",\"placements\":[";
 
     for (size_t i = 0; i < profile.placements.size(); ++i) {
@@ -1565,6 +1573,22 @@ bool Deserialize(
     if (!ReadInt(root, "modelId", result.modelId) ||
         !ReadBool(root, "enabled", result.enabled)) {
         return false;
+    }
+
+    const JsonValue* nativeLights = Find(root, "nativeLights");
+    if (nativeLights != nullptr) {
+        if (nativeLights->type != JsonValue::Object ||
+            !ReadBool(*nativeLights, "highBeamEnabled", result.nativeLights.highBeamEnabled) ||
+            !ReadOptionalFloat(*nativeLights, "highBeamRange", result.nativeLights.highBeamRange) ||
+            !ReadOptionalFloat(*nativeLights, "highBeamIntensity", result.nativeLights.highBeamIntensity)) {
+            return false;
+        }
+        if (result.nativeLights.highBeamRange < 10.0f ||
+            result.nativeLights.highBeamRange > 100.0f ||
+            result.nativeLights.highBeamIntensity < 0.1f ||
+            result.nativeLights.highBeamIntensity > 4.0f) {
+            return false;
+        }
     }
 
     const JsonValue* placements = Find(root, "placements");
