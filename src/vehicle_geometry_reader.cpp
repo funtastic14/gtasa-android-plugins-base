@@ -167,8 +167,17 @@ static RpAtomic* ScanAtomic(RpAtomic* atomic, void* data) {
             ? static_cast<uint32_t>(signedTriangleCount)
             : 0;
     const RwInt32 signedMaterialCount = RpGeometryGetNumMaterials(geometry);
-    const uint32_t materialCount = signedMaterialCount > 0
-        ? static_cast<uint32_t>(signedMaterialCount) : 0;
+    const uint32_t materialCount =
+        (signedMaterialCount > 0 && signedMaterialCount <= 1024 &&
+         geometry->matList.materials != nullptr)
+            ? static_cast<uint32_t>(signedMaterialCount) : 0;
+
+    // RenderWare geometry counts are signed runtime data. Reject implausible
+    // values before they can drive pointer arithmetic or large allocations.
+    const bool saneVertexCount =
+        vertexCount > 0 && vertexCount <= 65535u;
+    const bool saneTriangleCount =
+        triangleCount > 0 && triangleCount <= 1000000u;
 
     stats.totalVertices += vertexCount;
     stats.totalTriangles += triangleCount;
@@ -196,12 +205,12 @@ static RpAtomic* ScanAtomic(RpAtomic* atomic, void* data) {
     info.triangleCount = triangleCount;
     info.frame = RpAtomicGetFrame(atomic);
 
-    const uint32_t safeMaterialCount = materialCount > 1024u ? 1024u : materialCount;
+    const uint32_t safeMaterialCount = materialCount;
     info.materials.reserve(safeMaterialCount);
     for (uint32_t i = 0; i < safeMaterialCount; ++i) {
         MeshMaterialInfo materialInfo;
         materialInfo.index = static_cast<int16_t>(i);
-        RpMaterial* material = RpGeometryGetMaterial(geometry, static_cast<RwInt32>(i));
+        RpMaterial* material = geometry->matList.materials[i];
         RwTexture* texture = material != nullptr ? RpMaterialGetTexture(material) : nullptr;
         if (texture != nullptr) {
             materialInfo.textureName = ReadTextureName(RwTextureGetName(texture));
@@ -216,8 +225,9 @@ static RpAtomic* ScanAtomic(RpAtomic* atomic, void* data) {
     if (hasPositions &&
         !isNative &&
         !hasNativeInstance &&
-        vertexCount > 0 &&
+        saneVertexCount &&
         geometry->numMorphTargets > 0 &&
+        geometry->numMorphTargets <= 16 &&
         geometry->morphTarget != nullptr) {
 
         const RpMorphTarget* morphTarget =
@@ -286,11 +296,10 @@ static RpAtomic* ScanAtomic(RpAtomic* atomic, void* data) {
     if (!info.hasCpuVertices || vertices == nullptr) {
         ++stats.skippedNoCpuVertexCount;
     }
-    else if (vertexCount == 0 ||
-             vertexCount > 1000000u) {
+    else if (!saneVertexCount) {
         ++stats.skippedVertexLimitCount;
     }
-    else if (triangleCount == 0 ||
+    else if (!saneTriangleCount ||
              sourceTriangles == nullptr) {
         ++stats.skippedNoTriangleDataCount;
     }
@@ -301,8 +310,11 @@ static RpAtomic* ScanAtomic(RpAtomic* atomic, void* data) {
         mesh.geometryIndex = geometryIndex;
         mesh.frame = info.frame;
         mesh.materials = info.materials;
-        mesh.hasTextureCoordinates =
-            geometry->numTexCoordSets > 0 && geometry->texCoords[0] != nullptr;
+        const bool hasUv0 =
+            geometry->numTexCoordSets > 0 &&
+            geometry->numTexCoordSets <= rwMAXTEXTURECOORDS &&
+            geometry->texCoords[0] != nullptr;
+        mesh.hasTextureCoordinates = hasUv0;
 
         mesh.vertices.reserve(vertexCount);
 
@@ -324,7 +336,7 @@ static RpAtomic* ScanAtomic(RpAtomic* atomic, void* data) {
 
             // Preserve the first UV set without modifying source geometry.
             // Some native/mobile geometries do not expose CPU UV data.
-            if (geometry->numTexCoordSets > 0 && geometry->texCoords[0] != nullptr) {
+            if (hasUv0) {
                 storedVertex.u = geometry->texCoords[0][i].u;
                 storedVertex.v = geometry->texCoords[0][i].v;
             }

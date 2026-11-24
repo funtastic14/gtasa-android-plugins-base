@@ -1521,8 +1521,6 @@ static void OnRenderEffects() {
     if (modelId >= 0) {
         const VLS::VehicleProfile* profile = g_profileManager.Find(modelId);
         if (profile != nullptr && profile->enabled) {
-            // Native RGB rendering is fail-closed until the geometry scanner
-            // has been revalidated. Never render from an absent or stale cache.
             if (g_geometryScanSucceeded &&
                 g_geometryScanVehicle == currentVehicle &&
                 g_geometryScanModelId == modelId &&
@@ -1716,13 +1714,13 @@ static void OnGameProcess() {
 
     g_currentProfile = &profile;
 
-    // Native RGB geometry scanning is temporarily disabled.
-    // Build #372 introduced synchronous RenderWare object traversal here;
-    // both saved and unsaved profiles crash when RGB activates, so keep the
-    // renderer fail-closed while the scanner is audited and replaced.
-    if (!profile.enabled ||
-        (!profile.nativeLights.rgbHeadlightsEnabled &&
-         !profile.nativeLights.rgbTaillightsEnabled)) {
+    // Scan only while a native RGB lamp effect is requested. The reader
+    // now validates RenderWare counts and backing arrays before traversal.
+    if (g_enabled && profile.enabled &&
+        (profile.nativeLights.rgbHeadlightsEnabled ||
+         profile.nativeLights.rgbTaillightsEnabled)) {
+        UpdateVehicleGeometryScan();
+    } else {
         ResetVehicleGeometryScan();
     }
 
