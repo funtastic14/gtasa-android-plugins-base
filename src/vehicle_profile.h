@@ -135,7 +135,7 @@ enum class LedMotionPattern : uint8_t {
     OpposingArrows
 };
 
-enum class LedMotionTransition : uint8_t {
+enum class LedMotionModifier : uint8_t {
     None,
     CenterCollision,
     CenterBurst
@@ -156,7 +156,7 @@ struct MotionFrameState {
     uint32_t cycleIndex = 0;
     float phase = 0.0f;
     LedMotionPattern pattern = LedMotionPattern::LeftToRight;
-    LedMotionTransition transition = LedMotionTransition::None;
+    LedMotionModifier modifier = LedMotionModifier::None;
 };
 
 enum class RunningTextMotion : uint8_t {
@@ -251,7 +251,7 @@ struct LedEffectConfig {
 
     LedColorMode colorMode = LedColorMode::Solid;
     LedMotionPattern motionPattern = LedMotionPattern::LeftToRight;
-    LedMotionTransition motionTransition = LedMotionTransition::None;
+    LedMotionModifier motionModifier = LedMotionModifier::None;
     MotionPlaybackMode motionPlayback = MotionPlaybackMode::Manual;
     uint32_t motionIntervalMs = 3000;
     uint8_t secondaryRed = 0;
