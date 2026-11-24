@@ -43,7 +43,7 @@ inline LedMotionPattern ResolveMotionPattern(
         return effect.motionPattern;
     const uint32_t interval = intervalMs < 500 ? 500 : intervalMs;
     const uint32_t step = timeMs / interval;
-    const uint32_t count = static_cast<uint32_t>(LedMotionPattern::LaserWeld) + 1u;
+    const uint32_t count = static_cast<uint32_t>(LedMotionPattern::OpposingArrows) + 1u;
     if (playback == MotionPlaybackMode::Sequential)
         return static_cast<LedMotionPattern>(step % count);
     if (playback == MotionPlaybackMode::Automatic) {
@@ -53,6 +53,9 @@ inline LedMotionPattern ResolveMotionPattern(
             LedMotionPattern::Ripple, LedMotionPattern::Windmill,
             LedMotionPattern::Spiral, LedMotionPattern::Starburst,
             LedMotionPattern::LaserWrite, LedMotionPattern::LaserWeld,
+            LedMotionPattern::ArrowLeft, LedMotionPattern::ArrowRight,
+            LedMotionPattern::ArrowUp, LedMotionPattern::ArrowDown,
+            LedMotionPattern::OpposingArrows,
             LedMotionPattern::RightToLeft, LedMotionPattern::EdgeToCenter,
             LedMotionPattern::ZoomOut, LedMotionPattern::Flow
         };
@@ -173,6 +176,46 @@ inline float EvaluateMotionIntensity(
             return spark > 0.88f ? 1.0f : 0.18f + 0.72f * trail;
         }
         return 0.025f;
+    }
+    case LedMotionPattern::ArrowRight:
+    case LedMotionPattern::ArrowLeft:
+    case LedMotionPattern::ArrowUp:
+    case LedMotionPattern::ArrowDown:
+    case LedMotionPattern::OpposingArrows: {
+        const auto arrowShape = [](float axis, float cross) {
+            const bool shaft = axis >= 0.08f && axis <= 0.72f &&
+                std::fabs(cross - 0.5f) < 0.075f;
+            const bool head = axis >= 0.55f && axis <= 0.97f &&
+                std::fabs(cross - 0.5f) <= (0.97f - axis) * 0.78f;
+            return shaft || head;
+        };
+        float axis = x;
+        float cross = y;
+        bool lit = false;
+        switch (pattern) {
+        case LedMotionPattern::ArrowLeft:
+            lit = arrowShape(1.0f - x, y);
+            break;
+        case LedMotionPattern::ArrowUp:
+            lit = arrowShape(1.0f - y, x);
+            break;
+        case LedMotionPattern::ArrowDown:
+            lit = arrowShape(y, x);
+            break;
+        case LedMotionPattern::OpposingArrows: {
+            const float localAxis = x < 0.5f ? x * 2.0f : (1.0f - x) * 2.0f;
+            lit = arrowShape(localAxis, y);
+            break;
+        }
+        case LedMotionPattern::ArrowRight:
+        default:
+            lit = arrowShape(x, y);
+            break;
+        }
+        if (!lit)
+            return 0.025f;
+        const float flow = fract(axis * 3.0f - phase * 2.0f + cross * 0.25f);
+        return flow < 0.38f ? 1.0f : 0.42f;
     }
     }
     (void)columns;
