@@ -202,7 +202,7 @@ inline float EvaluateMotionIntensity(
     case LedMotionPattern::MultiCollision: {
         const float edgeDistance = std::min(std::min(x, 1.0f - x), std::min(y, 1.0f - y));
         if (phase < 0.62f) {
-            const float front = 0.5f * (1.0f - phase / 0.62f);
+            const float front = (phase / 0.62f) * 0.5f;
             const float beam = clamp01(1.0f - std::fabs(edgeDistance - front) * 18.0f);
             return 0.025f + 0.975f * beam;
         }
