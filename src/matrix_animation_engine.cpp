@@ -667,6 +667,7 @@ bool MatrixAnimationEngine::EvaluatePixel(
                 std::fabs(dy - browLine) <= browThickness;
 
             if (browPixel) {
+                preserveEyeDetailColor = true;
                 red = effect.eyeBrowRed;
                 green = effect.eyeBrowGreen;
                 blue = effect.eyeBrowBlue;
