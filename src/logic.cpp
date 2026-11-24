@@ -578,14 +578,21 @@ static void RenderEditor() {
 
     ImGui::Separator();
     ImGui::Text("Native Vehicle Lighting");
-    bool highBeamChanged = false;
-    highBeamChanged |= ImGui::Checkbox("High Beam", &profile->nativeLights.highBeamEnabled);
+    bool nativeLightsChanged = false;
+    nativeLightsChanged |= ImGui::Checkbox("High Beam", &profile->nativeLights.highBeamEnabled);
     if (profile->nativeLights.highBeamEnabled) {
-        highBeamChanged |= ImGui::SliderFloat("High Beam Range", &profile->nativeLights.highBeamRange, 10.0f, 250.0f);
-        highBeamChanged |= ImGui::SliderFloat("High Beam Intensity", &profile->nativeLights.highBeamIntensity, 0.1f, 4.0f);
+        nativeLightsChanged |= ImGui::SliderFloat("High Beam Range", &profile->nativeLights.highBeamRange, 10.0f, 250.0f);
+        nativeLightsChanged |= ImGui::SliderFloat("High Beam Intensity", &profile->nativeLights.highBeamIntensity, 0.1f, 4.0f);
         ImGui::TextWrapped("Adds forward illumination while keeping the game's original low beam behavior.");
     }
-    if (highBeamChanged)
+    nativeLightsChanged |= ImGui::Checkbox("RGB Headlights", &profile->nativeLights.rgbHeadlightsEnabled);
+    nativeLightsChanged |= ImGui::Checkbox("RGB Taillights", &profile->nativeLights.rgbTaillightsEnabled);
+    if (profile->nativeLights.rgbHeadlightsEnabled || profile->nativeLights.rgbTaillightsEnabled) {
+        nativeLightsChanged |= ImGui::SliderFloat("Native Light RGB Flow Speed", &profile->nativeLights.rgbFlowSpeed, 0.1f, 4.0f);
+        nativeLightsChanged |= ImGui::SliderFloat("Native Light RGB Intensity", &profile->nativeLights.rgbFlowIntensity, 0.1f, 2.0f);
+        ImGui::TextWrapped("Tints the original lamp surface through its own texture and alpha mask. Only this player vehicle is affected.");
+    }
+    if (nativeLightsChanged)
         g_profileManager.MarkDirty(modelId);
 
     if (profile->placements.empty()) {

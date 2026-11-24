@@ -55,10 +55,14 @@ struct GeometryTriangle {
     int16_t materialIndex = -1;
 };
 
+struct RwRaster;
+
 struct MeshMaterialInfo {
     int16_t index = -1;
     std::string textureName;
     std::string maskName;
+    // Borrowed from the live model material; VLS never modifies or releases it.
+    RwRaster* raster = nullptr;
 };
 
 enum class SurfaceRoleCandidate : uint8_t {

@@ -1507,6 +1507,14 @@ bool Serialize(
     if (!AppendFloat(json, profile.nativeLights.highBeamRange)) return false;
     json += ",\"highBeamIntensity\":";
     if (!AppendFloat(json, profile.nativeLights.highBeamIntensity)) return false;
+    json += ",\"rgbHeadlightsEnabled\":";
+    json += profile.nativeLights.rgbHeadlightsEnabled ? "true" : "false";
+    json += ",\"rgbTaillightsEnabled\":";
+    json += profile.nativeLights.rgbTaillightsEnabled ? "true" : "false";
+    json += ",\"rgbFlowSpeed\":";
+    if (!AppendFloat(json, profile.nativeLights.rgbFlowSpeed)) return false;
+    json += ",\"rgbFlowIntensity\":";
+    if (!AppendFloat(json, profile.nativeLights.rgbFlowIntensity)) return false;
     json += "}";
 
     json += ",\"placements\":[";
@@ -1580,13 +1588,21 @@ bool Deserialize(
         if (nativeLights->type != JsonValue::Object ||
             !ReadBool(*nativeLights, "highBeamEnabled", result.nativeLights.highBeamEnabled) ||
             !ReadOptionalFloat(*nativeLights, "highBeamRange", result.nativeLights.highBeamRange) ||
-            !ReadOptionalFloat(*nativeLights, "highBeamIntensity", result.nativeLights.highBeamIntensity)) {
+            !ReadOptionalFloat(*nativeLights, "highBeamIntensity", result.nativeLights.highBeamIntensity) ||
+            !ReadBool(*nativeLights, "rgbHeadlightsEnabled", result.nativeLights.rgbHeadlightsEnabled) ||
+            !ReadBool(*nativeLights, "rgbTaillightsEnabled", result.nativeLights.rgbTaillightsEnabled) ||
+            !ReadOptionalFloat(*nativeLights, "rgbFlowSpeed", result.nativeLights.rgbFlowSpeed) ||
+            !ReadOptionalFloat(*nativeLights, "rgbFlowIntensity", result.nativeLights.rgbFlowIntensity)) {
             return false;
         }
         if (result.nativeLights.highBeamRange < 10.0f ||
             result.nativeLights.highBeamRange > 250.0f ||
             result.nativeLights.highBeamIntensity < 0.1f ||
-            result.nativeLights.highBeamIntensity > 4.0f) {
+            result.nativeLights.highBeamIntensity > 4.0f ||
+            result.nativeLights.rgbFlowSpeed < 0.1f ||
+            result.nativeLights.rgbFlowSpeed > 4.0f ||
+            result.nativeLights.rgbFlowIntensity < 0.1f ||
+            result.nativeLights.rgbFlowIntensity > 2.0f) {
             return false;
         }
     }

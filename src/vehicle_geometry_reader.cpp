@@ -206,6 +206,7 @@ static RpAtomic* ScanAtomic(RpAtomic* atomic, void* data) {
         if (texture != nullptr) {
             materialInfo.textureName = ReadTextureName(RwTextureGetName(texture));
             materialInfo.maskName = ReadTextureName(RwTextureGetMaskName(texture));
+            materialInfo.raster = RwTextureGetRaster(texture);
         }
         info.materials.push_back(materialInfo);
     }

@@ -354,6 +354,10 @@ struct NativeVehicleLightConfig {
     bool highBeamEnabled = false;
     float highBeamRange = 60.0f;
     float highBeamIntensity = 1.25f;
+    bool rgbHeadlightsEnabled = false;
+    bool rgbTaillightsEnabled = false;
+    float rgbFlowSpeed = 1.0f;
+    float rgbFlowIntensity = 1.0f;
 };
 
 struct VehicleProfile {
