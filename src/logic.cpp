@@ -1714,15 +1714,11 @@ static void OnGameProcess() {
 
     g_currentProfile = &profile;
 
-    // Scan only while a native RGB lamp effect is requested. The reader
-    // now validates RenderWare counts and backing arrays before traversal.
-    if (g_enabled && profile.enabled &&
-        (profile.nativeLights.rgbHeadlightsEnabled ||
-         profile.nativeLights.rgbTaillightsEnabled)) {
-        UpdateVehicleGeometryScan();
-    } else {
-        ResetVehicleGeometryScan();
-    }
+    // Do not run the full RenderWare geometry scan synchronously from
+    // gameProcessEvent. It copies and analyzes every atomic/triangle and can
+    // stall vehicle entry on mobile devices. Native RGB remains fail-closed
+    // until the scanner is converted to a bounded incremental pipeline.
+    ResetVehicleGeometryScan();
 
     UpdateSequenceRuntime();
 }
