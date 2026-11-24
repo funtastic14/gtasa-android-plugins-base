@@ -386,7 +386,7 @@ static bool RenderMatrixEffect(
     const float cellHeight = effectiveHeight / static_cast<float>(rows);
 
     const float matrixGap = motionFrame.pattern == LedMotionPattern::Checkerboard
-        ? 0.34f : 0.12f;
+        ? 0.55f : 0.12f;
     const float gapX = cellWidth * matrixGap;
     const float gapZ = cellHeight * matrixGap;
 
@@ -823,7 +823,8 @@ static bool RenderNativeLightPatch(
     uint32_t timeMs
 ) {
     if (vehicle == nullptr || patch.role != SurfaceRoleCandidate::Lighting ||
-        mesh.vertices.empty() || mesh.vehicleSpaceVertices.size() != mesh.vertices.size() ||
+        !mesh.hasTextureCoordinates || mesh.vertices.empty() ||
+        mesh.vehicleSpaceVertices.size() != mesh.vertices.size() ||
         mesh.vertices.size() > 65535u || patch.triangleIndices.empty()) {
         return false;
     }
@@ -844,25 +845,13 @@ static bool RenderNativeLightPatch(
     if (materialIt == mesh.materials.end() || materialIt->raster == nullptr)
         return false;
 
-    std::string textureName = materialIt->textureName;
-    std::transform(textureName.begin(), textureName.end(), textureName.begin(),
-        [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    if (textureName.find("vehiclelight") == std::string::npos &&
-        textureName.find("headlight") == std::string::npos &&
-        textureName.find("taillight") == std::string::npos) {
-        return false;
-    }
-
     CMatrix* vehicleMatrix = vehicle->GetMatrix();
     if (vehicleMatrix == nullptr)
         return false;
 
-    float minX = std::numeric_limits<float>::max();
-    float maxX = -std::numeric_limits<float>::max();
-    for (const GeometryVertex& point : mesh.vehicleSpaceVertices) {
-        minX = std::min(minX, point.x);
-        maxX = std::max(maxX, point.x);
-    }
+    // The gradient must span this lamp material patch, not the whole atomic.
+    const float minX = patch.minBounds.x;
+    const float maxX = patch.maxBounds.x;
     const float width = std::max(0.001f, maxX - minX);
     const float flowOffset = static_cast<float>(timeMs) *
         profile.nativeLights.rgbFlowSpeed * 0.045f;
@@ -882,6 +871,9 @@ static bool RenderNativeLightPatch(
         const GeometryVertex& source = mesh.vertices[i];
         const GeometryVertex& local = mesh.vehicleSpaceVertices[i];
         CVector vehicleLocal(local.x, local.y, local.z);
+        // Nudge the overlay toward the exterior of the lamp to avoid a
+        // same-depth Z test against the vehicle's original textured surface.
+        vehicleLocal.y += front ? 0.025f : -0.025f;
         const CVector world = vehicleMatrix->TransformPoint(vehicleLocal);
         const float normalizedX = (local.x - minX) / width;
         uint8_t red = 255, green = 255, blue = 255;

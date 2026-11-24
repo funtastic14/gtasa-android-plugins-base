@@ -30,11 +30,13 @@ void VehicleLightEngine::AddHighBeam(
         std::min(4.0f, profile.nativeLights.highBeamIntensity)
     );
 
-    // CMatrix::up is the vehicle forward axis in GTA SA.
-    // Keep the two sources slightly apart to approximate left/right lamps.
-    const CVector forward = matrix->up;
+    // GTA vehicle matrix basis: right = lateral, up = vertical, at = forward.
+    // The previous implementation used 'up' as forward, aiming the spotlights
+    // toward the sky instead of along the road.
+    const CVector forward = matrix->at;
     const CVector right = matrix->right;
-    const CVector base = matrix->pos + forward * 1.8f + matrix->at * 0.45f;
+    const CVector vertical = matrix->up;
+    const CVector base = matrix->pos + forward * 1.8f + vertical * 0.45f;
 
     for (int side = -1; side <= 1; side += 2) {
         const CVector position = base + right * (0.55f * side);

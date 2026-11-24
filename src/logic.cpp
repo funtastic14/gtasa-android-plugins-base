@@ -49,6 +49,7 @@ static char g_runningTextureBuffer[33] = {};
 static const VLS::LedEffectConfig* g_runningTextBufferEffect = nullptr;
 static const VLS::LedEffectConfig* g_runningFontBufferEffect = nullptr;
 static const VLS::LedEffectConfig* g_runningTextureBufferEffect = nullptr;
+static bool g_runningTextureCustomSelection = false;
 static bool g_runningTextKeyboardOpen = false;
 
 static VLS::VehicleManager g_vehicleManager;
@@ -432,12 +433,13 @@ static void DrawRunningTextKeyboard(VLS::LedEffectConfig& effect, bool& changed)
         return;
 
     ImGui::Separator();
-    ImGui::TextWrapped("VLS Touch Keyboard - tap letters or numbers to compose text.");
-    const char* rows[] = {"ABCDEFG", "HIJKLMN", "OPQRSTU", "VWXYZ012", "3456789"};
+    ImGui::TextWrapped("VLS Touch Keyboard - QWERTY letters, numbers, spaces and editing.");
+    const char* rows[] = {"QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM", "1234567890"};
+    const float keyWidth = 32.0f;
     for (const char* row : rows) {
         for (const char* key = row; *key; ++key) {
             char label[2] = {*key, '\0'};
-            if (ImGui::Button(label, ImVec2(43.0f, 40.0f))) {
+            if (ImGui::Button(label, ImVec2(keyWidth, 38.0f))) {
                 const size_t len = std::strlen(g_runningTextBuffer);
                 if (len + 1 < sizeof(g_runningTextBuffer)) {
                     g_runningTextBuffer[len] = *key;
@@ -450,7 +452,7 @@ static void DrawRunningTextKeyboard(VLS::LedEffectConfig& effect, bool& changed)
         }
     }
 
-    if (ImGui::Button("SPACE", ImVec2(92.0f, 40.0f))) {
+    if (ImGui::Button("SPACE", ImVec2(88.0f, 38.0f))) {
         const size_t len = std::strlen(g_runningTextBuffer);
         if (len + 1 < sizeof(g_runningTextBuffer)) {
             g_runningTextBuffer[len] = ' ';
@@ -460,7 +462,7 @@ static void DrawRunningTextKeyboard(VLS::LedEffectConfig& effect, bool& changed)
         }
     }
     ImGui::SameLine();
-    if (ImGui::Button("DEL", ImVec2(72.0f, 40.0f))) {
+    if (ImGui::Button("BACKSPACE", ImVec2(104.0f, 38.0f))) {
         size_t len = std::strlen(g_runningTextBuffer);
         if (len > 0) {
             g_runningTextBuffer[len - 1] = '\0';
@@ -469,13 +471,13 @@ static void DrawRunningTextKeyboard(VLS::LedEffectConfig& effect, bool& changed)
         }
     }
     ImGui::SameLine();
-    if (ImGui::Button("CLEAR", ImVec2(82.0f, 40.0f))) {
+    if (ImGui::Button("CLEAR", ImVec2(70.0f, 38.0f))) {
         g_runningTextBuffer[0] = '\0';
         effect.text.clear();
         changed = true;
     }
     ImGui::SameLine();
-    if (ImGui::Button("DONE", ImVec2(72.0f, 40.0f)))
+    if (ImGui::Button("DONE", ImVec2(62.0f, 38.0f)))
         g_runningTextKeyboardOpen = false;
 }
 
@@ -893,23 +895,63 @@ static void RenderEditor() {
             std::strncpy(g_runningFontBuffer, effect.fontName.c_str(), sizeof(g_runningFontBuffer) - 1);
             g_runningFontBufferEffect = &effect;
         }
-        ImGui::Text("Custom bitmap font (.vlsfont)");
-        if (ImGui::InputText("Font Name", g_runningFontBuffer, sizeof(g_runningFontBuffer))) {
-            effect.fontName = g_runningFontBuffer;
+        static const char* fontChoices[] = {"default", "Custom..."};
+        int fontChoice = effect.fontName == "default" ? 0 : 1;
+        if (ImGui::Combo("Bitmap Font", &fontChoice, fontChoices, IM_ARRAYSIZE(fontChoices))) {
+            if (fontChoice == 0) effect.fontName = "default";
+            else if (effect.fontName == "default") effect.fontName.clear();
+            g_runningFontBufferEffect = nullptr;
             changed = true;
         }
-        ImGui::TextWrapped("Place a 5x7 bitmap font file at VehicleLEDSystem/fonts/<name>.vlsfont. Use 95 ASCII glyphs (space through ~), 7 rows per glyph, 2 hexadecimal digits per row.");
+        if (fontChoice == 1) {
+            if (g_runningFontBufferEffect != &effect) {
+                std::memset(g_runningFontBuffer, 0, sizeof(g_runningFontBuffer));
+                std::strncpy(g_runningFontBuffer, effect.fontName.c_str(), sizeof(g_runningFontBuffer) - 1);
+                g_runningFontBufferEffect = &effect;
+            }
+            if (ImGui::InputText("Custom Font Name", g_runningFontBuffer, sizeof(g_runningFontBuffer))) {
+                effect.fontName = g_runningFontBuffer;
+                changed = true;
+            }
+        }
+        ImGui::TextWrapped("Bundled choice: default.vlsfont. Custom files belong in VehicleLEDSystem/fonts/.");
+
         if (g_runningTextureBufferEffect != &effect) {
             std::memset(g_runningTextureBuffer, 0, sizeof(g_runningTextureBuffer));
             std::strncpy(g_runningTextureBuffer, effect.textureName.c_str(), sizeof(g_runningTextureBuffer) - 1);
+            g_runningTextureCustomSelection =
+                !effect.textureName.empty() && effect.textureName != "demo";
             g_runningTextureBufferEffect = &effect;
         }
-        ImGui::Text("Custom matrix texture (.ppm, P3)");
-        if (ImGui::InputText("Texture Name", g_runningTextureBuffer, sizeof(g_runningTextureBuffer))) {
-            effect.textureName = g_runningTextureBuffer;
+        static const char* textureChoices[] = {"(No Texture)", "demo", "Custom..."};
+        int textureChoice = g_runningTextureCustomSelection ? 2 :
+            (effect.textureName.empty() ? 0 : (effect.textureName == "demo" ? 1 : 2));
+        if (ImGui::Combo("Matrix Texture", &textureChoice, textureChoices, IM_ARRAYSIZE(textureChoices))) {
+            if (textureChoice == 0) {
+                effect.textureName.clear();
+                g_runningTextureCustomSelection = false;
+            } else if (textureChoice == 1) {
+                effect.textureName = "demo";
+                g_runningTextureCustomSelection = false;
+            } else {
+                effect.textureName.clear();
+                g_runningTextureCustomSelection = true;
+            }
+            g_runningTextureBufferEffect = nullptr;
             changed = true;
         }
-        ImGui::TextWrapped("Place a P3 PPM image at VehicleLEDSystem/textures/<name>.ppm. It is mapped to the matrix and colors lit text pixels.");
+        if (g_runningTextureCustomSelection) {
+            if (g_runningTextureBufferEffect != &effect) {
+                std::memset(g_runningTextureBuffer, 0, sizeof(g_runningTextureBuffer));
+                std::strncpy(g_runningTextureBuffer, effect.textureName.c_str(), sizeof(g_runningTextureBuffer) - 1);
+                g_runningTextureBufferEffect = &effect;
+            }
+            if (ImGui::InputText("Custom Texture Name", g_runningTextureBuffer, sizeof(g_runningTextureBuffer))) {
+                effect.textureName = g_runningTextureBuffer;
+                changed = true;
+            }
+        }
+        ImGui::TextWrapped("Bundled choice: demo.ppm. Custom P3 PPM files belong in VehicleLEDSystem/textures/.");
         static const char* textMotionNames[] = {"Scroll Left", "Scroll Right", "Bounce Horizontal", "Scroll Up", "Scroll Down", "Bounce Vertical", "Static / Center"};
         int textMotionIndex = static_cast<int>(effect.textMotion);
         if (ImGui::Combo("Text Motion", &textMotionIndex, textMotionNames, 7)) {

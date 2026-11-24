@@ -301,6 +301,8 @@ static RpAtomic* ScanAtomic(RpAtomic* atomic, void* data) {
         mesh.geometryIndex = geometryIndex;
         mesh.frame = info.frame;
         mesh.materials = info.materials;
+        mesh.hasTextureCoordinates =
+            geometry->numTexCoordSets > 0 && geometry->texCoords[0] != nullptr;
 
         mesh.vertices.reserve(vertexCount);
 
