@@ -738,6 +738,20 @@ static void RenderEditor() {
         g_placementControllers[placement.id].Reset();
         changed = true;
     }
+    static const char* motionNames[] = {
+        "Left to Right", "Right to Left", "Center Out", "Edges to Center",
+        "Zoom In", "Zoom Out", "Fade In", "Fade Out", "Rolling",
+        "Flow", "Wave", "Diagonal", "Ripple", "Pulse",
+        "Alternate Rows", "Alternate Columns", "Checkerboard",
+        "Windmill", "Spiral", "Starburst", "Laser Write", "Laser Weld"
+    };
+    int motionIndex = static_cast<int>(effect.motionPattern);
+    if (ImGui::Combo("Motion Pattern", &motionIndex, motionNames, 22)) {
+        if (motionIndex < 0) motionIndex = 0;
+        if (motionIndex > 21) motionIndex = 21;
+        effect.motionPattern = static_cast<VLS::LedMotionPattern>(motionIndex);
+        changed = true;
+    }
     if (placement.animationMode == static_cast<uint8_t>(VLS::AnimationMode::Manual))
         ImGui::TextWrapped("Manual: keeps the selected Motion Pattern and selected LED effect.");
     else if (placement.animationMode == static_cast<uint8_t>(VLS::AnimationMode::Automatic))
@@ -875,7 +889,18 @@ static void RenderEditor() {
         }
         ImGui::TextWrapped("Pupil movement and expressions have independent playback. Eye motifs are procedural LED patterns; automatic transformation cycles through the available styles. Eyebrows need enough matrix rows to be visible.");
     } else if (effect.type == VLS::LedEffectType::RunningText) {
-        ImGui::TextWrapped("Text scrolling, transitions and text patterns use dedicated text controls, separate from general LED motion patterns.");
+        ImGui::TextWrapped("Text scrolling and text patterns use dedicated controls.");
+        static const char* textLaserNames[] = {"Off", "Laser Write", "Laser Weld"};
+        int textLaserIndex = effect.motionPattern == VLS::LedMotionPattern::LaserWrite ? 1 :
+            (effect.motionPattern == VLS::LedMotionPattern::LaserWeld ? 2 : 0);
+        if (ImGui::Combo("Text Laser Effect", &textLaserIndex, textLaserNames, 3)) {
+            effect.motionPattern = textLaserIndex == 1
+                ? VLS::LedMotionPattern::LaserWrite
+                : (textLaserIndex == 2 ? VLS::LedMotionPattern::LaserWeld
+                                       : VLS::LedMotionPattern::LeftToRight);
+            changed = true;
+        }
+        ImGui::TextWrapped("Laser Write reveals the moving text with a bright beam; Laser Weld adds a hot head and a fading spark trail.");
     }
 
     float opacity = effect.opacity;
