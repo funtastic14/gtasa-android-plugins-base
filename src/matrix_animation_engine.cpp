@@ -620,16 +620,21 @@ bool MatrixAnimationEngine::EvaluatePixel(
         if (effect.text.empty() || matrix.rows < 7 || matrix.columns < 5)
             return true;
         const float spacing = effect.textSpacing < 0.25f ? 0.25f : effect.textSpacing;
-        const float charWidth = 6.0f * spacing;
-        const float totalWidth = charWidth * static_cast<float>(effect.text.size());
-        if (totalWidth <= 0.0f)
-            return true;
-
-        const float elapsed = static_cast<float>(timeMs) * speed / 180.0f;
         const bool vertical =
             effect.textMotion == RunningTextMotion::ScrollUp ||
             effect.textMotion == RunningTextMotion::ScrollDown ||
             effect.textMotion == RunningTextMotion::BounceVertical;
+        const float charWidth = 6.0f * spacing;
+        // Vertical text stacks complete, upright 5x7 glyphs along the
+        // scrolling axis. Each character occupies seven rows plus spacing.
+        const float totalWidth = (vertical ? 8.0f : charWidth) *
+            spacing * 0.0f + (vertical
+                ? 8.0f * spacing * static_cast<float>(effect.text.size())
+                : charWidth * static_cast<float>(effect.text.size()));
+        if (totalWidth <= 0.0f)
+            return true;
+
+        const float elapsed = static_cast<float>(timeMs) * speed / 180.0f;
         const float axisLength = vertical
             ? static_cast<float>(matrix.rows)
             : static_cast<float>(matrix.columns);
@@ -689,20 +694,26 @@ bool MatrixAnimationEngine::EvaluatePixel(
                 intensity = 0.0f;
             }
         } else {
-            // Vertical modes rotate the glyph matrix by 90 degrees while
-            // preserving normal character order and readable bit sequencing.
+            // Keep each 5x7 glyph upright. Characters are stacked vertically
+            // and the complete message moves as one column of text.
             const float local = static_cast<float>(row) - textOrigin;
             if (local >= 0.0f && local < totalWidth) {
+                const float glyphHeight = 8.0f * spacing;
                 const size_t charIndex =
-                    static_cast<size_t>(local / charWidth);
+                    static_cast<size_t>(local / glyphHeight);
                 const float within =
-                    local - static_cast<float>(charIndex) * charWidth;
-                const int glyphColumn =
+                    local - static_cast<float>(charIndex) * glyphHeight;
+                const int glyphRow =
                     static_cast<int>(within / spacing);
+                const int glyphColumn =
+                    static_cast<int>(static_cast<float>(column) / spacing);
                 if (charIndex < effect.text.size() &&
-                    column < 7 && glyphColumn >= 0 && glyphColumn < 5) {
+                    glyphColumn >= 0 && glyphColumn < 5 &&
+                    glyphRow >= 0 && glyphRow < 7) {
                     const uint8_t bits = GetGlyphRow(
-                        effect.text[charIndex], column, effect.fontName
+                        effect.text[charIndex],
+                        static_cast<uint16_t>(glyphRow),
+                        effect.fontName
                     );
                     intensity = (bits & (1u << (4 - glyphColumn)))
                         ? 1.0f : 0.0f;
