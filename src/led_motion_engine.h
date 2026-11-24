@@ -182,44 +182,103 @@ inline float EvaluateMotionIntensity(
     case LedMotionPattern::ArrowUp:
     case LedMotionPattern::ArrowDown:
     case LedMotionPattern::OpposingArrows: {
-        const auto arrowShape = [](float axis, float cross) {
-            const bool shaft = axis >= 0.08f && axis <= 0.72f &&
-                std::fabs(cross - 0.5f) < 0.075f;
-            const bool head = axis >= 0.55f && axis <= 0.97f &&
-                std::fabs(cross - 0.5f) <= (0.97f - axis) * 0.78f;
+        // Full-matrix arrow field: repeated arrow glyphs occupy the whole
+        // matrix. The glyph field itself translates, rather than merely
+        // animating color inside one stationary arrow.
+        const auto arrowShape = [](float u, float v) {
+            // Slightly thicker shaft and a broad triangular head so the
+            // arrow remains legible on low-resolution LED matrices.
+            const bool shaft = u >= 0.04f && u <= 0.70f &&
+                std::fabs(v - 0.5f) <= 0.105f;
+            const bool head = u >= 0.55f && u <= 0.98f &&
+                std::fabs(v - 0.5f) <= (0.98f - u) * 0.88f + 0.015f;
             return shaft || head;
         };
-        float axis = x;
-        float cross = y;
-        bool lit = false;
-        switch (pattern) {
-        case LedMotionPattern::ArrowLeft:
-            axis = 1.0f - x;
-            lit = arrowShape(axis, cross);
-            break;
-        case LedMotionPattern::ArrowUp:
-            axis = 1.0f - y;
-            cross = x;
-            lit = arrowShape(axis, cross);
-            break;
-        case LedMotionPattern::ArrowDown:
-            axis = y;
-            cross = x;
-            lit = arrowShape(axis, cross);
-            break;
-        case LedMotionPattern::OpposingArrows:
-            axis = x < 0.5f ? (0.5f - x) * 2.0f : (x - 0.5f) * 2.0f;
-            lit = arrowShape(axis, cross);
-            break;
-        case LedMotionPattern::ArrowRight:
-        default:
-            lit = arrowShape(axis, cross);
-            break;
+
+        // Select a compact grid based on the actual matrix resolution.
+        // Clamp counts to keep each arrow large enough to read.
+        const float tileColumns = static_cast<float>(
+            columns < 8u ? 2u : (columns < 16u ? 3u : 4u));
+        const float tileRows = static_cast<float>(
+            rows < 6u ? 1u : (rows < 12u ? 2u : 3u));
+        const float zoom = 0.86f + 0.14f * (0.5f + 0.5f *
+            std::sin(wavePhase));
+        const float rowPhase = std::floor(y * tileRows);
+        float u = 0.0f;
+        float v = 0.0f;
+        float axis = 0.0f;
+        bool pointsRight = true;
+
+        if (pattern == LedMotionPattern::OpposingArrows) {
+            // Two full-height fields travel away from the center:
+            // left half points/moves left, right half points/moves right.
+            const bool rightHalf = x >= 0.5f;
+            const float halfX = rightHalf ? (x - 0.5f) * 2.0f : x * 2.0f;
+            const float halfColumns = tileColumns;
+            const float directionPhase = rightHalf ? phase : -phase;
+            u = fract(halfX * halfColumns - directionPhase * halfColumns
+                + rowPhase * 0.5f);
+            v = fract(y * tileRows);
+            pointsRight = rightHalf;
+            axis = u;
+            if (!pointsRight)
+                axis = 1.0f - u;
+        } else if (pattern == LedMotionPattern::ArrowRight ||
+                   pattern == LedMotionPattern::ArrowLeft) {
+            const float directionPhase =
+                pattern == LedMotionPattern::ArrowRight ? phase : -phase;
+            u = fract(x * tileColumns - directionPhase * tileColumns
+                + rowPhase * 0.5f);
+            v = fract(y * tileRows);
+            pointsRight = pattern == LedMotionPattern::ArrowRight;
+            axis = pointsRight ? u : 1.0f - u;
+        } else {
+            const float directionPhase =
+                pattern == LedMotionPattern::ArrowDown ? phase : -phase;
+            // Alternate columns slightly so the vertical stream has a
+            // staggered, conveyor-like rhythm instead of a rigid block.
+            const float columnPhase = std::floor(x * tileColumns) * 0.5f;
+            v = fract(y * tileRows - directionPhase * tileRows
+                + columnPhase);
+            u = fract(x * tileColumns);
+            pointsRight = pattern == LedMotionPattern::ArrowDown;
+            axis = pointsRight ? v : 1.0f - v;
         }
-        if (!lit)
-            return 0.025f;
-        const float flow = fract(axis * 3.0f - phase * 2.0f + cross * 0.25f);
-        return flow < 0.38f ? 1.0f : 0.42f;
+
+        // A subtle breathing scale makes the whole arrow field feel alive.
+        // Coordinates stay inside each tile, avoiding per-frame allocations.
+        u = (u - 0.5f) / zoom + 0.5f;
+        v = (v - 0.5f) / zoom + 0.5f;
+        if (u < 0.0f || u > 1.0f || v < 0.0f || v > 1.0f)
+            return 0.018f;
+
+        // Rotate the same glyph for vertical directions. For left-facing
+        // arrows mirror the longitudinal coordinate.
+        float shapeU = u;
+        float shapeV = v;
+        if (pattern == LedMotionPattern::ArrowLeft ||
+            (pattern == LedMotionPattern::OpposingArrows && !pointsRight))
+            shapeU = 1.0f - shapeU;
+        if (pattern == LedMotionPattern::ArrowUp ||
+            pattern == LedMotionPattern::ArrowDown) {
+            shapeU = pointsRight ? v : 1.0f - v;
+            shapeV = u;
+        }
+
+        if (!arrowShape(shapeU, shapeV))
+            return 0.018f;
+
+        // Moving highlights travel along each arrow while brightness pulses
+        // are staggered by row/column to add depth without hiding the glyph.
+        const float cellIndex = pattern == LedMotionPattern::ArrowUp ||
+            pattern == LedMotionPattern::ArrowDown
+                ? std::floor(x * tileColumns)
+                : rowPhase;
+        const float highlight = fract(axis * 1.35f - phase * 2.4f
+            + cellIndex * 0.23f);
+        const float pulse = 0.72f + 0.28f *
+            (0.5f + 0.5f * std::sin(wavePhase + cellIndex * 1.7f));
+        return (highlight < 0.34f ? 1.0f : 0.68f) * pulse;
     }
     }
     (void)columns;
