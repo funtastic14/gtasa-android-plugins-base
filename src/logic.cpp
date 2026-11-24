@@ -1521,8 +1521,15 @@ static void OnRenderEffects() {
     if (modelId >= 0) {
         const VLS::VehicleProfile* profile = g_profileManager.Find(modelId);
         if (profile != nullptr && profile->enabled) {
-            if (profile->nativeLights.rgbHeadlightsEnabled || profile->nativeLights.rgbTaillightsEnabled)
+            // Native RGB rendering is fail-closed until the geometry scanner
+            // has been revalidated. Never render from an absent or stale cache.
+            if (g_geometryScanSucceeded &&
+                g_geometryScanVehicle == currentVehicle &&
+                g_geometryScanModelId == modelId &&
+                (profile->nativeLights.rgbHeadlightsEnabled ||
+                 profile->nativeLights.rgbTaillightsEnabled)) {
                 VLS::ProfileRenderer::RenderNativeLights(currentVehicle, *profile);
+            }
             for (CVehicle* vehicle : g_frameVehicles) {
                 if (vehicle != currentVehicle || !IsVehiclePointerValid(vehicle)) continue;
                 for (const VLS::LedPlacement& led : profile->placements) {
@@ -1709,13 +1716,14 @@ static void OnGameProcess() {
 
     g_currentProfile = &profile;
 
-    // Geometry scanning is intentionally demand-driven: only scan the active
-    // vehicle when its native RGB lamp overlay is enabled. Without this call,
-    // RenderNativeLights has no cached meshes or classified lamp patches.
-    if (g_enabled && profile.enabled &&
-        (profile.nativeLights.rgbHeadlightsEnabled ||
-         profile.nativeLights.rgbTaillightsEnabled)) {
-        UpdateVehicleGeometryScan();
+    // Native RGB geometry scanning is temporarily disabled.
+    // Build #372 introduced synchronous RenderWare object traversal here;
+    // both saved and unsaved profiles crash when RGB activates, so keep the
+    // renderer fail-closed while the scanner is audited and replaced.
+    if (!profile.enabled ||
+        (!profile.nativeLights.rgbHeadlightsEnabled &&
+         !profile.nativeLights.rgbTaillightsEnabled)) {
+        ResetVehicleGeometryScan();
     }
 
     UpdateSequenceRuntime();
