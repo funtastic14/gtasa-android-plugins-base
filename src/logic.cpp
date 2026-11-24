@@ -859,6 +859,8 @@ static void RenderEditor() {
             g_runningTextKeyboardOpen = !g_runningTextKeyboardOpen;
         DrawRunningTextKeyboard(effect, changed);
         changed |= ImGui::SliderFloat("Text Spacing", &effect.textSpacing, 0.25f, 3.0f);
+        changed |= ImGui::SliderFloat("Font Size", &effect.textScale, 0.15f, 2.0f);
+        ImGui::TextWrapped("Font Size scales the glyphs independently from vehicle Position XYZ. Reduce it to fit longer messages on one horizontal line; increase Matrix Columns when more LED resolution is needed.");
         if (g_runningFontBufferEffect != &effect) {
             std::memset(g_runningFontBuffer, 0, sizeof(g_runningFontBuffer));
             std::strncpy(g_runningFontBuffer, effect.fontName.c_str(), sizeof(g_runningFontBuffer) - 1);
@@ -939,12 +941,13 @@ static void RenderEditor() {
             "Flow", "Wave", "Diagonal", "Ripple", "Pulse",
             "Alternate Rows", "Alternate Columns", "Checkerboard",
             "Windmill", "Spiral", "Starburst", "Laser Write", "Laser Weld",
-            "Arrow Left", "Arrow Right", "Arrow Up", "Arrow Down", "Opposing Arrows"
+            "Arrow Left", "Arrow Right", "Arrow Up", "Arrow Down", "Opposing Arrows",
+            "Center Collision", "Impact Burst"
         };
         int motionIndex = static_cast<int>(effect.motionPattern);
-        if (ImGui::Combo("Motion Pattern", &motionIndex, motionNames, 27)) {
+        if (ImGui::Combo("Motion Pattern", &motionIndex, motionNames, 29)) {
             if (motionIndex < 0) motionIndex = 0;
-            if (motionIndex > 26) motionIndex = 26;
+            if (motionIndex > 28) motionIndex = 28;
             effect.motionPattern = static_cast<VLS::LedMotionPattern>(motionIndex);
             changed = true;
         }
@@ -1007,7 +1010,9 @@ static void RenderEditor() {
         static const char* eyeVisualNames[] = {"Normal", "Sharingan", "Mangekyou", "Rinnegan"};
         int eyeVisual = static_cast<int>(effect.eyeVisualStyle);
         if (ImGui::Combo("Eye Visual", &eyeVisual, eyeVisualNames, 4)) {
-            effect.eyeVisualStyle = static_cast<VLS::EyeVisualStyle>(eyeVisual); changed = true;
+            effect.eyeVisualStyle = static_cast<VLS::EyeVisualStyle>(eyeVisual);
+            effect.eyeTransformationEnabled = false;
+            changed = true;
         }
         if (ImGui::Checkbox("Automatic Eye Transformation", &effect.eyeTransformationEnabled)) changed = true;
         if (effect.eyeTransformationEnabled) {
@@ -1030,7 +1035,7 @@ static void RenderEditor() {
             }
             if (ImGui::SliderFloat("Eyebrow Tilt", &effect.eyeBrowTilt, -1.0f, 1.0f)) changed = true;
         }
-        ImGui::TextWrapped("Pupil movement and expressions have independent playback. Eye motifs are procedural LED patterns; automatic transformation cycles through the available styles. Eyebrows need enough matrix rows to be visible.");
+        ImGui::TextWrapped("Eye Visual selects a persistent iris motif. Selecting a motif disables Automatic Eye Transformation so the chosen Sharingan, Mangekyou, or Rinnegan remains active. Blink can briefly close the eye; expressions and gaze no longer replace the iris design.");
     } else if (effect.type == VLS::LedEffectType::RunningText) {
         ImGui::TextWrapped("Text scrolling, transitions and text patterns use dedicated text controls, separate from general LED motion patterns.");
     }
