@@ -890,6 +890,17 @@ static void RenderEditor() {
             changed = true;
         }
         ImGui::TextWrapped("Choose Pattern > Running Text, open the touch keyboard, type your message, then tap DONE and Save Profile.");
+        static const char* textLaserNames[] = {"Off", "Laser Write", "Laser Weld"};
+        int textLaserIndex = effect.motionPattern == VLS::LedMotionPattern::LaserWrite ? 1 :
+            (effect.motionPattern == VLS::LedMotionPattern::LaserWeld ? 2 : 0);
+        if (ImGui::Combo("Text Laser Effect", &textLaserIndex, textLaserNames, 3)) {
+            effect.motionPattern = textLaserIndex == 1
+                ? VLS::LedMotionPattern::LaserWrite
+                : (textLaserIndex == 2 ? VLS::LedMotionPattern::LaserWeld
+                                       : VLS::LedMotionPattern::LeftToRight);
+            changed = true;
+        }
+        ImGui::TextWrapped("Laser Write reveals the moving text with a bright beam; Laser Weld adds a hotter head and a fading spark trail.");
     }
 
     if (effect.type == VLS::LedEffectType::RunningText ||
@@ -921,16 +932,16 @@ static void RenderEditor() {
             "Zoom In", "Zoom Out", "Fade In", "Fade Out", "Rolling",
             "Flow", "Wave", "Diagonal", "Ripple", "Pulse",
             "Alternate Rows", "Alternate Columns", "Checkerboard",
-            "Windmill", "Spiral", "Starburst"
+            "Windmill", "Spiral", "Starburst", "Laser Write", "Laser Weld"
         };
         int motionIndex = static_cast<int>(effect.motionPattern);
-        if (ImGui::Combo("Motion Pattern", &motionIndex, motionNames, 20)) {
+        if (ImGui::Combo("Motion Pattern", &motionIndex, motionNames, 22)) {
             if (motionIndex < 0) motionIndex = 0;
-            if (motionIndex > 19) motionIndex = 19;
+            if (motionIndex > 21) motionIndex = 21;
             effect.motionPattern = static_cast<VLS::LedMotionPattern>(motionIndex);
             changed = true;
         }
-        ImGui::TextWrapped("Motion controls the LED movement; Color Style controls only its palette.");
+        ImGui::TextWrapped("Laser Write draws a moving beam with a fading trace. Laser Weld adds a hot core and spark-like trail. Color Style controls the beam palette.");
     } else if (effect.type == VLS::LedEffectType::StroboEyes) {
         ImGui::Separator();
         ImGui::Text("STROBO EYES - Dedicated Eye Engine");
