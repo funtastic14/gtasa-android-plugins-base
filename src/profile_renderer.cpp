@@ -652,7 +652,7 @@ static bool RenderEffect(
         if (effect.type == LedEffectType::RunningLED ||
             effect.type == LedEffectType::RGB ||
             effect.type == LedEffectType::StroboWave) {
-            const float phase01 = static_cast<float>(std::fmod(time / 1800.0, 1.0));
+            const float phase01 = GetMotionPhase(motionTimeMs, effect.speed);
             intensity *= EvaluateMotionIntensity(
                 ResolveMotionPattern(effect, motionTimeMs, GetPlacementMotionPlayback(placement), placement.animationIntervalMs), nx, 0.5f, phase01,
                 static_cast<uint16_t>(i), 0,
