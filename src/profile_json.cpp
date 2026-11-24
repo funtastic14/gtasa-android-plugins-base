@@ -723,6 +723,7 @@ static bool ReadEffect(
         effect.durationMs < 100 || effect.durationMs > 60000 ||
         !ReadString(value, "text", effect.text) ||
         !ReadOptionalFloat(value, "textSpacing", effect.textSpacing) ||
+        !ReadOptionalFloat(value, "textScale", effect.textScale) ||
         !ReadString(value, "fontName", effect.fontName) ||
         !ReadString(value, "textureName", effect.textureName)) {
         return false;
@@ -820,7 +821,7 @@ static bool ReadEffect(
     effect.eyeVisualStyle = static_cast<EyeVisualStyle>(eyeVisualStyle);
     effect.eyeBrowStyle = static_cast<EyeBrowStyle>(eyeBrowStyle);
 
-    if (!ReadInt(value, "motionPattern", motionPattern) || motionPattern < 0 || motionPattern > static_cast<int>(LedMotionPattern::OpposingArrows)) return false;
+    if (!ReadInt(value, "motionPattern", motionPattern) || motionPattern < 0 || motionPattern > static_cast<int>(LedMotionPattern::CollisionBurst)) return false;
     effect.motionPattern = static_cast<LedMotionPattern>(motionPattern);
     int motionPlayback = static_cast<int>(effect.motionPlayback);
     if (!ReadInt(value, "motionPlayback", motionPlayback) || motionPlayback < 0 || motionPlayback > static_cast<int>(MotionPlaybackMode::Random)) return false;
@@ -1026,6 +1027,8 @@ static bool ValidateProfileReferences(
                 !std::isfinite(effect.textSpacing) ||
                 effect.textSpacing < 0.25f ||
                 effect.textSpacing > 4.0f ||
+                !std::isfinite(effect.textScale) ||
+                effect.textScale < 0.1f || effect.textScale > 3.0f ||
                 effect.text.size() > 128) {
                 return false;
             }
@@ -1354,6 +1357,8 @@ static bool AppendEffect(
 
     output += ",\"textSpacing\":";
     if (!AppendFloat(output, effect.textSpacing)) return false;
+    output += ",\"textScale\":";
+    if (!AppendFloat(output, effect.textScale)) return false;
     output += ",\"fontName\":";
     if (!AppendJsonString(output, effect.fontName)) return false;
     output += ",\"textureName\":";
