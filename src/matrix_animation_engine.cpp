@@ -627,10 +627,9 @@ bool MatrixAnimationEngine::EvaluatePixel(
         const float charWidth = 6.0f * spacing;
         // Vertical text stacks complete, upright 5x7 glyphs along the
         // scrolling axis. Each character occupies seven rows plus spacing.
-        const float totalWidth = (vertical ? 8.0f : charWidth) *
-            spacing * 0.0f + (vertical
-                ? 8.0f * spacing * static_cast<float>(effect.text.size())
-                : charWidth * static_cast<float>(effect.text.size()));
+        const float totalWidth = vertical
+            ? 8.0f * spacing * static_cast<float>(effect.text.size())
+            : charWidth * static_cast<float>(effect.text.size());
         if (totalWidth <= 0.0f)
             return true;
 
