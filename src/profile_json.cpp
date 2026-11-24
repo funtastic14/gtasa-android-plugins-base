@@ -770,6 +770,56 @@ static bool ReadEffect(
     effect.eyeShape = static_cast<EyeShape>(eyeShape);
     effect.eyeMotion = static_cast<EyeMotion>(eyeMotion);
     effect.eyeExpression = static_cast<EyeExpression>(eyeExpression);
+
+    int eyeMotionPlayback = static_cast<int>(effect.eyeMotionPlayback);
+    int eyeExpressionPlayback = static_cast<int>(effect.eyeExpressionPlayback);
+    int eyeVisualStyle = static_cast<int>(effect.eyeVisualStyle);
+    int eyeBrowStyle = static_cast<int>(effect.eyeBrowStyle);
+    if ((Find(value, "eyeMotionPlayback") &&
+         (!ReadInt(value, "eyeMotionPlayback", eyeMotionPlayback) ||
+          eyeMotionPlayback < 0 || eyeMotionPlayback > static_cast<int>(MotionPlaybackMode::Random))) ||
+        (Find(value, "eyeExpressionPlayback") &&
+         (!ReadInt(value, "eyeExpressionPlayback", eyeExpressionPlayback) ||
+          eyeExpressionPlayback < 0 || eyeExpressionPlayback > static_cast<int>(MotionPlaybackMode::Random))) ||
+        !ReadOptionalUInt32(value, "eyeMotionIntervalMs", effect.eyeMotionIntervalMs) ||
+        !ReadOptionalUInt32(value, "eyeExpressionIntervalMs", effect.eyeExpressionIntervalMs) ||
+        effect.eyeMotionIntervalMs < 500 || effect.eyeMotionIntervalMs > 30000 ||
+        effect.eyeExpressionIntervalMs < 500 || effect.eyeExpressionIntervalMs > 30000)
+        return false;
+    effect.eyeMotionPlayback = static_cast<MotionPlaybackMode>(eyeMotionPlayback);
+    effect.eyeExpressionPlayback = static_cast<MotionPlaybackMode>(eyeExpressionPlayback);
+
+    const char* eyeColorKeys[] = {
+        "eyeIrisRed", "eyeIrisGreen", "eyeIrisBlue",
+        "eyePupilRed", "eyePupilGreen", "eyePupilBlue",
+        "eyeBrowRed", "eyeBrowGreen", "eyeBrowBlue"
+    };
+    uint8_t* eyeColorValues[] = {
+        &effect.eyeIrisRed, &effect.eyeIrisGreen, &effect.eyeIrisBlue,
+        &effect.eyePupilRed, &effect.eyePupilGreen, &effect.eyePupilBlue,
+        &effect.eyeBrowRed, &effect.eyeBrowGreen, &effect.eyeBrowBlue
+    };
+    for (size_t i = 0; i < sizeof(eyeColorKeys) / sizeof(eyeColorKeys[0]); ++i) {
+        if (Find(value, eyeColorKeys[i]) &&
+            !ReadUInt8(value, eyeColorKeys[i], *eyeColorValues[i]))
+            return false;
+    }
+    if ((Find(value, "eyeVisualStyle") &&
+         (!ReadInt(value, "eyeVisualStyle", eyeVisualStyle) ||
+          eyeVisualStyle < 0 || eyeVisualStyle > static_cast<int>(EyeVisualStyle::Rinnegan))) ||
+        (Find(value, "eyeBrowStyle") &&
+         (!ReadInt(value, "eyeBrowStyle", eyeBrowStyle) ||
+          eyeBrowStyle < 0 || eyeBrowStyle > static_cast<int>(EyeBrowStyle::Thick))) ||
+        (Find(value, "eyeTransformationEnabled") &&
+         !ReadBool(value, "eyeTransformationEnabled", effect.eyeTransformationEnabled)) ||
+        !ReadOptionalUInt32(value, "eyeTransformationIntervalMs", effect.eyeTransformationIntervalMs) ||
+        effect.eyeTransformationIntervalMs < 1000 || effect.eyeTransformationIntervalMs > 60000 ||
+        !ReadOptionalFloat(value, "eyeBrowTilt", effect.eyeBrowTilt) ||
+        !std::isfinite(effect.eyeBrowTilt) || effect.eyeBrowTilt < -1.0f || effect.eyeBrowTilt > 1.0f)
+        return false;
+    effect.eyeVisualStyle = static_cast<EyeVisualStyle>(eyeVisualStyle);
+    effect.eyeBrowStyle = static_cast<EyeBrowStyle>(eyeBrowStyle);
+
     if (!ReadInt(value, "motionPattern", motionPattern) || motionPattern < 0 || motionPattern > static_cast<int>(LedMotionPattern::LaserWeld)) return false;
     effect.motionPattern = static_cast<LedMotionPattern>(motionPattern);
     int motionPlayback = static_cast<int>(effect.motionPlayback);
@@ -1257,6 +1307,42 @@ static bool AppendEffect(
     AppendInt(output, static_cast<int>(effect.eyeExpression));
     output += ",\"eyeBlinkIntervalMs\":";
     AppendUInt(output, effect.eyeBlinkIntervalMs);
+    output += ",\"eyeMotionPlayback\":";
+    AppendInt(output, static_cast<int>(effect.eyeMotionPlayback));
+    output += ",\"eyeExpressionPlayback\":";
+    AppendInt(output, static_cast<int>(effect.eyeExpressionPlayback));
+    output += ",\"eyeMotionIntervalMs\":";
+    AppendUInt(output, effect.eyeMotionIntervalMs);
+    output += ",\"eyeExpressionIntervalMs\":";
+    AppendUInt(output, effect.eyeExpressionIntervalMs);
+    output += ",\"eyeIrisRed\":";
+    AppendUInt(output, effect.eyeIrisRed);
+    output += ",\"eyeIrisGreen\":";
+    AppendUInt(output, effect.eyeIrisGreen);
+    output += ",\"eyeIrisBlue\":";
+    AppendUInt(output, effect.eyeIrisBlue);
+    output += ",\"eyePupilRed\":";
+    AppendUInt(output, effect.eyePupilRed);
+    output += ",\"eyePupilGreen\":";
+    AppendUInt(output, effect.eyePupilGreen);
+    output += ",\"eyePupilBlue\":";
+    AppendUInt(output, effect.eyePupilBlue);
+    output += ",\"eyeVisualStyle\":";
+    AppendInt(output, static_cast<int>(effect.eyeVisualStyle));
+    output += ",\"eyeTransformationEnabled\":";
+    output += effect.eyeTransformationEnabled ? "true" : "false";
+    output += ",\"eyeTransformationIntervalMs\":";
+    AppendUInt(output, effect.eyeTransformationIntervalMs);
+    output += ",\"eyeBrowStyle\":";
+    AppendInt(output, static_cast<int>(effect.eyeBrowStyle));
+    output += ",\"eyeBrowRed\":";
+    AppendUInt(output, effect.eyeBrowRed);
+    output += ",\"eyeBrowGreen\":";
+    AppendUInt(output, effect.eyeBrowGreen);
+    output += ",\"eyeBrowBlue\":";
+    AppendUInt(output, effect.eyeBrowBlue);
+    output += ",\"eyeBrowTilt\":";
+    if (!AppendFloat(output, effect.eyeBrowTilt)) return false;
 
     output += ",\"speed\":";
     if (!AppendFloat(output, effect.speed)) return false;
