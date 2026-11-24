@@ -123,7 +123,12 @@ enum class LedMotionPattern : uint8_t {
     Spiral,
     Starburst,
     LaserWrite,
-    LaserWeld
+    LaserWeld,
+    ArrowLeft,
+    ArrowRight,
+    ArrowUp,
+    ArrowDown,
+    OpposingArrows
 };
 
 enum class MotionPlaybackMode : uint8_t {
