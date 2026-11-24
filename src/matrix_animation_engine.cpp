@@ -524,6 +524,9 @@ bool MatrixAnimationEngine::EvaluatePixel(
     const float colorPosition = GetColorPosition(
         effect.colorDirection, x, y, effect.colorSpread
     );
+    const float colorPhase = pixel->speed == 1.0f
+        ? localMotionFrame.phase
+        : GetMotionPhase(timeMs, speed);
 
     // Motion is evaluated once below from the selected LedMotionPattern.
     // Do not retain the legacy per-effect directional sweep here.
@@ -972,7 +975,7 @@ bool MatrixAnimationEngine::EvaluatePixel(
 
     case LedEffectType::RGB: {
         const float hue =
-            static_cast<float>(timeMs) * 0.06f * speed +
+            colorPhase * 360.0f +
             colorPosition * effect.colorSpread * 360.0f;
 
         HSVtoRGB(hue, red, green, blue);
@@ -1042,22 +1045,22 @@ bool MatrixAnimationEngine::EvaluatePixel(
             break;
         }
         case LedColorMode::Rainbow: {
-            const float hue = static_cast<float>(timeMs) * 0.06f * speed + blend * 360.0f;
+            const float hue = colorPhase * 360.0f + blend * 360.0f;
             HSVtoRGB(hue, red, green, blue);
             break;
         }
         case LedColorMode::ColorCycle:
-            HSVtoRGB(static_cast<float>(timeMs) * 0.06f * speed, red, green, blue);
+            HSVtoRGB(colorPhase * 360.0f, red, green, blue);
             break;
         case LedColorMode::ColorWave: {
             const float wave = 0.5f + 0.5f * std::sin(
-                blend * TWO_PI * 2.0f - static_cast<float>(timeMs) * 0.004f * speed
+                blend * TWO_PI * 2.0f - colorPhase * TWO_PI
             );
-            HSVtoRGB(wave * 360.0f + static_cast<float>(timeMs) * 0.02f * speed, red, green, blue);
+            HSVtoRGB(wave * 360.0f + colorPhase * 360.0f, red, green, blue);
             break;
         }
         case LedColorMode::ColorPulse: {
-            const float pulse = 0.5f + 0.5f * std::sin(static_cast<float>(timeMs) * 0.006f * speed);
+            const float pulse = 0.5f + 0.5f * std::sin(colorPhase * TWO_PI);
             red = ClampColor(static_cast<float>(red) * (1.0f - pulse) + effect.secondaryRed * pulse);
             green = ClampColor(static_cast<float>(green) * (1.0f - pulse) + effect.secondaryGreen * pulse);
             blue = ClampColor(static_cast<float>(blue) * (1.0f - pulse) + effect.secondaryBlue * pulse);
@@ -1065,7 +1068,7 @@ bool MatrixAnimationEngine::EvaluatePixel(
         }
         case LedColorMode::Alternating: {
             const uint32_t band = static_cast<uint32_t>(
-                std::floor(blend * 8.0f + static_cast<float>(timeMs) * 0.002f * speed)
+                std::floor(blend * 8.0f + colorPhase * 8.0f)
             );
             if ((band & 1u) != 0u) {
                 red = effect.secondaryRed; green = effect.secondaryGreen; blue = effect.secondaryBlue;

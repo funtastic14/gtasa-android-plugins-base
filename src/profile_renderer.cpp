@@ -596,8 +596,10 @@ static bool RenderEffect(
 
     uint32_t indexCount = 0;
 
-    const bool strobeOn =
-        std::fmod(time / 250.0, 1.0) < 0.5;
+    const float strobePhase = static_cast<float>(
+        std::fmod(time / 250.0, 1.0)
+    );
+    const bool strobeOn = strobePhase < 0.5f;
 
     for (uint32_t i = 0; i < SEGMENTS; ++i) {
         float intensity = 1.0f;
@@ -642,7 +644,7 @@ static bool RenderEffect(
                 break;
             }
             HSVtoRGB(
-                static_cast<float>(time) * 0.06f +
+                motionFrame.phase * 360.0f +
                     colorPosition * effect.colorSpread * 360.0f,
                 red, green, blue
             );
@@ -714,20 +716,20 @@ static bool RenderEffect(
                 break;
             }
             case LedColorMode::Rainbow:
-                HSVtoRGB(static_cast<float>(time) * 0.06f + blend * 360.0f, red, green, blue);
+                HSVtoRGB(motionFrame.phase * 360.0f + blend * 360.0f, red, green, blue);
                 break;
             case LedColorMode::ColorCycle:
-                HSVtoRGB(static_cast<float>(time) * 0.06f, red, green, blue);
+                HSVtoRGB(motionFrame.phase * 360.0f, red, green, blue);
                 break;
             case LedColorMode::ColorWave: {
                 const float wave = 0.5f + 0.5f * std::sin(
-                    blend * 6.28318530718f * 2.0f - static_cast<float>(time) * 0.004f
+                    blend * 6.28318530718f * 2.0f - motionFrame.phase * 6.28318530718f
                 );
-                HSVtoRGB(wave * 360.0f + static_cast<float>(time) * 0.02f, red, green, blue);
+                HSVtoRGB(wave * 360.0f + motionFrame.phase * 360.0f, red, green, blue);
                 break;
             }
             case LedColorMode::ColorPulse: {
-                const float pulse = 0.5f + 0.5f * std::sin(static_cast<float>(time) * 0.006f);
+                const float pulse = 0.5f + 0.5f * std::sin(motionFrame.phase * 6.28318530718f);
                 red = ClampColor(static_cast<float>(red) * (1.0f - pulse) + effect.secondaryRed * pulse);
                 green = ClampColor(static_cast<float>(green) * (1.0f - pulse) + effect.secondaryGreen * pulse);
                 blue = ClampColor(static_cast<float>(blue) * (1.0f - pulse) + effect.secondaryBlue * pulse);
@@ -735,7 +737,7 @@ static bool RenderEffect(
             }
             case LedColorMode::Alternating: {
                 const uint32_t band = static_cast<uint32_t>(
-                    std::floor(blend * 8.0f + static_cast<float>(time) * 0.002f)
+                    std::floor(blend * 8.0f + motionFrame.phase * 8.0f)
                 );
                 if ((band & 1u) != 0u) {
                     red = effect.secondaryRed; green = effect.secondaryGreen; blue = effect.secondaryBlue;
