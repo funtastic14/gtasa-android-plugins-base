@@ -743,13 +743,23 @@ bool MatrixAnimationEngine::EvaluatePixel(
         return false;
     }
 
-    // Only the three general-purpose LED effects share this motion field.
-    // Eyes and text have their own geometry, timing and movement systems.
+    // General LED effects use the shared motion field. Running Text keeps
+    // its own scrolling engine, but can optionally receive a laser write/weld pass.
+    const LedMotionPattern activePattern =
+        ResolveMotionPattern(effect, timeMs, playback, motionIntervalMs);
     if (effect.type != LedEffectType::StroboEyes &&
-        effect.type != LedEffectType::RunningText) {
+        (effect.type != LedEffectType::RunningText ||
+         activePattern == LedMotionPattern::LaserWrite ||
+         activePattern == LedMotionPattern::LaserWeld)) {
         const float phase = Fract(static_cast<float>(timeMs) * speed / 1800.0f);
+        const bool verticalText =
+            effect.textMotion == RunningTextMotion::ScrollUp ||
+            effect.textMotion == RunningTextMotion::ScrollDown ||
+            effect.textMotion == RunningTextMotion::BounceVertical;
+        const float motionX = effect.type == LedEffectType::RunningText && verticalText ? y : x;
+        const float motionY = effect.type == LedEffectType::RunningText && verticalText ? x : y;
         intensity *= EvaluateMotionIntensity(
-            ResolveMotionPattern(effect, timeMs, playback, motionIntervalMs), x, y, phase,
+            activePattern, motionX, motionY, phase,
             column, row, matrix.columns, matrix.rows
         );
     }
