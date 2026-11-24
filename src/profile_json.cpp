@@ -1584,7 +1584,7 @@ bool Deserialize(
             return false;
         }
         if (result.nativeLights.highBeamRange < 10.0f ||
-            result.nativeLights.highBeamRange > 100.0f ||
+            result.nativeLights.highBeamRange > 250.0f ||
             result.nativeLights.highBeamIntensity < 0.1f ||
             result.nativeLights.highBeamIntensity > 4.0f) {
             return false;

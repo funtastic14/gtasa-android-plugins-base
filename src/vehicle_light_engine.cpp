@@ -23,7 +23,7 @@ void VehicleLightEngine::AddHighBeam(
 
     const float range = std::max(
         10.0f,
-        std::min(100.0f, profile.nativeLights.highBeamRange)
+        std::min(250.0f, profile.nativeLights.highBeamRange)
     );
     const float intensity = std::max(
         0.1f,

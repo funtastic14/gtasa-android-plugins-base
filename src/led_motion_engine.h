@@ -154,7 +154,8 @@ inline float EvaluateMotionIntensity(
         return 0.15f + 0.85f * (0.5f + 0.5f *
             std::sin(wavePhase - (x + y) * PI2 * 2.0f));
     case LedMotionPattern::Wave:
-        return 0.5f + 0.5f * std::sin(wavePhase + x * PI2 * 2.0f);
+        // One broad wave across the placement instead of two tightly packed cycles.
+        return 0.5f + 0.5f * std::sin(wavePhase + x * PI2);
     case LedMotionPattern::Diagonal: {
         const float d = fract(phase - fract(x + y));
         return d < 0.25f ? 1.0f - d / 0.25f : 0.03f;
@@ -281,8 +282,14 @@ inline float EvaluateMotionIntensity(
         return ((row + static_cast<uint16_t>(phase * 4.0f)) % 2u) ? 0.08f : 1.0f;
     case LedMotionPattern::AlternateColumns:
         return ((column + static_cast<uint16_t>(phase * 4.0f)) % 2u) ? 0.08f : 1.0f;
-    case LedMotionPattern::Checkerboard:
-        return ((column + row + static_cast<uint16_t>(phase * 4.0f)) % 2u) ? 0.08f : 1.0f;
+    case LedMotionPattern::Checkerboard: {
+        // Use 2x2 pixel blocks so the checker field reads as separated tiles,
+        // not a dense one-pixel alternation.
+        const uint16_t blockColumn = column / 2u;
+        const uint16_t blockRow = row / 2u;
+        const uint16_t phaseStep = static_cast<uint16_t>(phase * 4.0f);
+        return ((blockColumn + blockRow + phaseStep) % 2u) ? 0.08f : 1.0f;
+    }
     case LedMotionPattern::Windmill: {
         const float angle = std::atan2(dy, dx);
         const float blade = std::cos(angle * 4.0f - wavePhase);

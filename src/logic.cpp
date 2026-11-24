@@ -581,7 +581,7 @@ static void RenderEditor() {
     bool highBeamChanged = false;
     highBeamChanged |= ImGui::Checkbox("High Beam", &profile->nativeLights.highBeamEnabled);
     if (profile->nativeLights.highBeamEnabled) {
-        highBeamChanged |= ImGui::SliderFloat("High Beam Range", &profile->nativeLights.highBeamRange, 10.0f, 100.0f);
+        highBeamChanged |= ImGui::SliderFloat("High Beam Range", &profile->nativeLights.highBeamRange, 10.0f, 250.0f);
         highBeamChanged |= ImGui::SliderFloat("High Beam Intensity", &profile->nativeLights.highBeamIntensity, 0.1f, 4.0f);
         ImGui::TextWrapped("Adds forward illumination while keeping the game's original low beam behavior.");
     }

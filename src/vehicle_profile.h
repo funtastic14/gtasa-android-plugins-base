@@ -352,7 +352,7 @@ struct EffectSequence {
 // Profil konfigurasi satu model kendaraan.
 struct NativeVehicleLightConfig {
     bool highBeamEnabled = false;
-    float highBeamRange = 45.0f;
+    float highBeamRange = 60.0f;
     float highBeamIntensity = 1.25f;
 };
 
