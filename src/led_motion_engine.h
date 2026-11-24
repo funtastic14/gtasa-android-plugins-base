@@ -65,6 +65,9 @@ inline LedMotionPattern ResolveMotionPattern(
             LedMotionPattern::CollisionRebound, LedMotionPattern::CenterSplit,
             LedMotionPattern::DualFlow, LedMotionPattern::MirroredDiagonal,
             LedMotionPattern::DoubleRebound,
+            LedMotionPattern::VerticalSweep, LedMotionPattern::SideCollision,
+            LedMotionPattern::CornerBurst, LedMotionPattern::TwinSpiral,
+            LedMotionPattern::OrbitRing,
             LedMotionPattern::RightToLeft, LedMotionPattern::EdgeToCenter,
             LedMotionPattern::ZoomOut, LedMotionPattern::Flow
         };
@@ -274,6 +277,46 @@ inline float EvaluateMotionIntensity(
         const float d = std::fabs(x - triangle);
         return d < 0.11f ? 1.0f - d / 0.11f : 0.03f;
     }
+    case LedMotionPattern::VerticalSweep: {
+        const float d = fract(phase - (1.0f - y));
+        return d < 0.20f ? 1.0f - d / 0.20f : 0.025f;
+    }
+    case LedMotionPattern::SideCollision: {
+        const float distanceFromCenter = std::fabs(y - 0.5f);
+        if (phase < 0.62f) {
+            const float front = 0.5f * (1.0f - phase / 0.62f);
+            return 0.025f + 0.975f * clamp01(
+                1.0f - std::fabs(distanceFromCenter - front) * 22.0f
+            );
+        }
+        if (phase < 0.72f) return 1.0f;
+        const float rebound = (phase - 0.72f) / 0.28f;
+        return 0.025f + 0.975f * clamp01(
+            1.0f - std::fabs(distanceFromCenter - rebound * 0.5f) * 18.0f
+        );
+    }
+    case LedMotionPattern::CornerBurst: {
+        const float cx = std::min(x, 1.0f - x);
+        const float cy = std::min(y, 1.0f - y);
+        const float cornerRadius = std::sqrt(cx * cx + cy * cy) * 1.41421356f;
+        const float wave = clamp01(1.0f - std::fabs(cornerRadius - phase) * 16.0f);
+        return 0.025f + 0.975f * wave;
+    }
+    case LedMotionPattern::TwinSpiral: {
+        const float angle = std::atan2(dy, dx);
+        const float armA = std::cos(radius * 24.0f - angle * 2.0f - wavePhase);
+        const float armB = std::cos(radius * 24.0f + angle * 2.0f - wavePhase);
+        return 0.04f + 0.96f * (0.5f + 0.5f * std::max(armA, armB));
+    }
+    case LedMotionPattern::OrbitRing: {
+        const float angle = std::atan2(dy, dx);
+        float angularDistance = std::fabs(angle - wavePhase);
+        if (angularDistance > 3.14159265f)
+            angularDistance = 6.28318530f - angularDistance;
+        const float ring = clamp01(1.0f - std::fabs(radius - 0.62f) * 12.0f);
+        const float orbitHead = clamp01(1.0f - angularDistance * 2.5f);
+        return 0.035f + 0.965f * ring * (0.35f + 0.65f * orbitHead);
+    }
     case LedMotionPattern::Ripple:
         return 0.5f + 0.5f * std::sin(radius * 18.0f - wavePhase * 2.0f);
     case LedMotionPattern::Pulse:
@@ -283,10 +326,10 @@ inline float EvaluateMotionIntensity(
     case LedMotionPattern::AlternateColumns:
         return ((column + static_cast<uint16_t>(phase * 4.0f)) % 2u) ? 0.08f : 1.0f;
     case LedMotionPattern::Checkerboard: {
-        // Use 2x2 pixel blocks so the checker field reads as separated tiles,
-        // not a dense one-pixel alternation.
-        const uint16_t blockColumn = column / 2u;
-        const uint16_t blockRow = row / 2u;
+        // Use larger 3x3 pixel tiles; the matrix renderer adds a wider
+        // physical gap between each illuminated tile.
+        const uint16_t blockColumn = column / 3u;
+        const uint16_t blockRow = row / 3u;
         const uint16_t phaseStep = static_cast<uint16_t>(phase * 4.0f);
         return ((blockColumn + blockRow + phaseStep) % 2u) ? 0.08f : 1.0f;
     }

@@ -147,7 +147,12 @@ enum class LedMotionPattern : uint8_t {
     CenterSplit,
     DualFlow,
     MirroredDiagonal,
-    DoubleRebound
+    DoubleRebound,
+    VerticalSweep,
+    SideCollision,
+    CornerBurst,
+    TwinSpiral,
+    OrbitRing
 };
 
 enum class MotionPlaybackMode : uint8_t {
@@ -352,7 +357,7 @@ struct EffectSequence {
 // Profil konfigurasi satu model kendaraan.
 struct NativeVehicleLightConfig {
     bool highBeamEnabled = false;
-    float highBeamRange = 60.0f;
+    float highBeamRange = 500.0f;
     float highBeamIntensity = 1.25f;
     bool rgbHeadlightsEnabled = false;
     bool rgbTaillightsEnabled = false;

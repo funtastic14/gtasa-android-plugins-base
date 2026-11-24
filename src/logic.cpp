@@ -583,7 +583,7 @@ static void RenderEditor() {
     bool nativeLightsChanged = false;
     nativeLightsChanged |= ImGui::Checkbox("High Beam", &profile->nativeLights.highBeamEnabled);
     if (profile->nativeLights.highBeamEnabled) {
-        nativeLightsChanged |= ImGui::SliderFloat("High Beam Range", &profile->nativeLights.highBeamRange, 10.0f, 250.0f);
+        nativeLightsChanged |= ImGui::SliderFloat("High Beam Range", &profile->nativeLights.highBeamRange, 10.0f, 500.0f);
         nativeLightsChanged |= ImGui::SliderFloat("High Beam Intensity", &profile->nativeLights.highBeamIntensity, 0.1f, 4.0f);
         ImGui::TextWrapped("Adds forward illumination while keeping the game's original low beam behavior.");
     }
@@ -592,7 +592,7 @@ static void RenderEditor() {
     if (profile->nativeLights.rgbHeadlightsEnabled || profile->nativeLights.rgbTaillightsEnabled) {
         nativeLightsChanged |= ImGui::SliderFloat("Native Light RGB Flow Speed", &profile->nativeLights.rgbFlowSpeed, 0.1f, 4.0f);
         nativeLightsChanged |= ImGui::SliderFloat("Native Light RGB Intensity", &profile->nativeLights.rgbFlowIntensity, 0.1f, 2.0f);
-        ImGui::TextWrapped("Tints the original lamp surface through its own texture and alpha mask. Only this player vehicle is affected.");
+        ImGui::TextWrapped("Overlays RGB on detected lamp geometry, independent of vehiclelightson128 alpha. Only this player vehicle is affected.");
     }
     if (nativeLightsChanged)
         g_profileManager.MarkDirty(modelId);
@@ -1014,12 +1014,14 @@ static void RenderEditor() {
             "Center Collision", "Center Burst", "Diagonal + Collision", "Diagonal + Center Burst",
             "Multi Collision", "Cross Burst", "Radial Burst", "Ping-Pong",
             "Mirror Reflection", "Reflective Wave", "Collision Rebound", "Center Split",
-            "Dual Flow", "Mirrored Diagonal", "Double Rebound"
+            "Dual Flow", "Mirrored Diagonal", "Double Rebound",
+            "Vertical Sweep", "Side Collision", "Corner Burst",
+            "Twin Spiral", "Orbit Ring"
         };
         int motionIndex = static_cast<int>(effect.motionPattern);
-        if (ImGui::Combo("Motion Pattern", &motionIndex, motionNames, 42)) {
+        if (ImGui::Combo("Motion Pattern", &motionIndex, motionNames, 47)) {
             if (motionIndex < 0) motionIndex = 0;
-            if (motionIndex > 41) motionIndex = 41;
+            if (motionIndex > 46) motionIndex = 46;
             effect.motionPattern = static_cast<VLS::LedMotionPattern>(motionIndex);
             changed = true;
         }

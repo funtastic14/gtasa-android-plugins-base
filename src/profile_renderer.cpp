@@ -386,7 +386,7 @@ static bool RenderMatrixEffect(
     const float cellHeight = effectiveHeight / static_cast<float>(rows);
 
     const float matrixGap = motionFrame.pattern == LedMotionPattern::Checkerboard
-        ? 0.55f : 0.12f;
+        ? 0.72f : 0.12f;
     const float gapX = cellWidth * matrixGap;
     const float gapZ = cellHeight * matrixGap;
 
@@ -823,7 +823,7 @@ static bool RenderNativeLightPatch(
     uint32_t timeMs
 ) {
     if (vehicle == nullptr || patch.role != SurfaceRoleCandidate::Lighting ||
-        !mesh.hasTextureCoordinates || mesh.vertices.empty() ||
+        mesh.vertices.empty() ||
         mesh.vehicleSpaceVertices.size() != mesh.vertices.size() ||
         mesh.vertices.size() > 65535u || patch.triangleIndices.empty()) {
         return false;
@@ -842,7 +842,7 @@ static bool RenderNativeLightPatch(
             return material.index == patch.materialIndex;
         }
     );
-    if (materialIt == mesh.materials.end() || materialIt->raster == nullptr)
+    if (materialIt == mesh.materials.end())
         return false;
 
     CMatrix* vehicleMatrix = vehicle->GetMatrix();
@@ -871,9 +871,17 @@ static bool RenderNativeLightPatch(
         const GeometryVertex& source = mesh.vertices[i];
         const GeometryVertex& local = mesh.vehicleSpaceVertices[i];
         CVector vehicleLocal(local.x, local.y, local.z);
-        // Nudge the overlay toward the exterior of the lamp to avoid a
-        // same-depth Z test against the vehicle's original textured surface.
-        vehicleLocal.y += front ? 0.025f : -0.025f;
+        // Offset along the actual surface normal, not a fixed vehicle Y axis.
+        // This also supports differently oriented custom lamp meshes.
+        CVector outward(patch.normal.x, patch.normal.y, patch.normal.z);
+        const float normalLength = std::sqrt(DotProduct(outward, outward));
+        if (normalLength > 0.0001f) {
+            outward = outward * (1.0f / normalLength);
+            const CVector center(patch.centroid.x, patch.centroid.y, patch.centroid.z);
+            if (DotProduct(outward, center) < 0.0f)
+                outward = outward * -1.0f;
+            vehicleLocal += outward * 0.04f;
+        }
         const CVector world = vehicleMatrix->TransformPoint(vehicleLocal);
         const float normalizedX = (local.x - minX) / width;
         uint8_t red = 255, green = 255, blue = 255;
@@ -902,17 +910,17 @@ static bool RenderNativeLightPatch(
     if (indices.empty())
         return false;
 
-    RenderStateGuard stateGuard(true);
-    RwRenderStateSet(
-        rwRENDERSTATETEXTURERASTER,
-        reinterpret_cast<void*>(materialIt->raster)
-    );
+    RenderStateGuard stateGuard;
+    // Do not sample vehiclelightson128 here: its alpha may be fully transparent
+    // or vehicle-specific, hiding the entire RGB overlay. The classified lamp
+    // geometry itself is the rendering mask.
+    RwRenderStateSet(rwRENDERSTATETEXTURERASTER, nullptr);
     RwRenderStateSet(rwRENDERSTATEVERTEXALPHAENABLE, reinterpret_cast<void*>(1));
     RwRenderStateSet(rwRENDERSTATESRCBLEND, reinterpret_cast<void*>(rwBLENDSRCALPHA));
     RwRenderStateSet(rwRENDERSTATEDESTBLEND, reinterpret_cast<void*>(rwBLENDINVSRCALPHA));
 
     const RwUInt32 flags =
-        rwIM3D_VERTEXXYZ | rwIM3D_VERTEXRGBA | rwIM3D_VERTEXUV;
+        rwIM3D_VERTEXXYZ | rwIM3D_VERTEXRGBA;
     if (RwIm3DTransform(
             vertices.data(),
             static_cast<RwUInt32>(vertices.size()),
