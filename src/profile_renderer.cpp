@@ -541,10 +541,6 @@ static bool RenderEffect(
     if (brightness > 1.0f)
         brightness = 1.0f;
 
-    const double time =
-        static_cast<double>(motionTimeMs) *
-        static_cast<double>(effect.speed);
-
     const bool isWindshieldZone =
         placement.zone == LedZone::Windshield ||
         placement.zone == LedZone::FrontUpWindshield;
