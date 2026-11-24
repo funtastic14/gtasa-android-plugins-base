@@ -731,7 +731,7 @@ static bool ReadEffect(
 
     int colorMode = static_cast<int>(effect.colorMode);
     int motionPattern = static_cast<int>(effect.motionPattern);
-    int motionTransition = static_cast<int>(effect.motionTransition);
+    int motionModifier = static_cast<int>(effect.motionModifier);
     if (!ReadInt(value, "colorMode", colorMode) ||
         colorMode < 0 || colorMode > static_cast<int>(LedColorMode::Alternating) ||
         !ReadUInt8(value, "secondaryRed", effect.secondaryRed) ||
@@ -827,10 +827,11 @@ static bool ReadEffect(
 
     if (!ReadInt(value, "motionPattern", motionPattern) || motionPattern < 0 || motionPattern > static_cast<int>(LedMotionPattern::OpposingArrows)) return false;
     effect.motionPattern = static_cast<LedMotionPattern>(motionPattern);
-    if (Find(value, "motionTransition") &&
-        (!ReadInt(value, "motionTransition", motionTransition) ||
-         motionTransition < 0 || motionTransition > static_cast<int>(LedMotionTransition::CenterBurst))) return false;
-    effect.motionTransition = static_cast<LedMotionTransition>(motionTransition);
+    const char* modifierKey = Find(value, "motionModifier") ? "motionModifier" : "motionTransition";
+    if (Find(value, modifierKey) &&
+        (!ReadInt(value, modifierKey, motionModifier) ||
+         motionModifier < 0 || motionModifier > static_cast<int>(LedMotionModifier::CenterBurst))) return false;
+    effect.motionModifier = static_cast<LedMotionModifier>(motionModifier);
     int motionPlayback = static_cast<int>(effect.motionPlayback);
     if (!ReadInt(value, "motionPlayback", motionPlayback) || motionPlayback < 0 || motionPlayback > static_cast<int>(MotionPlaybackMode::Random)) return false;
     effect.motionPlayback = static_cast<MotionPlaybackMode>(motionPlayback);
@@ -1289,8 +1290,8 @@ static bool AppendEffect(
     AppendInt(output, static_cast<int>(effect.colorMode));
     output += ",\"motionPattern\":";
     AppendInt(output, static_cast<int>(effect.motionPattern));
-    output += ",\"motionTransition\":";
-    AppendInt(output, static_cast<int>(effect.motionTransition));
+    output += ",\"motionModifier\":";
+    AppendInt(output, static_cast<int>(effect.motionModifier));
     output += ",\"motionPlayback\":";
     AppendInt(output, static_cast<int>(effect.motionPlayback));
     output += ",\"motionIntervalMs\":";
