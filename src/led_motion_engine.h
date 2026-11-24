@@ -43,7 +43,7 @@ inline LedMotionPattern ResolveMotionPattern(
         return effect.motionPattern;
     const uint32_t interval = intervalMs < 500 ? 500 : intervalMs;
     const uint32_t step = timeMs / interval;
-    const uint32_t count = static_cast<uint32_t>(LedMotionPattern::CollisionBurst) + 1u;
+    const uint32_t count = static_cast<uint32_t>(LedMotionPattern::OpposingArrows) + 1u;
     if (playback == MotionPlaybackMode::Sequential)
         return static_cast<LedMotionPattern>(step % count);
     if (playback == MotionPlaybackMode::Automatic) {
@@ -56,7 +56,6 @@ inline LedMotionPattern ResolveMotionPattern(
             LedMotionPattern::ArrowLeft, LedMotionPattern::ArrowRight,
             LedMotionPattern::ArrowUp, LedMotionPattern::ArrowDown,
             LedMotionPattern::OpposingArrows,
-            LedMotionPattern::CollisionCenter, LedMotionPattern::CollisionBurst,
             LedMotionPattern::RightToLeft, LedMotionPattern::EdgeToCenter,
             LedMotionPattern::ZoomOut, LedMotionPattern::Flow
         };
@@ -171,34 +170,6 @@ inline float EvaluateMotionIntensity(
             return 0.12f + 0.88f * (1.0f - distance / 0.30f);
         return 0.025f;
     }
-    case LedMotionPattern::CollisionCenter: {
-        // Two generic motion fronts approach from opposite edges, collide at
-        // the center, flash, then send a short shockwave back outward. This
-        // intensity mask can animate arrows, boxes, pixels, or other artwork.
-        if (phase < 0.72f) {
-            const float front = 0.5f * (1.0f - phase / 0.72f);
-            const float distance = std::fabs(std::fabs(x - 0.5f) - front);
-            const float beam = clamp01(1.0f - distance * 18.0f);
-            return 0.025f + 0.975f * beam;
-        }
-        if (phase < 0.82f) {
-            const float flash = 0.5f + 0.5f * std::sin(
-                (phase - 0.72f) * PI2 / 0.10f);
-            return 0.35f + 0.65f * flash;
-        }
-        const float burst = (phase - 0.82f) / 0.18f;
-        const float front = burst * 0.5f;
-        const float distance = std::fabs(std::fabs(x - 0.5f) - front);
-        return 0.035f + 0.965f * clamp01(1.0f - distance * 15.0f);
-    }
-    case LedMotionPattern::CollisionBurst: {
-        // A reusable center-origin shockwave that expands across the visual.
-        const float front = phase * 0.5f;
-        const float distance = std::fabs(std::fabs(x - 0.5f) - front);
-        const float ring = clamp01(1.0f - distance * 15.0f);
-        const float tail = clamp01(1.0f - std::fabs(x - 0.5f) * 1.6f);
-        return 0.025f + 0.975f * std::max(ring, tail * (1.0f - phase) * 0.55f);
-    }
     case LedMotionPattern::LaserWeld: {
         // A diagonal welding path with a hot core, molten trail and tiny sparks.
         const float path = (x + y) * 0.5f;
@@ -245,16 +216,16 @@ inline float EvaluateMotionIntensity(
         bool pointsRight = true;
 
         if (pattern == LedMotionPattern::OpposingArrows) {
-            // Two full-height fields travel away from the center:
-            // left half points/moves left, right half points/moves right.
+            // Two full-height fields travel toward the center:
+            // left half points/moves right, right half points/moves left.
             const bool rightHalf = x >= 0.5f;
             const float halfX = rightHalf ? (x - 0.5f) * 2.0f : x * 2.0f;
             const float halfColumns = tileColumns;
-            const float directionPhase = rightHalf ? phase : -phase;
+            const float directionPhase = rightHalf ? -phase : phase;
             u = fract(halfX * halfColumns - directionPhase * halfColumns
                 + rowPhase * 0.5f);
             v = fract(y * tileRows);
-            pointsRight = rightHalf;
+            pointsRight = !rightHalf;
             axis = u;
             if (!pointsRight)
                 axis = 1.0f - u;
@@ -319,6 +290,52 @@ inline float EvaluateMotionIntensity(
     (void)columns;
     (void)rows;
     return 1.0f;
+}
+
+inline float EvaluateMotionTransition(
+    LedMotionTransition transition,
+    float x,
+    float y,
+    float phase
+) {
+    constexpr float PI2 = 6.28318530717958647692f;
+    const auto clamp01 = [](float value) {
+        return value < 0.0f ? 0.0f : (value > 1.0f ? 1.0f : value);
+    };
+    const float distanceFromCenter = std::fabs(x - 0.5f);
+    switch (transition) {
+    case LedMotionTransition::CenterCollision:
+        // Two fronts converge, produce a center impact flash, then a short
+        // expanding shockwave. The same overlay works on any base artwork.
+        if (phase < 0.72f) {
+            const float front = 0.5f * (1.0f - phase / 0.72f);
+            const float beam = clamp01(1.0f -
+                std::fabs(distanceFromCenter - front) * 18.0f);
+            return 0.025f + 0.975f * beam;
+        }
+        if (phase < 0.82f) {
+            const float flash = 0.5f + 0.5f * std::sin(
+                (phase - 0.72f) * PI2 / 0.10f);
+            return 0.35f + 0.65f * flash;
+        }
+        {
+            const float burst = (phase - 0.82f) / 0.18f;
+            const float front = burst * 0.5f;
+            const float wave = clamp01(1.0f -
+                std::fabs(distanceFromCenter - front) * 15.0f);
+            return 0.035f + 0.965f * wave;
+        }
+    case LedMotionTransition::CenterBurst: {
+        const float radius = std::sqrt(
+            (x - 0.5f) * (x - 0.5f) + (y - 0.5f) * (y - 0.5f));
+        const float front = phase * 0.70710678f;
+        const float wave = clamp01(1.0f - std::fabs(radius - front) * 14.0f);
+        return 0.025f + 0.975f * wave;
+    }
+    case LedMotionTransition::None:
+    default:
+        return 1.0f;
+    }
 }
 
 } // namespace VLS
