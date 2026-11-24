@@ -872,7 +872,9 @@ bool MatrixAnimationEngine::EvaluatePixel(
     // General LED effects use the shared motion field. Running Text keeps
     // its own scrolling engine, but can optionally receive a laser write/weld pass.
     const LedMotionPattern activePattern =
-        ResolveMotionPattern(effect, timeMs, playback, motionIntervalMs);
+        effect.type == LedEffectType::RunningText
+            ? effect.motionPattern
+            : ResolveMotionPattern(effect, timeMs, playback, motionIntervalMs);
     if (effect.type != LedEffectType::StroboEyes &&
         (effect.type != LedEffectType::RunningText ||
          activePattern == LedMotionPattern::LaserWrite ||
