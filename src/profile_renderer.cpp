@@ -342,7 +342,8 @@ static bool RenderMatrixEffect(
     CVehicle* vehicle,
     const LedPlacement& placement,
     const LedEffectConfig& effect,
-    uint32_t motionTimeMs
+    uint32_t motionTimeMs,
+    const MotionFrameState& motionFrame
 ) {
     if (vehicle == nullptr || !effect.matrix.enabled)
         return false;
@@ -402,11 +403,6 @@ static bool RenderMatrixEffect(
     if (indices.capacity() < pixelCount * 6)
         indices.reserve(pixelCount * 6);
 
-    const MotionPlaybackMode playback = GetPlacementMotionPlayback(placement);
-    const MotionFrameState motionFrame = BuildMotionFrameState(
-        effect, motionTimeMs, playback, placement.animationIntervalMs
-    );
-
     for (uint32_t row = 0; row < rows; ++row) {
         for (uint32_t column = 0; column < columns; ++column) {
             MatrixPixelOutput output;
@@ -417,7 +413,7 @@ static bool RenderMatrixEffect(
                     static_cast<uint16_t>(row),
                     motionTimeMs,
                     output,
-                    playback,
+                    GetPlacementMotionPlayback(placement),
                     placement.animationIntervalMs,
                     &motionFrame
                 ))
@@ -498,15 +494,15 @@ static bool RenderMatrixEffect(
 static bool RenderEffect(
     CVehicle* vehicle,
     const LedPlacement& placement,
-    const LedEffectConfig& effect
+    const LedEffectConfig& effect,
+    uint32_t motionTimeMs,
+    const MotionFrameState& motionFrame
 ) {
     if (vehicle == nullptr || !effect.enabled)
         return false;
 
-    // One clock sample feeds both possible render paths for this effect.
-    const uint32_t motionTimeMs = CTimer::GetTimeMS();
     if (effect.matrix.enabled)
-        return RenderMatrixEffect(vehicle, placement, effect, motionTimeMs);
+        return RenderMatrixEffect(vehicle, placement, effect, motionTimeMs, motionFrame);
 
     CMatrix* matrix = vehicle->GetMatrix();
     if (matrix == nullptr)
@@ -545,11 +541,6 @@ static bool RenderEffect(
     if (brightness > 1.0f)
         brightness = 1.0f;
 
-    // The clock was sampled once at the start of RenderEffect.
-    const MotionFrameState motionFrame = BuildMotionFrameState(
-        effect, motionTimeMs, GetPlacementMotionPlayback(placement),
-        placement.animationIntervalMs
-    );
     const double time =
         static_cast<double>(motionTimeMs) *
         static_cast<double>(effect.speed);
@@ -596,10 +587,7 @@ static bool RenderEffect(
 
     uint32_t indexCount = 0;
 
-    const float strobePhase = static_cast<float>(
-        std::fmod(time / 250.0, 1.0)
-    );
-    const bool strobeOn = strobePhase < 0.5f;
+    const bool strobeOn = motionFrame.phase < 0.5f;
 
     for (uint32_t i = 0; i < SEGMENTS; ++i) {
         float intensity = 1.0f;
@@ -841,10 +829,35 @@ uint32_t ProfileRenderer::RenderVehicleProfile(
     uint32_t rendered = 0;
 
     for (const LedPlacement& placement : profile.placements) {
-        if (!placement.enabled)
+        if (!placement.enabled || placement.effects.empty())
             continue;
+
+        // Every visual layer inside one physical placement samples one
+        // controller. Prefer the configured active effect as the motion
+        // driver, falling back to the first enabled effect.
+        const LedEffectConfig* motionDriver = nullptr;
+        if (placement.activeEffectIndex < placement.effects.size() &&
+            placement.effects[placement.activeEffectIndex].enabled) {
+            motionDriver = &placement.effects[placement.activeEffectIndex];
+        } else {
+            for (const LedEffectConfig& candidate : placement.effects) {
+                if (candidate.enabled) {
+                    motionDriver = &candidate;
+                    break;
+                }
+            }
+        }
+        if (motionDriver == nullptr)
+            continue;
+
+        const uint32_t motionTimeMs = CTimer::GetTimeMS();
+        const MotionFrameState motionFrame = BuildMotionFrameState(
+            *motionDriver, motionTimeMs, GetPlacementMotionPlayback(placement),
+            placement.animationIntervalMs
+        );
+
         for (const LedEffectConfig& effect : placement.effects) {
-            if (RenderEffect(vehicle, placement, effect))
+            if (RenderEffect(vehicle, placement, effect, motionTimeMs, motionFrame))
                 ++rendered;
         }
     }
@@ -870,10 +883,18 @@ bool ProfileRenderer::RenderSelectedEffect(
         if (effectIndex >= placement.effects.size())
             return false;
 
+        const uint32_t motionTimeMs = CTimer::GetTimeMS();
+        const MotionFrameState motionFrame = BuildMotionFrameState(
+            placement.effects[effectIndex], motionTimeMs,
+            GetPlacementMotionPlayback(placement),
+            placement.animationIntervalMs
+        );
         return RenderEffect(
             vehicle,
             placement,
-            placement.effects[effectIndex]
+            placement.effects[effectIndex],
+            motionTimeMs,
+            motionFrame
         );
     }
 
