@@ -60,7 +60,8 @@ enum class EyeShape : uint8_t {
     Wide,
     Round,
     Cat,
-    Square
+    Square,
+    Sleep
 };
 
 enum class EyeMotion : uint8_t {
@@ -72,7 +73,10 @@ enum class EyeMotion : uint8_t {
     Scan,
     Wink,
     Shake,
-    RapidBlink
+    RapidBlink,
+    Sharingan,
+    Mangekyou,
+    Rinnegan
 };
 
 enum class EyeExpression : uint8_t {

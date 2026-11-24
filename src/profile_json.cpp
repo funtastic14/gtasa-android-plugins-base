@@ -759,10 +759,10 @@ static bool ReadEffect(
     int eyeExpression = static_cast<int>(effect.eyeExpression);
     if ((Find(value, "eyeShape") &&
          (!ReadInt(value, "eyeShape", eyeShape) || eyeShape < 0 ||
-          eyeShape > static_cast<int>(EyeShape::Square))) ||
+          eyeShape > static_cast<int>(EyeShape::Sleep))) ||
         (Find(value, "eyeMotion") &&
          (!ReadInt(value, "eyeMotion", eyeMotion) || eyeMotion < 0 ||
-          eyeMotion > static_cast<int>(EyeMotion::RapidBlink))) ||
+          eyeMotion > static_cast<int>(EyeMotion::Rinnegan))) ||
         (Find(value, "eyeExpression") &&
          (!ReadInt(value, "eyeExpression", eyeExpression) || eyeExpression < 0 ||
           eyeExpression > static_cast<int>(EyeExpression::Evil))) ||
@@ -770,6 +770,9 @@ static bool ReadEffect(
         effect.eyeBlinkIntervalMs < 500 || effect.eyeBlinkIntervalMs > 8000)
         return false;
     effect.eyeShape = static_cast<EyeShape>(eyeShape);
+    // Migrate legacy Sleepy expression profiles to the new Eye Shape option.
+    if (!Find(value, "eyeShape") && eyeExpression == static_cast<int>(EyeExpression::Sleepy))
+        effect.eyeShape = EyeShape::Sleep;
     effect.eyeMotion = static_cast<EyeMotion>(eyeMotion);
     effect.eyeExpression = static_cast<EyeExpression>(eyeExpression);
 

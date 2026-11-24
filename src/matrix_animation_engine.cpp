@@ -292,9 +292,10 @@ EyeMotion ResolveEyeMotion(
     static const EyeMotion automaticOrder[] = {
         EyeMotion::Idle, EyeMotion::Scan, EyeMotion::LookLeft,
         EyeMotion::LookRight, EyeMotion::LookUp, EyeMotion::LookDown,
-        EyeMotion::Shake, EyeMotion::Wink, EyeMotion::RapidBlink
+        EyeMotion::Shake, EyeMotion::Wink, EyeMotion::RapidBlink,
+        EyeMotion::Sharingan, EyeMotion::Mangekyou, EyeMotion::Rinnegan
     };
-    constexpr uint32_t count = static_cast<uint32_t>(EyeMotion::RapidBlink) + 1u;
+    constexpr uint32_t count = static_cast<uint32_t>(EyeMotion::Rinnegan) + 1u;
     if (effect.eyeMotionPlayback == MotionPlaybackMode::Automatic)
         return automaticOrder[step % (sizeof(automaticOrder) / sizeof(automaticOrder[0]))];
     if (effect.eyeMotionPlayback == MotionPlaybackMode::Sequential)
@@ -513,8 +514,14 @@ bool MatrixAnimationEngine::EvaluatePixel(
             const float inwardX = dx * (leftEye ? 1.0f : -1.0f);
             const float t = static_cast<float>(timeMs) * speed;
             const EyeMotion activeMotion = ResolveEyeMotion(effect, timeMs);
-            const EyeExpression activeExpression = ResolveEyeExpression(effect, timeMs);
-            const EyeVisualStyle activeVisualStyle = ResolveEyeVisualStyle(effect, timeMs);
+            // Eye Expression is retired: shape controls the eyelid silhouette,
+            // while Eye Motion owns gaze, blinking and the three iris motifs.
+            const EyeExpression activeExpression = EyeExpression::Neutral;
+            const EyeVisualStyle activeVisualStyle =
+                activeMotion == EyeMotion::Sharingan ? EyeVisualStyle::Sharingan :
+                activeMotion == EyeMotion::Mangekyou ? EyeVisualStyle::Mangekyou :
+                activeMotion == EyeMotion::Rinnegan ? EyeVisualStyle::Rinnegan :
+                EyeVisualStyle::Normal;
 
             if (activeExpression == EyeExpression::Surprised)
                 eyeRadiusY *= 1.14f;
@@ -526,6 +533,7 @@ bool MatrixAnimationEngine::EvaluatePixel(
             case EyeShape::Round: verticalScale = 0.92f; break;
             case EyeShape::Cat: verticalScale = 0.72f; break;
             case EyeShape::Square: verticalScale = 0.82f; break;
+            case EyeShape::Sleep: verticalScale = 0.52f; break;
             case EyeShape::Classic:
             default: break;
             }
@@ -600,12 +608,8 @@ bool MatrixAnimationEngine::EvaluatePixel(
             bool blinking = blinkPhase < 135.0f ||
                 (blinkPhase > static_cast<float>(blinkInterval) * 0.68f &&
                  blinkPhase < static_cast<float>(blinkInterval) * 0.68f + 115.0f);
-            if (effect.eyeTransformationEnabled) {
-                const uint32_t transformInterval = effect.eyeTransformationIntervalMs < 1000
-                    ? 1000 : effect.eyeTransformationIntervalMs;
-                blinking = blinking ||
-                    (timeMs % transformInterval) < 105u;
-            }
+            // Motif selection is now part of Eye Motion. Do not let the legacy
+            // timed transformation setting replace the selected motif.
 
             float gazeX = std::sin(t / 720.0f) * 0.10f;
             float gazeY = std::sin(t / 1050.0f) * 0.035f;
@@ -630,6 +634,11 @@ bool MatrixAnimationEngine::EvaluatePixel(
             case EyeMotion::Shake: gazeX = std::sin(t / 85.0f) * 0.30f; break;
             case EyeMotion::RapidBlink:
                 blinking = std::fmod(t, 720.0f) < 115.0f;
+                break;
+            case EyeMotion::Sharingan:
+            case EyeMotion::Mangekyou:
+            case EyeMotion::Rinnegan:
+                // Motifs alter iris artwork only; pupil gaze remains independent.
                 break;
             case EyeMotion::Idle:
             default:

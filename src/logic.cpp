@@ -963,15 +963,15 @@ static void RenderEditor() {
     } else if (effect.type == VLS::LedEffectType::StroboEyes) {
         ImGui::Separator();
         ImGui::Text("STROBO EYES - Dedicated Eye Engine");
-        static const char* eyeShapeNames[] = {"Classic", "Narrow", "Wide", "Round", "Cat Eye", "Square"};
+        static const char* eyeShapeNames[] = {"Classic", "Narrow", "Wide", "Round", "Cat Eye", "Square", "Sleep"};
         int eyeShape = static_cast<int>(effect.eyeShape);
-        if (ImGui::Combo("Eye Shape", &eyeShape, eyeShapeNames, 6)) {
+        if (ImGui::Combo("Eye Shape", &eyeShape, eyeShapeNames, 7)) {
             effect.eyeShape = static_cast<VLS::EyeShape>(eyeShape); changed = true;
         }
         static const char* playbackNames[] = {"Manual", "Automatic", "Sequence", "Random"};
-        static const char* eyeMotionNames[] = {"Idle", "Look Left", "Look Right", "Look Up", "Look Down", "Scan", "Wink", "Shake", "Rapid Blink"};
+        static const char* eyeMotionNames[] = {"Idle", "Look Left", "Look Right", "Look Up", "Look Down", "Scan", "Wink", "Shake", "Rapid Blink", "Sharingan", "Mangekyou", "Rinnegan"};
         int eyeMotion = static_cast<int>(effect.eyeMotion);
-        if (ImGui::Combo("Eye Motion", &eyeMotion, eyeMotionNames, 9)) {
+        if (ImGui::Combo("Eye Motion", &eyeMotion, eyeMotionNames, 12)) {
             effect.eyeMotion = static_cast<VLS::EyeMotion>(eyeMotion); changed = true;
         }
         int eyeMotionPlayback = static_cast<int>(effect.eyeMotionPlayback);
@@ -982,21 +982,6 @@ static void RenderEditor() {
             int interval = static_cast<int>(effect.eyeMotionIntervalMs);
             if (ImGui::SliderInt("Pupil Motion Interval (ms)", &interval, 500, 15000)) {
                 effect.eyeMotionIntervalMs = static_cast<uint32_t>(interval); changed = true;
-            }
-        }
-        static const char* eyeExpressionNames[] = {"Neutral", "Happy", "Angry", "Sad", "Surprised", "Sleepy", "Love", "Evil"};
-        int eyeExpression = static_cast<int>(effect.eyeExpression);
-        if (ImGui::Combo("Eye Expression", &eyeExpression, eyeExpressionNames, 8)) {
-            effect.eyeExpression = static_cast<VLS::EyeExpression>(eyeExpression); changed = true;
-        }
-        int eyeExpressionPlayback = static_cast<int>(effect.eyeExpressionPlayback);
-        if (ImGui::Combo("Expression Playback", &eyeExpressionPlayback, playbackNames, 4)) {
-            effect.eyeExpressionPlayback = static_cast<VLS::MotionPlaybackMode>(eyeExpressionPlayback); changed = true;
-        }
-        if (effect.eyeExpressionPlayback != VLS::MotionPlaybackMode::Manual) {
-            int interval = static_cast<int>(effect.eyeExpressionIntervalMs);
-            if (ImGui::SliderInt("Expression Interval (ms)", &interval, 500, 15000)) {
-                effect.eyeExpressionIntervalMs = static_cast<uint32_t>(interval); changed = true;
             }
         }
         int blinkInterval = static_cast<int>(effect.eyeBlinkIntervalMs);
@@ -1014,20 +999,6 @@ static void RenderEditor() {
             effect.eyePupilRed = static_cast<uint8_t>(pupilColor[0] * 255.0f);
             effect.eyePupilGreen = static_cast<uint8_t>(pupilColor[1] * 255.0f);
             effect.eyePupilBlue = static_cast<uint8_t>(pupilColor[2] * 255.0f); changed = true;
-        }
-        static const char* eyeVisualNames[] = {"Normal", "Sharingan", "Mangekyou", "Rinnegan"};
-        int eyeVisual = static_cast<int>(effect.eyeVisualStyle);
-        if (ImGui::Combo("Eye Visual", &eyeVisual, eyeVisualNames, 4)) {
-            effect.eyeVisualStyle = static_cast<VLS::EyeVisualStyle>(eyeVisual);
-            effect.eyeTransformationEnabled = false;
-            changed = true;
-        }
-        if (ImGui::Checkbox("Automatic Eye Transformation", &effect.eyeTransformationEnabled)) changed = true;
-        if (effect.eyeTransformationEnabled) {
-            int transformInterval = static_cast<int>(effect.eyeTransformationIntervalMs);
-            if (ImGui::SliderInt("Transformation Interval (ms)", &transformInterval, 1000, 30000)) {
-                effect.eyeTransformationIntervalMs = static_cast<uint32_t>(transformInterval); changed = true;
-            }
         }
         static const char* eyeBrowNames[] = {"Off", "Natural", "Sharp", "Thick"};
         int eyeBrow = static_cast<int>(effect.eyeBrowStyle);
