@@ -1,0 +1,83 @@
+# AML mod template for GTA SA Android
+
+A template for building GTA San Andreas Android plugins with Android Mod Loader (AML).
+
+## Features
+
+- GTA SA Plugin-SDK with RenderWare support.
+- Dear ImGui 1.93.1 WIP with a RenderWare renderer and touch input. The backend has no menu of its own; your render callback decides what to draw and when.
+- Several plugins built from this template can show ImGui at the same time. The window you touch comes to the front.
+- Custom TTF/OTF fonts through ImGui's font API. Glyphs are rasterized on demand, so one font file covers every size.
+- Image loading through `stb_image`.
+- `MusicPlayer` plays MP3 and WAV files with Android's MediaPlayer and pauses while the game is in the background.
+- ARM32 (`armeabi-v7a`) and ARM64 (`arm64-v8a`) build targets for GTA SA v2.00/v2.10.
+- Build and formatting scripts, plus a GitHub Actions workflow.
+
+## Vehicle LED System test assets
+
+The VLS build uses external bitmap assets for LED Matrix Running Text:
+
+- Extract `VehicleLEDSystem/fonts/default.vlsfont` into the AML internal mods directory.
+- Extract `VehicleLEDSystem/textures/demo.ppm` into the same `VehicleLEDSystem/textures/` folder.
+- Keep the folder names exactly as shown. VLS creates the `VehicleLEDSystem/profiles`, `fonts`, `textures`, and `diagnostics` directories when it initializes; the bundled font and texture files must be copied into the matching folders.
+- The CI test bundle contains both Android libraries (`arm64-v8a` and `armeabi-v7a`) and the sample VLS font/texture assets.
+
+Custom fonts use the `.vlsfont` 5x7 bitmap format. Custom LED Matrix textures currently use ASCII PPM P3 (`.ppm`), up to 128x128 pixels. See the README files inside `assets/fonts/` and `assets/textures/` for their exact data formats.
+
+## Example mod
+
+`main.cpp` registers the mod and passes `Gui::Draw` to `ImGui_ImplRenderWare_Init`. `src/gui.cpp` draws a launcher button, a trainer window with time, weather, teleport and music tabs, and a text box that says "mod loaded!" when the player first spawns. The game code behind those buttons lives in `src/logic.cpp`.
+
+The example looks for these optional files in the game's `Android/data/<package>/files` folder, then in the AML config folder:
+
+- `button.png` (or `.jpg`/`.jpeg`) for the launcher. Without it the launcher is a text button.
+- `font.ttf` or `font.otf` for the trainer window and the text box.
+- `music.mp3` or `music.wav` for the Music tab.
+
+## Create a new mod
+
+On Windows:
+
+```powershell
+powershell -c "irm https://raw.githubusercontent.com/kudanilll/gtasa-android-plugins-base/master/create.ps1 | iex"
+```
+
+On Linux or macOS:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/kudanilll/gtasa-android-plugins-base/master/create.sh | bash
+```
+
+The script asks for the mod name, author, version, mod ID and library name, then downloads the template into a new folder. It puts your names into `main.cpp`, `Android.mk` and the release workflow, writes `NDKPath.txt` if it finds the Android NDK, and makes the first git commit.
+
+## Build
+
+On Windows:
+
+```powershell
+.\build.ps1
+```
+
+On Linux or macOS:
+
+```bash
+./build.sh
+```
+
+The compiled libraries are saved to:
+
+- `libs/armeabi-v7a/libyourmod.so`
+- `libs/arm64-v8a/libyourmod.so`
+
+Copy the `.so` for your game's ABI to the AML mods folder.
+
+## Credits
+
+- [AML](https://github.com/AndroidModLoader/AndroidModLoader) and [aml-psdk](https://github.com/AndroidModLoader/aml-psdk): RusJJ and contributors.
+- [Dear ImGui](https://github.com/ocornut/imgui): Omar Cornut and contributors.
+- [stb](https://github.com/nothings/stb): Sean Barrett and contributors.
+- RenderWare integration references: [SA-MP Mobile v2.10](https://github.com/noobcooder-sys/SA-MP-Mobile-Client-GTA-SA-2.10-) and [build69-gtasa2.0](https://github.com/0xcds4r/build69-gtasa2.0).
+
+## License
+
+The template is [MIT](LICENSE) licensed by 0xavion. Bundled third-party code keeps its own license, and the full texts are in [`licenses/`](licenses):
