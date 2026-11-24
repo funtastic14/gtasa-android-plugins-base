@@ -107,7 +107,9 @@ enum class LedMotionPattern : uint8_t {
     Checkerboard,
     Windmill,
     Spiral,
-    Starburst
+    Starburst,
+    LaserWrite,
+    LaserWeld
 };
 
 enum class MotionPlaybackMode : uint8_t {
