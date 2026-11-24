@@ -650,10 +650,8 @@ static bool RenderEffect(
             intensity *= EvaluateMotionIntensity(
                 motionFrame.pattern, nx, 0.5f, phase01,
                 static_cast<uint16_t>(i), 0,
-                static_cast<uint16_t>(SEGMENTS), 1
-            );
-            intensity *= EvaluateMotionTransition(
-                motionFrame.transition, nx, 0.5f, phase01
+                static_cast<uint16_t>(SEGMENTS), 1,
+                motionFrame.modifier
             );
         }
 
