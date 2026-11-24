@@ -1488,6 +1488,17 @@ static void OnVehicleRender(CVehicle* vehicle) {
     if (modelId < 0)
         return;
 
+    // Register the player's high-beam point lights before the vehicle render
+    // pass. RenderEffects runs after the main scene and is too late for lights
+    // that must participate in the current frame's world lighting.
+    if (vehicle == g_vehicleManager.GetCurrentVehicle()) {
+        const VLS::VehicleProfile* profile = g_profileManager.Find(modelId);
+        if (profile != nullptr && profile->enabled &&
+            profile->nativeLights.highBeamEnabled) {
+            VLS::VehicleLightEngine::AddHighBeam(vehicle, *profile);
+        }
+    }
+
     if (g_profileManager.Find(modelId) == nullptr &&
         g_profileLoadAttempted.find(modelId) ==
             g_profileLoadAttempted.end()) {
@@ -1510,8 +1521,6 @@ static void OnRenderEffects() {
     if (modelId >= 0) {
         const VLS::VehicleProfile* profile = g_profileManager.Find(modelId);
         if (profile != nullptr && profile->enabled) {
-            if (profile->nativeLights.highBeamEnabled)
-                VLS::VehicleLightEngine::AddHighBeam(currentVehicle, *profile);
             if (profile->nativeLights.rgbHeadlightsEnabled || profile->nativeLights.rgbTaillightsEnabled)
                 VLS::ProfileRenderer::RenderNativeLights(currentVehicle, *profile);
             for (CVehicle* vehicle : g_frameVehicles) {
@@ -1699,6 +1708,15 @@ static void OnGameProcess() {
         g_profileManager.GetProfileOrDefault(modelId);
 
     g_currentProfile = &profile;
+
+    // Geometry scanning is intentionally demand-driven: only scan the active
+    // vehicle when its native RGB lamp overlay is enabled. Without this call,
+    // RenderNativeLights has no cached meshes or classified lamp patches.
+    if (g_enabled && profile.enabled &&
+        (profile.nativeLights.rgbHeadlightsEnabled ||
+         profile.nativeLights.rgbTaillightsEnabled)) {
+        UpdateVehicleGeometryScan();
+    }
 
     UpdateSequenceRuntime();
 }

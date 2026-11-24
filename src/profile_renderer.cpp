@@ -386,7 +386,7 @@ static bool RenderMatrixEffect(
     const float cellHeight = effectiveHeight / static_cast<float>(rows);
 
     const float matrixGap = motionFrame.pattern == LedMotionPattern::Checkerboard
-        ? 0.72f : 0.12f;
+        ? 0.88f : 0.12f;
     const float gapX = cellWidth * matrixGap;
     const float gapZ = cellHeight * matrixGap;
 
@@ -880,7 +880,7 @@ static bool RenderNativeLightPatch(
             const CVector center(patch.centroid.x, patch.centroid.y, patch.centroid.z);
             if (DotProduct(outward, center) < 0.0f)
                 outward = outward * -1.0f;
-            vehicleLocal += outward * 0.04f;
+            vehicleLocal += outward * 0.08f;
         }
         const CVector world = vehicleMatrix->TransformPoint(vehicleLocal);
         const float normalizedX = (local.x - minX) / width;
