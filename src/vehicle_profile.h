@@ -128,7 +128,9 @@ enum class LedMotionPattern : uint8_t {
     ArrowRight,
     ArrowUp,
     ArrowDown,
-    OpposingArrows
+    OpposingArrows,
+    CollisionCenter,
+    CollisionBurst
 };
 
 enum class MotionPlaybackMode : uint8_t {
@@ -276,6 +278,7 @@ struct LedEffectConfig {
     // Teks untuk efek RunningText pada LED Matrix.
     std::string text;
     float textSpacing = 1.0f;
+    float textScale = 1.0f;
     RunningTextMotion textMotion = RunningTextMotion::ScrollLeft;
     std::string fontName = "default";
     std::string textureName;
