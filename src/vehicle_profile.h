@@ -86,6 +86,20 @@ enum class EyeExpression : uint8_t {
     Evil
 };
 
+enum class EyeVisualStyle : uint8_t {
+    Normal,
+    Sharingan,
+    Mangekyou,
+    Rinnegan
+};
+
+enum class EyeBrowStyle : uint8_t {
+    None,
+    Natural,
+    Sharp,
+    Thick
+};
+
 // Motion is independent from color style and effect family.
 enum class LedMotionPattern : uint8_t {
     LeftToRight,
@@ -227,6 +241,32 @@ struct LedEffectConfig {
     EyeMotion eyeMotion = EyeMotion::Idle;
     EyeExpression eyeExpression = EyeExpression::Neutral;
     uint32_t eyeBlinkIntervalMs = 3200;
+
+    // Dedicated playback controls; these do not affect general LED motion.
+    MotionPlaybackMode eyeMotionPlayback = MotionPlaybackMode::Manual;
+    MotionPlaybackMode eyeExpressionPlayback = MotionPlaybackMode::Manual;
+    uint32_t eyeMotionIntervalMs = 3000;
+    uint32_t eyeExpressionIntervalMs = 3500;
+
+    // Independent iris and pupil palettes.
+    uint8_t eyeIrisRed = 20;
+    uint8_t eyeIrisGreen = 155;
+    uint8_t eyeIrisBlue = 255;
+    uint8_t eyePupilRed = 5;
+    uint8_t eyePupilGreen = 8;
+    uint8_t eyePupilBlue = 18;
+
+    // Procedural eye motifs and optional timed transformation cycle.
+    EyeVisualStyle eyeVisualStyle = EyeVisualStyle::Normal;
+    bool eyeTransformationEnabled = false;
+    uint32_t eyeTransformationIntervalMs = 9000;
+
+    // Eyebrow geometry and palette.
+    EyeBrowStyle eyeBrowStyle = EyeBrowStyle::None;
+    uint8_t eyeBrowRed = 255;
+    uint8_t eyeBrowGreen = 255;
+    uint8_t eyeBrowBlue = 255;
+    float eyeBrowTilt = 0.0f;
 
     // Teks untuk efek RunningText pada LED Matrix.
     std::string text;
