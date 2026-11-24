@@ -43,7 +43,7 @@ inline LedMotionPattern ResolveMotionPattern(
         return effect.motionPattern;
     const uint32_t interval = intervalMs < 500 ? 500 : intervalMs;
     const uint32_t step = timeMs / interval;
-    const uint32_t count = static_cast<uint32_t>(LedMotionPattern::Starburst) + 1u;
+    const uint32_t count = static_cast<uint32_t>(LedMotionPattern::LaserWeld) + 1u;
     if (playback == MotionPlaybackMode::Sequential)
         return static_cast<LedMotionPattern>(step % count);
     if (playback == MotionPlaybackMode::Automatic) {
@@ -52,6 +52,7 @@ inline LedMotionPattern ResolveMotionPattern(
             LedMotionPattern::ZoomIn, LedMotionPattern::Wave,
             LedMotionPattern::Ripple, LedMotionPattern::Windmill,
             LedMotionPattern::Spiral, LedMotionPattern::Starburst,
+            LedMotionPattern::LaserWrite, LedMotionPattern::LaserWeld,
             LedMotionPattern::RightToLeft, LedMotionPattern::EdgeToCenter,
             LedMotionPattern::ZoomOut, LedMotionPattern::Flow
         };
