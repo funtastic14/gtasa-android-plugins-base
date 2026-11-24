@@ -690,44 +690,99 @@ bool MatrixAnimationEngine::EvaluatePixel(
                     intensity = 1.0f;
                 } else if (pupilDistance < 0.34f) {
                     preserveEyeDetailColor = true;
+                    const float irisRadius = std::sqrt(pupilDistance);
+                    const float irisAngle = std::atan2(pupilY, pupilX);
+                    const float irisEdge = Clamp01((0.34f - irisRadius) * 18.0f);
+                    const bool outerIrisRing = irisRadius > 0.305f;
+                    const bool innerIrisRing = std::fabs(irisRadius - 0.155f) < 0.018f;
+
                     if (activeExpression == EyeExpression::Love) {
                         red = 255; green = 110; blue = 180;
                     } else if (activeVisualStyle == EyeVisualStyle::Normal) {
-                        red = effect.eyeIrisRed;
-                        green = effect.eyeIrisGreen;
-                        blue = effect.eyeIrisBlue;
-                    } else {
-                        const float irisRadius = std::sqrt(pupilDistance);
-                        const float irisAngle = std::atan2(pupilY, pupilX);
-                        if (activeVisualStyle == EyeVisualStyle::Sharingan) {
-                            const float tomoe = std::cos(irisAngle * 3.0f + 0.35f);
-                            if (irisRadius > 0.19f && irisRadius < 0.30f && tomoe > 0.91f) {
-                                red = 18; green = 2; blue = 8;
-                            } else if (std::fabs(irisRadius - 0.245f) < 0.025f) {
-                                red = 255; green = 75; blue = 55;
-                            } else {
-                                red = 190; green = 18; blue = 38;
-                            }
-                        } else if (activeVisualStyle == EyeVisualStyle::Mangekyou) {
-                            const float spoke = std::fabs(std::cos(irisAngle * 3.0f + t / 1800.0f));
-                            if (spoke > 0.88f && irisRadius > 0.12f) {
-                                red = 20; green = 1; blue = 12;
-                            } else {
-                                red = 220; green = 28; blue = 48;
-                            }
+                        // Radial fibers and two concentric rings give the
+                        // selected iris palette depth without image assets.
+                        const float fiber = 0.82f + 0.18f *
+                            std::fabs(std::sin(irisAngle * 17.0f + irisRadius * 46.0f));
+                        const float radial = 0.78f + 0.22f * irisEdge;
+                        if (outerIrisRing) {
+                            red = static_cast<uint8_t>(effect.eyePupilRed);
+                            green = static_cast<uint8_t>(effect.eyePupilGreen);
+                            blue = static_cast<uint8_t>(effect.eyePupilBlue);
+                        } else if (innerIrisRing) {
+                            red = ClampColor(effect.eyeIrisRed * 1.18f);
+                            green = ClampColor(effect.eyeIrisGreen * 1.18f);
+                            blue = ClampColor(effect.eyeIrisBlue * 1.18f);
                         } else {
-                            const float ring = std::fabs(std::sin(irisRadius * 42.0f));
-                            if (ring > 0.82f) {
-                                red = 225; green = 190; blue = 255;
-                            } else {
-                                red = 135; green = 82; blue = 220;
-                            }
+                            red = ClampColor(effect.eyeIrisRed * fiber * radial);
+                            green = ClampColor(effect.eyeIrisGreen * fiber * radial);
+                            blue = ClampColor(effect.eyeIrisBlue * fiber * radial);
                         }
+                    } else if (activeVisualStyle == EyeVisualStyle::Sharingan) {
+                        const float tomoe = std::cos(irisAngle * 3.0f + 0.35f);
+                        const bool tomoeMark = irisRadius > 0.205f &&
+                            irisRadius < 0.292f && tomoe > 0.88f;
+                        if (outerIrisRing || tomoeMark) {
+                            red = 16; green = 2; blue = 8;
+                        } else if (innerIrisRing) {
+                            red = 255; green = 82; blue = 62;
+                        } else {
+                            const float ember = 0.82f + 0.18f *
+                                std::fabs(std::sin(irisAngle * 9.0f + irisRadius * 34.0f));
+                            red = ClampColor(205.0f * ember);
+                            green = ClampColor(20.0f * ember);
+                            blue = ClampColor(42.0f * ember);
+                        }
+                    } else if (activeVisualStyle == EyeVisualStyle::Mangekyou) {
+                        const float rotation = t / 1450.0f;
+                        const float petal = std::fabs(std::cos(
+                            irisAngle * 3.0f + rotation + irisRadius * 5.0f));
+                        const bool darkSpoke = petal > 0.82f && irisRadius > 0.145f;
+                        if (outerIrisRing || darkSpoke) {
+                            red = 22; green = 1; blue = 13;
+                        } else if (innerIrisRing) {
+                            red = 255; green = 68; blue = 76;
+                        } else {
+                            const float glow = 0.78f + 0.22f *
+                                (0.5f + 0.5f * std::sin(irisRadius * 30.0f - rotation));
+                            red = ClampColor(225.0f * glow);
+                            green = ClampColor(24.0f * glow);
+                            blue = ClampColor(55.0f * glow);
+                        }
+                    } else {
+                        // Rinnegan: concentric violet rings with a slowly
+                        // travelling ripple and a bright outer limbal edge.
+                        const float rings = std::fabs(std::sin(
+                            irisRadius * 68.0f - std::sin(irisAngle * 6.0f + t / 2100.0f) * 0.45f
+                        ));
+                        if (outerIrisRing || rings > 0.84f) {
+                            red = 224; green = 194; blue = 255;
+                        } else if (innerIrisRing) {
+                            red = 178; green = 128; blue = 255;
+                        } else {
+                            red = ClampColor(118.0f + 35.0f * irisEdge);
+                            green = ClampColor(62.0f + 24.0f * irisEdge);
+                            blue = ClampColor(218.0f + 32.0f * irisEdge);
+                        }
+                    }
+
+                    // Tiny reflected catchlights make the iris read as a
+                    // glossy surface rather than a flat block of LEDs.
+                    const float glintX = pupilX + 0.145f;
+                    const float glintY = pupilY + 0.135f;
+                    if (glintX * glintX + glintY * glintY < 0.010f &&
+                        activeExpression != EyeExpression::Love) {
+                        red = 255; green = 248; blue = 235;
                     }
                     intensity = 1.0f;
                 } else {
-                    red = effect.red; green = effect.green; blue = effect.blue;
-                    intensity = 0.85f;
+                    // Keep the sclera slightly brighter near its center and
+                    // darker at the tapered corners for a layered eye shell.
+                    const float shellShade = 0.72f + 0.28f *
+                        Clamp01(1.0f - std::fabs(dx) * 0.42f - std::fabs(dy) * 0.24f);
+                    red = ClampColor(effect.red * shellShade);
+                    green = ClampColor(effect.green * shellShade);
+                    blue = ClampColor(effect.blue * shellShade);
+                    intensity = 0.88f;
                 }
             } else {
                 intensity = 0.0f;
