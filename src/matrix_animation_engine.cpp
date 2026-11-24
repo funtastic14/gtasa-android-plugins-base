@@ -950,6 +950,9 @@ bool MatrixAnimationEngine::EvaluatePixel(
             activePattern, motionX, motionY, phase,
             column, row, matrix.columns, matrix.rows
         );
+        intensity *= EvaluateMotionTransition(
+            effect.motionTransition, motionX, motionY, phase
+        );
     }
 
     const float brightness =
