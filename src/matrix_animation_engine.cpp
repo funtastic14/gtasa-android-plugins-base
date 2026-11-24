@@ -746,64 +746,61 @@ bool MatrixAnimationEngine::EvaluatePixel(
     case LedEffectType::RunningText: {
         if (effect.text.empty() || matrix.rows < 7 || matrix.columns < 5)
             return true;
+
         const float spacing = effect.textSpacing < 0.25f ? 0.25f : effect.textSpacing;
         const bool vertical =
             effect.textMotion == RunningTextMotion::ScrollUp ||
             effect.textMotion == RunningTextMotion::ScrollDown ||
             effect.textMotion == RunningTextMotion::BounceVertical;
         const float charWidth = 6.0f * spacing;
-        // Vertical text stacks complete, upright 5x7 glyphs along the
-        // scrolling axis. Each character occupies seven rows plus spacing.
-        const float totalWidth = vertical
-            ? 8.0f * spacing * static_cast<float>(effect.text.size())
-            : charWidth * static_cast<float>(effect.text.size());
-        if (totalWidth <= 0.0f)
+        const float textWidth = charWidth * static_cast<float>(effect.text.size());
+        const float textHeight = 7.0f * spacing;
+        if (textWidth <= 0.0f || textHeight <= 0.0f)
             return true;
 
         const float elapsed = static_cast<float>(timeMs) * speed / 180.0f;
         const float axisLength = vertical
             ? static_cast<float>(matrix.rows)
             : static_cast<float>(matrix.columns);
-        const float travel = totalWidth + axisLength;
+        const float movingExtent = vertical ? textHeight : textWidth;
+        const float travel = movingExtent + axisLength;
         float textOrigin = 0.0f;
 
         switch (effect.textMotion) {
         case RunningTextMotion::ScrollRight:
-            // Enter from the left and move toward the right.
-            textOrigin = -totalWidth + std::fmod(elapsed, travel);
+            textOrigin = -textWidth + std::fmod(elapsed, travel);
             break;
         case RunningTextMotion::ScrollDown:
-            // Vertical equivalent of ScrollRight.
-            textOrigin = -totalWidth + std::fmod(elapsed, travel);
+            // Move the complete horizontal message as one line. Glyphs keep
+            // their left-to-right layout; no character gets its own motion.
+            textOrigin = -textHeight + std::fmod(elapsed, travel);
             break;
         case RunningTextMotion::BounceHorizontal:
         case RunningTextMotion::BounceVertical: {
             const float cycle = std::fmod(elapsed, travel * 2.0f);
             textOrigin = cycle < travel
                 ? axisLength - cycle
-                : -totalWidth + (cycle - travel);
+                : -movingExtent + (cycle - travel);
             break;
         }
         case RunningTextMotion::Static:
-            textOrigin = (axisLength - totalWidth) * 0.5f;
+            textOrigin = (axisLength - movingExtent) * 0.5f;
             break;
         case RunningTextMotion::ScrollLeft:
         case RunningTextMotion::ScrollUp:
         default:
-            // Enter from the far edge and move across the matrix.
             textOrigin = axisLength - std::fmod(elapsed, travel);
             break;
         }
 
         if (!vertical) {
-            // Normal, readable 5x7 glyph orientation. Character order and
-            // bit order both run left-to-right; only the text origin moves.
-            const float local = static_cast<float>(column) - textOrigin;
-            if (local >= 0.0f && local < totalWidth) {
+            // Horizontal scrolling: the complete message shares one origin.
+            const float localX = static_cast<float>(column) - textOrigin;
+            if (localX >= 0.0f && localX < textWidth) {
                 const size_t charIndex =
-                    static_cast<size_t>(local / charWidth);
-                const float within =
-                    local - static_cast<float>(charIndex) * charWidth;
+                    static_cast<size_t>(localX / charWidth);
+                const float within = localX -
+                    static_cast<float>(charIndex) * charWidth;
                 const int glyphColumn =
                     static_cast<int>(within / spacing);
                 if (charIndex < effect.text.size() &&
@@ -820,19 +817,25 @@ bool MatrixAnimationEngine::EvaluatePixel(
                 intensity = 0.0f;
             }
         } else {
-            // Keep each 5x7 glyph upright. Characters are stacked vertically
-            // and the complete message moves as one column of text.
-            const float local = static_cast<float>(row) - textOrigin;
-            if (local >= 0.0f && local < totalWidth) {
-                const float glyphHeight = 8.0f * spacing;
+            // Vertical scrolling moves one complete horizontal text line.
+            // Its X layout is fixed and centered; only the whole row block
+            // moves on Y, so letters never travel independently.
+            const float horizontalOrigin =
+                (static_cast<float>(matrix.columns) - textWidth) * 0.5f;
+            const float localX =
+                static_cast<float>(column) - horizontalOrigin;
+            const float localY =
+                static_cast<float>(row) - textOrigin;
+            if (localX >= 0.0f && localX < textWidth &&
+                localY >= 0.0f && localY < textHeight) {
                 const size_t charIndex =
-                    static_cast<size_t>(local / glyphHeight);
-                const float within =
-                    local - static_cast<float>(charIndex) * glyphHeight;
-                const int glyphRow =
-                    static_cast<int>(within / spacing);
+                    static_cast<size_t>(localX / charWidth);
+                const float withinX =
+                    localX - static_cast<float>(charIndex) * charWidth;
                 const int glyphColumn =
-                    static_cast<int>(static_cast<float>(column) / spacing);
+                    static_cast<int>(withinX / spacing);
+                const int glyphRow =
+                    static_cast<int>(localY / spacing);
                 if (charIndex < effect.text.size() &&
                     glyphColumn >= 0 && glyphColumn < 5 &&
                     glyphRow >= 0 && glyphRow < 7) {
