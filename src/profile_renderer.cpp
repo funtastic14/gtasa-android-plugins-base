@@ -856,42 +856,30 @@ static bool RenderNativeLightPatch(
     const float flowOffset = static_cast<float>(timeMs) *
         profile.nativeLights.rgbFlowSpeed * 0.045f;
 
+    // A lamp patch usually uses only a small fraction of its parent atomic.
+    // Transform only vertices referenced by this patch; transforming the whole
+    // vehicle mesh for every patch on every frame caused severe mobile FPS loss.
     static std::vector<RwIm3DVertex> vertices;
     static std::vector<RwImVertexIndex> indices;
+    static std::vector<uint16_t> remap;
+    static std::vector<uint32_t> touchedVertices;
     vertices.clear();
     indices.clear();
-    if (vertices.capacity() < mesh.vertices.size())
-        vertices.reserve(mesh.vertices.size());
+    touchedVertices.clear();
     const size_t requestedIndices = patch.triangleIndices.size() * 3u;
     if (indices.capacity() < requestedIndices)
         indices.reserve(requestedIndices);
+    if (remap.size() < mesh.vertices.size())
+        remap.resize(mesh.vertices.size(), 0xFFFFu);
 
     const uint8_t alpha = ClampColor(profile.nativeLights.rgbFlowIntensity * 210.0f);
-    for (size_t i = 0; i < mesh.vertices.size(); ++i) {
-        const GeometryVertex& source = mesh.vertices[i];
-        const GeometryVertex& local = mesh.vehicleSpaceVertices[i];
-        CVector vehicleLocal(local.x, local.y, local.z);
-        // Offset along the actual surface normal, not a fixed vehicle Y axis.
-        // This also supports differently oriented custom lamp meshes.
-        CVector outward(patch.normal.x, patch.normal.y, patch.normal.z);
-        const float normalLength = std::sqrt(DotProduct(outward, outward));
-        if (normalLength > 0.0001f) {
-            outward = outward * (1.0f / normalLength);
-            const CVector center(patch.centroid.x, patch.centroid.y, patch.centroid.z);
-            if (DotProduct(outward, center) < 0.0f)
-                outward = outward * -1.0f;
-            vehicleLocal += outward * 0.08f;
-        }
-        const CVector world = vehicleMatrix->TransformPoint(vehicleLocal);
-        const float normalizedX = (local.x - minX) / width;
-        uint8_t red = 255, green = 255, blue = 255;
-        HSVtoRGB(normalizedX * 360.0f + flowOffset, red, green, blue);
-
-        RwIm3DVertex vertex;
-        SetVertex(vertex, world, red, green, blue, alpha);
-        vertex.u = source.u;
-        vertex.v = source.v;
-        vertices.push_back(vertex);
+    CVector outward(patch.normal.x, patch.normal.y, patch.normal.z);
+    const float normalLength = std::sqrt(DotProduct(outward, outward));
+    if (normalLength > 0.0001f) {
+        outward = outward * (1.0f / normalLength);
+        const CVector center(patch.centroid.x, patch.centroid.y, patch.centroid.z);
+        if (DotProduct(outward, center) < 0.0f)
+            outward = outward * -1.0f;
     }
 
     for (uint32_t triangleIndex : patch.triangleIndices) {
@@ -899,14 +887,42 @@ static bool RenderNativeLightPatch(
             continue;
         const GeometryTriangle& triangle = mesh.triangles[triangleIndex];
         if (triangle.materialIndex != patch.materialIndex ||
-            triangle.a >= vertices.size() || triangle.b >= vertices.size() ||
-            triangle.c >= vertices.size()) {
+            triangle.a >= mesh.vertices.size() ||
+            triangle.b >= mesh.vertices.size() ||
+            triangle.c >= mesh.vertices.size()) {
             continue;
         }
-        indices.push_back(static_cast<RwImVertexIndex>(triangle.a));
-        indices.push_back(static_cast<RwImVertexIndex>(triangle.b));
-        indices.push_back(static_cast<RwImVertexIndex>(triangle.c));
+
+        const uint16_t sourceIndices[3] = {triangle.a, triangle.b, triangle.c};
+        for (uint16_t sourceIndex : sourceIndices) {
+            if (remap[sourceIndex] == 0xFFFFu) {
+                if (vertices.size() >= 65535u)
+                    continue;
+                const GeometryVertex& source = mesh.vertices[sourceIndex];
+                const GeometryVertex& local = mesh.vehicleSpaceVertices[sourceIndex];
+                CVector vehicleLocal(local.x, local.y, local.z);
+                // Keep the overlay nearly coplanar with the original lamp surface.
+                // A large normal offset made the RGB layer visibly float outside it.
+                if (normalLength > 0.0001f)
+                    vehicleLocal += outward * 0.002f;
+                const CVector world = vehicleMatrix->TransformPoint(vehicleLocal);
+                const float normalizedX = (local.x - minX) / width;
+                uint8_t red = 255, green = 255, blue = 255;
+                HSVtoRGB(normalizedX * 360.0f + flowOffset, red, green, blue);
+                RwIm3DVertex vertex;
+                SetVertex(vertex, world, red, green, blue, alpha);
+                vertex.u = source.u;
+                vertex.v = source.v;
+                remap[sourceIndex] = static_cast<uint16_t>(vertices.size());
+                touchedVertices.push_back(sourceIndex);
+                vertices.push_back(vertex);
+            }
+            indices.push_back(static_cast<RwImVertexIndex>(remap[sourceIndex]));
+        }
     }
+
+    for (uint32_t sourceIndex : touchedVertices)
+        remap[sourceIndex] = 0xFFFFu;
     if (indices.empty())
         return false;
 
