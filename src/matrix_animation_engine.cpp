@@ -524,9 +524,10 @@ bool MatrixAnimationEngine::EvaluatePixel(
     const float colorPosition = GetColorPosition(
         effect.colorDirection, x, y, effect.colorSpread
     );
-    const float colorPhase = pixel->speed == 1.0f
-        ? localMotionFrame.phase
-        : GetMotionPhase(timeMs, speed);
+    // Color and brightness sample the same placement-level phase.
+    // Per-pixel speed must not create a second clock that drifts from the
+    // shared pattern/background field.
+    const float colorPhase = localMotionFrame.phase;
 
     // Motion is evaluated once below from the selected LedMotionPattern.
     // Do not retain the legacy per-effect directional sweep here.
@@ -545,9 +546,7 @@ bool MatrixAnimationEngine::EvaluatePixel(
 
     case LedEffectType::StroboWave: {
         // Keep the strobe cadence, but remove its hidden LTR spatial head.
-        const bool flashOn =
-            std::fmod(static_cast<float>(timeMs) * speed / 250.0f, 1.0f)
-            < 0.5f;
+        const bool flashOn = localMotionFrame.phase < 0.5f;
         intensity = flashOn ? 1.0f : 0.0f;
         break;
     }
@@ -999,9 +998,7 @@ bool MatrixAnimationEngine::EvaluatePixel(
          activePattern == LedMotionPattern::LaserWeld)) {
         // Use the frame snapshot's master phase. A per-pixel speed multiplier
         // remains available for custom matrix pixels without reselecting patterns.
-        const float phase = pixel->speed == 1.0f
-            ? localMotionFrame.phase
-            : GetMotionPhase(localMotionFrame.timeMs, speed);
+        const float phase = localMotionFrame.phase;
         const bool verticalText =
             effect.textMotion == RunningTextMotion::ScrollUp ||
             effect.textMotion == RunningTextMotion::ScrollDown ||
