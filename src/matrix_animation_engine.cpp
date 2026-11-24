@@ -280,6 +280,70 @@ uint8_t GetGlyphRow(
     return row == 0 || row == 6 ? 31 : 17;
 }
 
+EyeMotion ResolveEyeMotion(
+    const LedEffectConfig& effect,
+    uint32_t timeMs
+) {
+    if (effect.eyeMotionPlayback == MotionPlaybackMode::Manual)
+        return effect.eyeMotion;
+    const uint32_t interval = effect.eyeMotionIntervalMs < 500
+        ? 500 : effect.eyeMotionIntervalMs;
+    const uint32_t step = timeMs / interval;
+    static const EyeMotion automaticOrder[] = {
+        EyeMotion::Idle, EyeMotion::Scan, EyeMotion::LookLeft,
+        EyeMotion::LookRight, EyeMotion::LookUp, EyeMotion::LookDown,
+        EyeMotion::Shake, EyeMotion::Wink, EyeMotion::RapidBlink
+    };
+    constexpr uint32_t count = static_cast<uint32_t>(EyeMotion::RapidBlink) + 1u;
+    if (effect.eyeMotionPlayback == MotionPlaybackMode::Automatic)
+        return automaticOrder[step % (sizeof(automaticOrder) / sizeof(automaticOrder[0]))];
+    if (effect.eyeMotionPlayback == MotionPlaybackMode::Sequential)
+        return static_cast<EyeMotion>(step % count);
+    uint32_t value = step ^ 0x9E3779B9u;
+    value ^= value >> 16; value *= 0x7FEB352Du;
+    value ^= value >> 15; value *= 0x846CA68Bu;
+    value ^= value >> 16;
+    return static_cast<EyeMotion>(value % count);
+}
+
+EyeExpression ResolveEyeExpression(
+    const LedEffectConfig& effect,
+    uint32_t timeMs
+) {
+    if (effect.eyeExpressionPlayback == MotionPlaybackMode::Manual)
+        return effect.eyeExpression;
+    const uint32_t interval = effect.eyeExpressionIntervalMs < 500
+        ? 500 : effect.eyeExpressionIntervalMs;
+    const uint32_t step = timeMs / interval;
+    static const EyeExpression automaticOrder[] = {
+        EyeExpression::Neutral, EyeExpression::Happy,
+        EyeExpression::Surprised, EyeExpression::Angry,
+        EyeExpression::Evil, EyeExpression::Sad,
+        EyeExpression::Sleepy, EyeExpression::Love
+    };
+    constexpr uint32_t count = static_cast<uint32_t>(EyeExpression::Evil) + 1u;
+    if (effect.eyeExpressionPlayback == MotionPlaybackMode::Automatic)
+        return automaticOrder[step % (sizeof(automaticOrder) / sizeof(automaticOrder[0]))];
+    if (effect.eyeExpressionPlayback == MotionPlaybackMode::Sequential)
+        return static_cast<EyeExpression>(step % count);
+    uint32_t value = step ^ 0x85EBCA6Bu;
+    value ^= value >> 16; value *= 0x7FEB352Du;
+    value ^= value >> 15; value *= 0x846CA68Bu;
+    value ^= value >> 16;
+    return static_cast<EyeExpression>(value % count);
+}
+
+EyeVisualStyle ResolveEyeVisualStyle(
+    const LedEffectConfig& effect,
+    uint32_t timeMs
+) {
+    if (!effect.eyeTransformationEnabled)
+        return effect.eyeVisualStyle;
+    const uint32_t interval = effect.eyeTransformationIntervalMs < 1000
+        ? 1000 : effect.eyeTransformationIntervalMs;
+    return static_cast<EyeVisualStyle>((timeMs / interval) % 4u);
+}
+
 float GetDirectionalPosition(
     LedDirection direction,
     float x,
@@ -444,8 +508,11 @@ bool MatrixAnimationEngine::EvaluatePixel(
             const float dy = (static_cast<float>(row) - eyeCenterY) / eyeRadiusY;
             const float inwardX = dx * (leftEye ? 1.0f : -1.0f);
             const float t = static_cast<float>(timeMs) * speed;
+            const EyeMotion activeMotion = ResolveEyeMotion(effect, timeMs);
+            const EyeExpression activeExpression = ResolveEyeExpression(effect, timeMs);
+            const EyeVisualStyle activeVisualStyle = ResolveEyeVisualStyle(effect, timeMs);
 
-            if (effect.eyeExpression == EyeExpression::Surprised)
+            if (activeExpression == EyeExpression::Surprised)
                 eyeRadiusY *= 1.14f;
 
             float verticalScale = 1.0f;
@@ -461,7 +528,7 @@ bool MatrixAnimationEngine::EvaluatePixel(
 
             float topLimit = -1.0f;
             float bottomLimit = 1.0f;
-            switch (effect.eyeExpression) {
+            switch (activeExpression) {
             case EyeExpression::Happy:
                 topLimit = -0.88f + 0.38f * std::fabs(dx);
                 bottomLimit = 0.88f - 0.38f * std::fabs(dx);
@@ -529,10 +596,16 @@ bool MatrixAnimationEngine::EvaluatePixel(
             bool blinking = blinkPhase < 135.0f ||
                 (blinkPhase > static_cast<float>(blinkInterval) * 0.68f &&
                  blinkPhase < static_cast<float>(blinkInterval) * 0.68f + 115.0f);
+            if (effect.eyeTransformationEnabled) {
+                const uint32_t transformInterval = effect.eyeTransformationIntervalMs < 1000
+                    ? 1000 : effect.eyeTransformationIntervalMs;
+                blinking = blinking ||
+                    (timeMs % transformInterval) < 105u;
+            }
 
             float gazeX = std::sin(t / 720.0f) * 0.10f;
             float gazeY = std::sin(t / 1050.0f) * 0.035f;
-            switch (effect.eyeMotion) {
+            switch (activeMotion) {
             case EyeMotion::LookLeft: gazeX = -0.34f; break;
             case EyeMotion::LookRight: gazeX = 0.34f; break;
             case EyeMotion::LookUp: gazeY = -0.34f; break;
@@ -562,9 +635,9 @@ bool MatrixAnimationEngine::EvaluatePixel(
             const float pupilX = dx - gazeX;
             const float pupilY = dy - gazeY;
             const float pupilDistance = pupilX * pupilX + pupilY * pupilY;
-            float pupilRadius = effect.eyeExpression == EyeExpression::Surprised
+            float pupilRadius = activeExpression == EyeExpression::Surprised
                 ? 0.075f : 0.12f;
-            if (effect.eyeExpression == EyeExpression::Love)
+            if (activeExpression == EyeExpression::Love)
                 pupilRadius = 0.16f;
             // Implicit heart equation gives Love a recognisable heart pupil
             // instead of relying only on a pink circular iris.
@@ -576,26 +649,79 @@ bool MatrixAnimationEngine::EvaluatePixel(
                 heartTerm * heartTerm * heartTerm -
                 heartX * heartX * heartY * heartY * heartY <= 0.0f;
 
-            if (blinking) {
+            float browThickness = 0.0f;
+            switch (effect.eyeBrowStyle) {
+            case EyeBrowStyle::Natural: browThickness = 0.105f; break;
+            case EyeBrowStyle::Sharp: browThickness = 0.14f; break;
+            case EyeBrowStyle::Thick: browThickness = 0.22f; break;
+            case EyeBrowStyle::None:
+            default: break;
+            }
+            float browTilt = effect.eyeBrowTilt * 0.18f;
+            if (activeExpression == EyeExpression::Angry ||
+                activeExpression == EyeExpression::Evil)
+                browTilt += 0.16f;
+            const float browLine = -1.04f + inwardX * browTilt;
+            const bool browPixel = effect.eyeBrowStyle != EyeBrowStyle::None &&
+                matrix.rows >= 10 && absX < 0.88f &&
+                std::fabs(dy - browLine) <= browThickness;
+
+            if (browPixel) {
+                red = effect.eyeBrowRed;
+                green = effect.eyeBrowGreen;
+                blue = effect.eyeBrowBlue;
+                intensity = 1.0f;
+            } else if (blinking) {
                 intensity = insideEye && std::fabs(dy - 0.05f) < 0.10f
                     ? 0.9f : 0.0f;
             } else if (insideEye) {
-                if ((effect.eyeExpression == EyeExpression::Love && heartPupil) ||
-                    (effect.eyeExpression != EyeExpression::Love &&
+                if ((activeExpression == EyeExpression::Love && heartPupil) ||
+                    (activeExpression != EyeExpression::Love &&
                      pupilDistance < pupilRadius)) {
                     preserveEyeDetailColor = true;
-                    if (effect.eyeExpression == EyeExpression::Love) {
+                    if (activeExpression == EyeExpression::Love) {
                         red = 255; green = 70; blue = 150;
                     } else {
-                        red = 5; green = 8; blue = 18;
+                        red = effect.eyePupilRed;
+                        green = effect.eyePupilGreen;
+                        blue = effect.eyePupilBlue;
                     }
                     intensity = 1.0f;
                 } else if (pupilDistance < 0.34f) {
                     preserveEyeDetailColor = true;
-                    if (effect.eyeExpression == EyeExpression::Love) {
+                    if (activeExpression == EyeExpression::Love) {
                         red = 255; green = 110; blue = 180;
+                    } else if (activeVisualStyle == EyeVisualStyle::Normal) {
+                        red = effect.eyeIrisRed;
+                        green = effect.eyeIrisGreen;
+                        blue = effect.eyeIrisBlue;
                     } else {
-                        red = 20; green = 155; blue = 255;
+                        const float irisRadius = std::sqrt(pupilDistance);
+                        const float irisAngle = std::atan2(pupilY, pupilX);
+                        if (activeVisualStyle == EyeVisualStyle::Sharingan) {
+                            const float tomoe = std::cos(irisAngle * 3.0f + 0.35f);
+                            if (irisRadius > 0.19f && irisRadius < 0.30f && tomoe > 0.91f) {
+                                red = 18; green = 2; blue = 8;
+                            } else if (std::fabs(irisRadius - 0.245f) < 0.025f) {
+                                red = 255; green = 75; blue = 55;
+                            } else {
+                                red = 190; green = 18; blue = 38;
+                            }
+                        } else if (activeVisualStyle == EyeVisualStyle::Mangekyou) {
+                            const float spoke = std::fabs(std::cos(irisAngle * 3.0f + t / 1800.0f));
+                            if (spoke > 0.88f && irisRadius > 0.12f) {
+                                red = 20; green = 1; blue = 12;
+                            } else {
+                                red = 220; green = 28; blue = 48;
+                            }
+                        } else {
+                            const float ring = std::fabs(std::sin(irisRadius * 42.0f));
+                            if (ring > 0.82f) {
+                                red = 225; green = 190; blue = 255;
+                            } else {
+                                red = 135; green = 82; blue = 220;
+                            }
+                        }
                     }
                     intensity = 1.0f;
                 } else {
