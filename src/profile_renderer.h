@@ -22,6 +22,11 @@ public:
         uint32_t placementId,
         uint32_t effectIndex
     );
+
+    static uint32_t RenderNativeLights(
+        CVehicle* vehicle,
+        const VehicleProfile& profile
+    );
 };
 
 }

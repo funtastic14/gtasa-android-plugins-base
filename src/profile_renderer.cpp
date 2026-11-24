@@ -5,6 +5,7 @@
 #include "vehicle_geometry_reader.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstdint>
 #include <limits>
@@ -23,7 +24,7 @@ constexpr uint32_t SEGMENTS = 12;
 
 class RenderStateGuard {
 public:
-    RenderStateGuard() {
+    explicit RenderStateGuard(bool preserveTexture = false) {
         Save(rwRENDERSTATETEXTURERASTER, m_texture, m_hasTexture);
         Save(rwRENDERSTATEVERTEXALPHAENABLE, m_vertexAlpha, m_hasVertexAlpha);
         Save(rwRENDERSTATESRCBLEND, m_srcBlend, m_hasSrcBlend);
@@ -32,7 +33,8 @@ public:
         Save(rwRENDERSTATEZWRITEENABLE, m_zWrite, m_hasZWrite);
         Save(rwRENDERSTATECULLMODE, m_cullMode, m_hasCullMode);
 
-        RwRenderStateSet(rwRENDERSTATETEXTURERASTER, nullptr);
+        if (!preserveTexture)
+            RwRenderStateSet(rwRENDERSTATETEXTURERASTER, nullptr);
         RwRenderStateSet(rwRENDERSTATEVERTEXALPHAENABLE, Value(1));
         RwRenderStateSet(rwRENDERSTATESRCBLEND, Value(rwBLENDSRCALPHA));
         RwRenderStateSet(rwRENDERSTATEDESTBLEND, Value(rwBLENDINVSRCALPHA));
@@ -812,7 +814,168 @@ static bool RenderEffect(
     return rendered;
 }
 
+
+static bool RenderNativeLightPatch(
+    CVehicle* vehicle,
+    const VehicleProfile& profile,
+    const SurfacePatch& patch,
+    const AtomicMesh& mesh,
+    uint32_t timeMs
+) {
+    if (vehicle == nullptr || patch.role != SurfaceRoleCandidate::Lighting ||
+        mesh.vertices.empty() || mesh.vehicleSpaceVertices.size() != mesh.vertices.size() ||
+        mesh.vertices.size() > 65535u || patch.triangleIndices.empty()) {
+        return false;
+    }
+
+    const bool front = patch.centroid.y > 0.25f;
+    const bool rear = patch.centroid.y < -0.25f;
+    if ((!front || !profile.nativeLights.rgbHeadlightsEnabled) &&
+        (!rear || !profile.nativeLights.rgbTaillightsEnabled)) {
+        return false;
+    }
+
+    const auto materialIt = std::find_if(
+        mesh.materials.begin(), mesh.materials.end(),
+        [&patch](const MeshMaterialInfo& material) {
+            return material.index == patch.materialIndex;
+        }
+    );
+    if (materialIt == mesh.materials.end() || materialIt->raster == nullptr)
+        return false;
+
+    std::string textureName = materialIt->textureName;
+    std::transform(textureName.begin(), textureName.end(), textureName.begin(),
+        [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    if (textureName.find("vehiclelight") == std::string::npos &&
+        textureName.find("headlight") == std::string::npos &&
+        textureName.find("taillight") == std::string::npos) {
+        return false;
+    }
+
+    CMatrix* vehicleMatrix = vehicle->GetMatrix();
+    if (vehicleMatrix == nullptr)
+        return false;
+
+    float minX = std::numeric_limits<float>::max();
+    float maxX = -std::numeric_limits<float>::max();
+    for (const GeometryVertex& point : mesh.vehicleSpaceVertices) {
+        minX = std::min(minX, point.x);
+        maxX = std::max(maxX, point.x);
+    }
+    const float width = std::max(0.001f, maxX - minX);
+    const float flowOffset = static_cast<float>(timeMs) *
+        profile.nativeLights.rgbFlowSpeed * 0.045f;
+
+    static std::vector<RwIm3DVertex> vertices;
+    static std::vector<RwImVertexIndex> indices;
+    vertices.clear();
+    indices.clear();
+    if (vertices.capacity() < mesh.vertices.size())
+        vertices.reserve(mesh.vertices.size());
+    const size_t requestedIndices = patch.triangleIndices.size() * 3u;
+    if (indices.capacity() < requestedIndices)
+        indices.reserve(requestedIndices);
+
+    const uint8_t alpha = ClampColor(profile.nativeLights.rgbFlowIntensity * 210.0f);
+    for (size_t i = 0; i < mesh.vertices.size(); ++i) {
+        const GeometryVertex& source = mesh.vertices[i];
+        const GeometryVertex& local = mesh.vehicleSpaceVertices[i];
+        const CVector world = vehicleMatrix->TransformPoint(
+            CVector(local.x, local.y, local.z)
+        );
+        const float normalizedX = (local.x - minX) / width;
+        uint8_t red = 255, green = 255, blue = 255;
+        HSVtoRGB(normalizedX * 360.0f + flowOffset, red, green, blue);
+
+        RwIm3DVertex vertex;
+        SetVertex(vertex, world, red, green, blue, alpha);
+        vertex.u = source.u;
+        vertex.v = source.v;
+        vertices.push_back(vertex);
+    }
+
+    for (uint32_t triangleIndex : patch.triangleIndices) {
+        if (triangleIndex >= mesh.triangles.size())
+            continue;
+        const GeometryTriangle& triangle = mesh.triangles[triangleIndex];
+        if (triangle.materialIndex != patch.materialIndex ||
+            triangle.a >= vertices.size() || triangle.b >= vertices.size() ||
+            triangle.c >= vertices.size()) {
+            continue;
+        }
+        indices.push_back(static_cast<RwImVertexIndex>(triangle.a));
+        indices.push_back(static_cast<RwImVertexIndex>(triangle.b));
+        indices.push_back(static_cast<RwImVertexIndex>(triangle.c));
+    }
+    if (indices.empty())
+        return false;
+
+    RenderStateGuard stateGuard(true);
+    RwRenderStateSet(
+        rwRENDERSTATETEXTURERASTER,
+        reinterpret_cast<void*>(materialIt->raster)
+    );
+    RwRenderStateSet(rwRENDERSTATEVERTEXALPHAENABLE, reinterpret_cast<void*>(1));
+    RwRenderStateSet(rwRENDERSTATESRCBLEND, reinterpret_cast<void*>(rwBLENDSRCALPHA));
+    RwRenderStateSet(rwRENDERSTATEDESTBLEND, reinterpret_cast<void*>(rwBLENDINVSRCALPHA));
+
+    const RwUInt32 flags =
+        rwIM3D_VERTEXXYZ | rwIM3D_VERTEXRGBA | rwIM3D_VERTEXUV;
+    if (RwIm3DTransform(
+            vertices.data(),
+            static_cast<RwUInt32>(vertices.size()),
+            nullptr,
+            flags
+        ) == nullptr) {
+        return false;
+    }
+
+    const bool rendered = RwIm3DRenderIndexedPrimitive(
+        rwPRIMTYPETRILIST,
+        indices.data(),
+        static_cast<RwUInt32>(indices.size())
+    );
+    RwIm3DEnd();
+    return rendered;
+}
+
 } // namespace
+
+
+uint32_t ProfileRenderer::RenderNativeLights(
+    CVehicle* vehicle,
+    const VehicleProfile& profile
+) {
+    if (vehicle == nullptr || !profile.enabled ||
+        (!profile.nativeLights.rgbHeadlightsEnabled &&
+         !profile.nativeLights.rgbTaillightsEnabled)) {
+        return 0;
+    }
+
+    const std::vector<AtomicMesh>& meshes = VehicleGeometryReader::GetMeshes();
+    const std::vector<SurfacePatch>& patches = VehicleGeometryReader::GetSurfacePatches();
+    if (meshes.empty() || patches.empty())
+        return 0;
+
+    const uint32_t timeMs = static_cast<uint32_t>(Timer::GetTimeInMS());
+    uint32_t rendered = 0;
+    for (const SurfacePatch& patch : patches) {
+        if (patch.role != SurfaceRoleCandidate::Lighting)
+            continue;
+        const auto meshIt = std::find_if(
+            meshes.begin(), meshes.end(),
+            [&patch](const AtomicMesh& mesh) {
+                return mesh.atomicIndex == patch.atomicIndex;
+            }
+        );
+        if (meshIt == meshes.end())
+            continue;
+        if (RenderNativeLightPatch(vehicle, profile, patch, *meshIt, timeMs))
+            ++rendered;
+    }
+    return rendered;
+}
 
 uint32_t ProfileRenderer::RenderVehicleProfile(
     CVehicle* vehicle,

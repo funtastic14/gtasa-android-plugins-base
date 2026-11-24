@@ -1468,6 +1468,8 @@ static void OnRenderEffects() {
         if (profile != nullptr && profile->enabled) {
             if (profile->nativeLights.highBeamEnabled)
                 VLS::VehicleLightEngine::AddHighBeam(currentVehicle, *profile);
+            if (profile->nativeLights.rgbHeadlightsEnabled || profile->nativeLights.rgbTaillightsEnabled)
+                VLS::ProfileRenderer::RenderNativeLights(currentVehicle, *profile);
             for (CVehicle* vehicle : g_frameVehicles) {
                 if (vehicle != currentVehicle || !IsVehiclePointerValid(vehicle)) continue;
                 for (const VLS::LedPlacement& led : profile->placements) {
