@@ -538,8 +538,12 @@ static bool RenderEffect(
     if (brightness > 1.0f)
         brightness = 1.0f;
 
+    // Capture one clock sample for the strip. The matrix renderer uses
+    // the same raw clock multiplied by effect.speed, so both surfaces share
+    // an identical motion phase instead of drifting by frame/update timing.
+    const uint32_t motionTimeMs = CTimer::GetTimeMS();
     const double time =
-        static_cast<double>(CTimer::GetTimeMS()) *
+        static_cast<double>(motionTimeMs) *
         static_cast<double>(effect.speed);
 
     const bool isWindshieldZone =
@@ -650,7 +654,7 @@ static bool RenderEffect(
             effect.type == LedEffectType::StroboWave) {
             const float phase01 = static_cast<float>(std::fmod(time / 1800.0, 1.0));
             intensity *= EvaluateMotionIntensity(
-                ResolveMotionPattern(effect, CTimer::GetTimeMS(), GetPlacementMotionPlayback(placement), placement.animationIntervalMs), nx, 0.5f, phase01,
+                ResolveMotionPattern(effect, motionTimeMs, GetPlacementMotionPlayback(placement), placement.animationIntervalMs), nx, 0.5f, phase01,
                 static_cast<uint16_t>(i), 0,
                 static_cast<uint16_t>(SEGMENTS), 1
             );
