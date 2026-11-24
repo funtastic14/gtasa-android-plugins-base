@@ -913,6 +913,12 @@ static void RenderEditor() {
             effect.matrix.rows = 7;
             changed = true;
         }
+        if (effect.type == VLS::LedEffectType::StroboEyes &&
+            effect.eyeBrowStyle != VLS::EyeBrowStyle::None &&
+            effect.matrix.rows < 10) {
+            effect.matrix.rows = 10;
+            changed = true;
+        }
         if (effect.matrix.columns < 24) {
             effect.matrix.columns = 24;
             changed = true;
