@@ -950,15 +950,15 @@ static void RenderEditor() {
             effect.motionPattern = static_cast<VLS::LedMotionPattern>(motionIndex);
             changed = true;
         }
-        static const char* transitionNames[] = {"Off", "Center Collision", "Center Burst"};
-        int transitionIndex = static_cast<int>(effect.motionTransition);
-        if (ImGui::Combo("Motion Transition", &transitionIndex, transitionNames, 3)) {
-            if (transitionIndex < 0) transitionIndex = 0;
-            if (transitionIndex > 2) transitionIndex = 2;
-            effect.motionTransition = static_cast<VLS::LedMotionTransition>(transitionIndex);
+        static const char* modifierNames[] = {"None", "Center Collision", "Center Burst"};
+        int modifierIndex = static_cast<int>(effect.motionModifier);
+        if (ImGui::Combo("Motion Pattern Modifier", &modifierIndex, modifierNames, 3)) {
+            if (modifierIndex < 0) modifierIndex = 0;
+            if (modifierIndex > 2) modifierIndex = 2;
+            effect.motionModifier = static_cast<VLS::LedMotionModifier>(modifierIndex);
             changed = true;
         }
-        ImGui::TextWrapped("Motion Transition is independent from Motion Pattern. Center Collision brings two fronts together, flashes at impact, then sends a shockwave outward. It can overlay arrow patterns or custom matrix shapes.");
+        ImGui::TextWrapped("Combines with the selected Motion Pattern as one unified LED motion field. Center Collision converges two fronts, flashes at impact, then expands a shockwave. Center Burst radiates outward from the center. Neither creates a separate LED effect or layer.");
         ImGui::TextWrapped("Laser Write draws a moving beam with a fading trace. Laser Weld adds a hot core and spark-like trail. Color Style controls the beam palette.");
     } else if (effect.type == VLS::LedEffectType::StroboEyes) {
         ImGui::Separator();
