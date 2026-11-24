@@ -881,9 +881,8 @@ static bool RenderNativeLightPatch(
     for (size_t i = 0; i < mesh.vertices.size(); ++i) {
         const GeometryVertex& source = mesh.vertices[i];
         const GeometryVertex& local = mesh.vehicleSpaceVertices[i];
-        const CVector world = vehicleMatrix->TransformPoint(
-            CVector(local.x, local.y, local.z)
-        );
+        CVector vehicleLocal(local.x, local.y, local.z);
+        const CVector world = vehicleMatrix->TransformPoint(vehicleLocal);
         const float normalizedX = (local.x - minX) / width;
         uint8_t red = 255, green = 255, blue = 255;
         HSVtoRGB(normalizedX * 360.0f + flowOffset, red, green, blue);
@@ -958,7 +957,7 @@ uint32_t ProfileRenderer::RenderNativeLights(
     if (meshes.empty() || patches.empty())
         return 0;
 
-    const uint32_t timeMs = static_cast<uint32_t>(Timer::GetTimeInMS());
+    const uint32_t timeMs = static_cast<uint32_t>(CTimer::GetTimeInMS());
     uint32_t rendered = 0;
     for (const SurfacePatch& patch : patches) {
         if (patch.role != SurfaceRoleCandidate::Lighting)
