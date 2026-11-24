@@ -89,11 +89,11 @@ inline MotionFrameState BuildMotionFrameState(
     state.cycleIndex = timeMs / state.intervalMs;
     state.phase = GetMotionPhase(timeMs, effect.speed);
     state.pattern = ResolveMotionPattern(effect, timeMs, playback, state.intervalMs);
-    state.transition = effect.motionTransition;
+    state.modifier = effect.motionModifier;
     return state;
 }
 
-inline float EvaluateMotionIntensity(
+inline float EvaluateBaseMotionIntensity(
     LedMotionPattern pattern,
     float x,
     float y,
@@ -308,8 +308,8 @@ inline float EvaluateMotionIntensity(
     return 1.0f;
 }
 
-inline float EvaluateMotionTransition(
-    LedMotionTransition transition,
+inline float EvaluateMotionModifier(
+    LedMotionModifier modifier,
     float x,
     float y,
     float phase
@@ -319,8 +319,8 @@ inline float EvaluateMotionTransition(
         return value < 0.0f ? 0.0f : (value > 1.0f ? 1.0f : value);
     };
     const float distanceFromCenter = std::fabs(x - 0.5f);
-    switch (transition) {
-    case LedMotionTransition::CenterCollision:
+    switch (modifier) {
+    case LedMotionModifier::CenterCollision:
         // Two fronts converge, produce a center impact flash, then a short
         // expanding shockwave. The same overlay works on any base artwork.
         if (phase < 0.72f) {
@@ -341,17 +341,41 @@ inline float EvaluateMotionTransition(
                 std::fabs(distanceFromCenter - front) * 15.0f);
             return 0.035f + 0.965f * wave;
         }
-    case LedMotionTransition::CenterBurst: {
+    case LedMotionModifier::CenterBurst: {
         const float radius = std::sqrt(
             (x - 0.5f) * (x - 0.5f) + (y - 0.5f) * (y - 0.5f));
         const float front = phase * 0.70710678f;
         const float wave = clamp01(1.0f - std::fabs(radius - front) * 14.0f);
         return 0.025f + 0.975f * wave;
     }
-    case LedMotionTransition::None:
+    case LedMotionModifier::None:
     default:
         return 1.0f;
     }
+}
+
+
+inline float EvaluateMotionIntensity(
+    LedMotionPattern pattern,
+    float x,
+    float y,
+    float phase,
+    uint16_t column,
+    uint16_t row,
+    uint16_t columns,
+    uint16_t rows,
+    LedMotionModifier modifier
+) {
+    // The selected base pattern and its modifier are evaluated as one
+    // spatial field. This produces one intensity result per LED pixel,
+    // rather than rendering Collision/Burst as a second LED layer.
+    const float base = EvaluateBaseMotionIntensity(
+        pattern, x, y, phase, column, row, columns, rows
+    );
+    const float modifierField = EvaluateMotionModifier(
+        modifier, x, y, phase
+    );
+    return base * modifierField;
 }
 
 } // namespace VLS
