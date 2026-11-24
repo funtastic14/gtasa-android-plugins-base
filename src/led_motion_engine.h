@@ -194,22 +194,26 @@ inline float EvaluateMotionIntensity(
         bool lit = false;
         switch (pattern) {
         case LedMotionPattern::ArrowLeft:
-            lit = arrowShape(1.0f - x, y);
+            axis = 1.0f - x;
+            lit = arrowShape(axis, cross);
             break;
         case LedMotionPattern::ArrowUp:
-            lit = arrowShape(1.0f - y, x);
+            axis = 1.0f - y;
+            cross = x;
+            lit = arrowShape(axis, cross);
             break;
         case LedMotionPattern::ArrowDown:
-            lit = arrowShape(y, x);
+            axis = y;
+            cross = x;
+            lit = arrowShape(axis, cross);
             break;
-        case LedMotionPattern::OpposingArrows: {
-            const float localAxis = x < 0.5f ? x * 2.0f : (1.0f - x) * 2.0f;
-            lit = arrowShape(localAxis, y);
+        case LedMotionPattern::OpposingArrows:
+            axis = x < 0.5f ? (0.5f - x) * 2.0f : (x - 0.5f) * 2.0f;
+            lit = arrowShape(axis, cross);
             break;
-        }
         case LedMotionPattern::ArrowRight:
         default:
-            lit = arrowShape(x, y);
+            lit = arrowShape(axis, cross);
             break;
         }
         if (!lit)
