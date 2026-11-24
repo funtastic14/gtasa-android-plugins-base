@@ -941,16 +941,24 @@ static void RenderEditor() {
             "Flow", "Wave", "Diagonal", "Ripple", "Pulse",
             "Alternate Rows", "Alternate Columns", "Checkerboard",
             "Windmill", "Spiral", "Starburst", "Laser Write", "Laser Weld",
-            "Arrow Left", "Arrow Right", "Arrow Up", "Arrow Down", "Opposing Arrows",
-            "Center Collision", "Impact Burst"
+            "Arrow Left", "Arrow Right", "Arrow Up", "Arrow Down", "Opposing Arrows"
         };
         int motionIndex = static_cast<int>(effect.motionPattern);
-        if (ImGui::Combo("Motion Pattern", &motionIndex, motionNames, 29)) {
+        if (ImGui::Combo("Motion Pattern", &motionIndex, motionNames, 27)) {
             if (motionIndex < 0) motionIndex = 0;
-            if (motionIndex > 28) motionIndex = 28;
+            if (motionIndex > 26) motionIndex = 26;
             effect.motionPattern = static_cast<VLS::LedMotionPattern>(motionIndex);
             changed = true;
         }
+        static const char* transitionNames[] = {"Off", "Center Collision", "Center Burst"};
+        int transitionIndex = static_cast<int>(effect.motionTransition);
+        if (ImGui::Combo("Motion Transition", &transitionIndex, transitionNames, 3)) {
+            if (transitionIndex < 0) transitionIndex = 0;
+            if (transitionIndex > 2) transitionIndex = 2;
+            effect.motionTransition = static_cast<VLS::LedMotionTransition>(transitionIndex);
+            changed = true;
+        }
+        ImGui::TextWrapped("Motion Transition is independent from Motion Pattern. Center Collision brings two fronts together, flashes at impact, then sends a shockwave outward. It can overlay arrow patterns or custom matrix shapes.");
         ImGui::TextWrapped("Laser Write draws a moving beam with a fading trace. Laser Weld adds a hot core and spark-like trail. Color Style controls the beam palette.");
     } else if (effect.type == VLS::LedEffectType::StroboEyes) {
         ImGui::Separator();
