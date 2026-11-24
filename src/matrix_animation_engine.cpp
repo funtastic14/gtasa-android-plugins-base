@@ -696,9 +696,7 @@ bool MatrixAnimationEngine::EvaluatePixel(
                     const bool outerIrisRing = irisRadius > 0.305f;
                     const bool innerIrisRing = std::fabs(irisRadius - 0.155f) < 0.018f;
 
-                    if (activeExpression == EyeExpression::Love) {
-                        red = 255; green = 110; blue = 180;
-                    } else if (activeVisualStyle == EyeVisualStyle::Normal) {
+                    if (activeVisualStyle == EyeVisualStyle::Normal) {
                         // Radial fibers and two concentric rings give the
                         // selected iris palette depth without image assets.
                         const float fiber = 0.82f + 0.18f *
@@ -803,13 +801,16 @@ bool MatrixAnimationEngine::EvaluatePixel(
             return true;
 
         const float spacing = effect.textSpacing < 0.25f ? 0.25f : effect.textSpacing;
+        const float textScale = effect.textScale < 0.1f ? 0.1f :
+            (effect.textScale > 3.0f ? 3.0f : effect.textScale);
+        const float glyphStep = spacing * textScale;
         const bool vertical =
             effect.textMotion == RunningTextMotion::ScrollUp ||
             effect.textMotion == RunningTextMotion::ScrollDown ||
             effect.textMotion == RunningTextMotion::BounceVertical;
-        const float charWidth = 6.0f * spacing;
+        const float charWidth = 6.0f * glyphStep;
         const float textWidth = charWidth * static_cast<float>(effect.text.size());
-        const float textHeight = 7.0f * spacing;
+        const float textHeight = 7.0f * glyphStep;
         if (textWidth <= 0.0f || textHeight <= 0.0f)
             return true;
 
@@ -857,7 +858,7 @@ bool MatrixAnimationEngine::EvaluatePixel(
                 const float within = localX -
                     static_cast<float>(charIndex) * charWidth;
                 const int glyphColumn =
-                    static_cast<int>(within / spacing);
+                    static_cast<int>(within / glyphStep);
                 if (charIndex < effect.text.size() &&
                     glyphColumn >= 0 && glyphColumn < 5) {
                     const uint8_t bits = GetGlyphRow(
@@ -888,9 +889,9 @@ bool MatrixAnimationEngine::EvaluatePixel(
                 const float withinX =
                     localX - static_cast<float>(charIndex) * charWidth;
                 const int glyphColumn =
-                    static_cast<int>(withinX / spacing);
+                    static_cast<int>(withinX / glyphStep);
                 const int glyphRow =
-                    static_cast<int>(localY / spacing);
+                    static_cast<int>(localY / glyphStep);
                 if (charIndex < effect.text.size() &&
                     glyphColumn >= 0 && glyphColumn < 5 &&
                     glyphRow >= 0 && glyphRow < 7) {
@@ -938,7 +939,7 @@ bool MatrixAnimationEngine::EvaluatePixel(
         (effect.type != LedEffectType::RunningText ||
          activePattern == LedMotionPattern::LaserWrite ||
          activePattern == LedMotionPattern::LaserWeld)) {
-        const float phase = Fract(static_cast<float>(timeMs) * speed / 1800.0f);
+        const float phase = GetMotionPhase(timeMs, speed);
         const bool verticalText =
             effect.textMotion == RunningTextMotion::ScrollUp ||
             effect.textMotion == RunningTextMotion::ScrollDown ||
