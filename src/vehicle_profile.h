@@ -128,9 +128,13 @@ enum class LedMotionPattern : uint8_t {
     ArrowRight,
     ArrowUp,
     ArrowDown,
-    OpposingArrows,
-    CollisionCenter,
-    CollisionBurst
+    OpposingArrows
+};
+
+enum class LedMotionTransition : uint8_t {
+    None,
+    CenterCollision,
+    CenterBurst
 };
 
 enum class MotionPlaybackMode : uint8_t {
@@ -232,6 +236,7 @@ struct LedEffectConfig {
 
     LedColorMode colorMode = LedColorMode::Solid;
     LedMotionPattern motionPattern = LedMotionPattern::LeftToRight;
+    LedMotionTransition motionTransition = LedMotionTransition::None;
     MotionPlaybackMode motionPlayback = MotionPlaybackMode::Manual;
     uint32_t motionIntervalMs = 3000;
     uint8_t secondaryRed = 0;
