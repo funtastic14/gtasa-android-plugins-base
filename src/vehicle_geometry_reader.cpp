@@ -319,6 +319,13 @@ static RpAtomic* ScanAtomic(RpAtomic* atomic, void* data) {
             storedVertex.y = vertex.y;
             storedVertex.z = vertex.z;
 
+            // Preserve the first UV set without modifying source geometry.
+            // Some native/mobile geometries do not expose CPU UV data.
+            if (geometry->numTexCoordSets > 0 && geometry->texCoords[0] != nullptr) {
+                storedVertex.u = geometry->texCoords[0][i].u;
+                storedVertex.v = geometry->texCoords[0][i].v;
+            }
+
             mesh.vertices.push_back(storedVertex);
         }
 

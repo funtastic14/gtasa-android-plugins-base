@@ -43,6 +43,9 @@ struct GeometryVertex {
     float x = 0.0f;
     float y = 0.0f;
     float z = 0.0f;
+    // Original RenderWare texture coordinates, when CPU UV data is available.
+    float u = 0.0f;
+    float v = 0.0f;
 };
 
 struct GeometryTriangle {
