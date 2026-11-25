@@ -1692,6 +1692,7 @@ static void OnGameProcess() {
 
         if (modelId < 0) {
             g_currentProfile = nullptr;
+            ResetVehicleGeometryScan();
 
             logger->Info(
                 "Player is not using a valid vehicle."
@@ -1705,6 +1706,7 @@ static void OnGameProcess() {
 
     if (modelId < 0) {
         g_currentProfile = nullptr;
+        ResetVehicleGeometryScan();
         return;
     }
 
