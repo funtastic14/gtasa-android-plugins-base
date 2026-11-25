@@ -36,6 +36,16 @@ static const size_t MAX_FRAME_COUNT = 4096;
 static const size_t MAX_DIAGNOSTIC_OUTPUT = 240 * 1024;
 static const uint32_t MAX_FRAME_DEPTH = 128;
 
+// Conservative Native RGB admission limits for low-memory Android devices.
+// These are hard safety ceilings, not targets; incremental scanning will
+// further reduce the amount of work performed in any single game frame.
+static const uint32_t MAX_SCAN_ATOMIC_COUNT = 128;
+static const uint32_t MAX_ATOMIC_VERTEX_COUNT = 8192;
+static const uint32_t MAX_ATOMIC_TRIANGLE_COUNT = 12000;
+static const uint64_t MAX_SCAN_TOTAL_VERTEX_COUNT = 100000;
+static const uint64_t MAX_SCAN_TOTAL_TRIANGLE_COUNT = 150000;
+static const uint32_t MAX_SCAN_MATERIAL_COUNT = 128;
+
 struct GlassPart {
  uint32_t triangles=0, vertices=0;
  float minX=0,minY=0,minZ=0,maxX=0,maxY=0,maxZ=0;
@@ -95,6 +105,7 @@ struct ScanContext {
     std::vector<AtomicGeometryInfo>* details = nullptr;
     std::vector<AtomicMesh>* meshes = nullptr;
     uint32_t geometryIndex = 0;
+    bool limitExceeded = false;
 };
 
 struct FrameScanContext {
@@ -138,6 +149,14 @@ static RpAtomic* ScanAtomic(RpAtomic* atomic, void* data) {
 
     GeometryScanStats& stats = *context->stats;
 
+    if (context->limitExceeded)
+        return nullptr;
+
+    if (stats.atomicCount >= MAX_SCAN_ATOMIC_COUNT) {
+        context->limitExceeded = true;
+        return nullptr;
+    }
+
     const uint32_t atomicIndex = stats.atomicCount++;
 
     RpGeometry* geometry = RpAtomicGetGeometry(atomic);
@@ -168,16 +187,24 @@ static RpAtomic* ScanAtomic(RpAtomic* atomic, void* data) {
             : 0;
     const RwInt32 signedMaterialCount = RpGeometryGetNumMaterials(geometry);
     const uint32_t materialCount =
-        (signedMaterialCount > 0 && signedMaterialCount <= 1024 &&
+        (signedMaterialCount > 0 &&
+         signedMaterialCount <= static_cast<RwInt32>(MAX_SCAN_MATERIAL_COUNT) &&
          geometry->matList.materials != nullptr)
             ? static_cast<uint32_t>(signedMaterialCount) : 0;
 
     // RenderWare geometry counts are signed runtime data. Reject implausible
     // values before they can drive pointer arithmetic or large allocations.
     const bool saneVertexCount =
-        vertexCount > 0 && vertexCount <= 65535u;
+        vertexCount > 0 && vertexCount <= MAX_ATOMIC_VERTEX_COUNT;
     const bool saneTriangleCount =
-        triangleCount > 0 && triangleCount <= 1000000u;
+        triangleCount > 0 && triangleCount <= MAX_ATOMIC_TRIANGLE_COUNT;
+
+    if (!saneVertexCount || !saneTriangleCount ||
+        stats.totalVertices + vertexCount > MAX_SCAN_TOTAL_VERTEX_COUNT ||
+        stats.totalTriangles + triangleCount > MAX_SCAN_TOTAL_TRIANGLE_COUNT) {
+        context->limitExceeded = true;
+        return nullptr;
+    }
 
     stats.totalVertices += vertexCount;
     stats.totalTriangles += triangleCount;
@@ -1259,6 +1286,20 @@ bool VehicleGeometryReader::Scan(
         ScanAtomic,
         &atomicContext
     );
+
+    if (atomicContext.limitExceeded) {
+        // Never publish a partial mesh cache: one oversized atomic or an
+        // over-budget vehicle disables Native RGB for this vehicle safely.
+        Clear();
+        logger->Info(
+            "[VLS] Native RGB skipped: geometry budget exceeded "
+            "(atomics=%u, vertices=%llu, triangles=%llu).",
+            static_cast<unsigned int>(stats.atomicCount),
+            static_cast<unsigned long long>(stats.totalVertices),
+            static_cast<unsigned long long>(stats.totalTriangles)
+        );
+        return false;
+    }
 
     RwFrame* rootFrame = RpClumpGetFrame(clump);
 
