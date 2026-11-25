@@ -934,11 +934,12 @@ static bool RenderNativeLightPatch(
     RwRenderStateSet(rwRENDERSTATEVERTEXALPHAENABLE, reinterpret_cast<void*>(1));
     RwRenderStateSet(rwRENDERSTATESRCBLEND, reinterpret_cast<void*>(rwBLENDSRCALPHA));
     RwRenderStateSet(rwRENDERSTATEDESTBLEND, reinterpret_cast<void*>(rwBLENDINVSRCALPHA));
-    // This is a surface-masked overlay: only triangles classified as lamp
-    // geometry are submitted. The vehicle has already written its depth before
-    // RenderEffects, so ordinary Z testing can reject a coplanar overlay even
-    // with a small outward offset. Disable Z testing but never write depth.
-    RwRenderStateSet(rwRENDERSTATEZTESTENABLE, reinterpret_cast<void*>(0));
+    // Keep depth testing enabled so RGB cannot bleed through opaque bodywork.
+    // RenderWare alpha surfaces normally leave depth writes disabled; in that
+    // case the RGB lamp overlay remains visible through glass/transparent parts.
+    // The outward surface offset gives the overlay a small depth advantage at
+    // the lamp itself. Never write depth from this transparent overlay.
+    RwRenderStateSet(rwRENDERSTATEZTESTENABLE, reinterpret_cast<void*>(1));
     RwRenderStateSet(rwRENDERSTATEZWRITEENABLE, reinterpret_cast<void*>(0));
 
     const RwUInt32 flags =
