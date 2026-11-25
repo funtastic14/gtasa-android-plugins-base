@@ -120,6 +120,64 @@ static int g_lastSavedModelId = -2147483647;
 static std::vector<AtomicMesh> g_cachedMeshes;
 static std::vector<SurfacePatch> g_cachedSurfacePatches;
 
+static const uint32_t INCREMENTAL_VERTEX_BUDGET = 256;
+static const uint32_t INCREMENTAL_TRIANGLE_BUDGET = 384;
+static const uint32_t INCREMENTAL_ATOMIC_PROBE_BUDGET = 8;
+
+struct IncrementalScanState {
+    CVehicle* vehicle = nullptr;
+    RpClump* clump = nullptr;
+    int modelId = -1;
+    uint32_t atomicIndex = 0;
+    uint32_t atomicCount = 0;
+    uint32_t vertexCount = 0;
+    uint32_t triangleCount = 0;
+    uint32_t vertexCursor = 0;
+    uint32_t triangleCursor = 0;
+    RpGeometry* geometryIdentity = nullptr;
+    bool activeAtomic = false;
+    bool invalidVertices = false;
+    bool failed = false;
+    bool complete = false;
+    GeometryScanStats stats;
+    AtomicMesh currentMesh;
+    std::vector<AtomicMesh> meshes;
+};
+
+static IncrementalScanState g_incrementalScan;
+
+struct AtomicAtIndexContext {
+    uint32_t target = 0;
+    uint32_t current = 0;
+    RpAtomic* found = nullptr;
+};
+
+static RpAtomic* FindAtomicAtIndex(RpAtomic* atomic, void* data) {
+    if (atomic == nullptr || data == nullptr)
+        return atomic;
+    AtomicAtIndexContext* context =
+        static_cast<AtomicAtIndexContext*>(data);
+    if (context->current == context->target) {
+        context->found = atomic;
+        return nullptr;
+    }
+    ++context->current;
+    return atomic;
+}
+
+static RpAtomic* GetAtomicAtIndex(RpClump* clump, uint32_t index) {
+    if (clump == nullptr)
+        return nullptr;
+    AtomicAtIndexContext context;
+    context.target = index;
+    RpClumpForAllAtomics(clump, FindAtomicAtIndex, &context);
+    return context.found;
+}
+
+static void ResetIncrementalScanState() {
+    g_incrementalScan = IncrementalScanState{};
+}
+
 static std::string ReadTextureName(const char* name) {
     if (name == nullptr)
         return std::string();
@@ -1458,6 +1516,312 @@ bool VehicleGeometryReader::Scan(
     return stats.atomicCount > 0;
 }
 
+
+bool VehicleGeometryReader::ScanIncremental(
+    CVehicle* vehicle,
+    int modelId,
+    GeometryScanStats& stats,
+    bool& complete
+) {
+    complete = false;
+    stats = GeometryScanStats{};
+
+    if (vehicle == nullptr || modelId < 0) {
+        ResetIncrementalScanState();
+        Clear();
+        complete = true;
+        return false;
+    }
+
+    RpClump* clump = vehicle->m_pRwClump;
+    if (clump == nullptr)
+        return false;
+
+    IncrementalScanState& state = g_incrementalScan;
+    if (state.vehicle != vehicle ||
+        state.clump != clump ||
+        state.modelId != modelId) {
+        ResetIncrementalScanState();
+        Clear();
+        state.vehicle = vehicle;
+        state.clump = clump;
+        state.modelId = modelId;
+        state.atomicCount = static_cast<uint32_t>(
+            std::max<RwInt32>(0, RpClumpGetNumAtomics(clump))
+        );
+        if (state.atomicCount > MAX_SCAN_ATOMIC_COUNT) {
+            state.failed = true;
+            state.complete = true;
+        }
+    }
+
+    if (state.complete) {
+        stats = state.stats;
+        complete = true;
+        return !state.failed;
+    }
+
+    uint32_t vertexWork = 0;
+    uint32_t triangleWork = 0;
+    uint32_t atomicProbes = 0;
+
+    while (vertexWork < INCREMENTAL_VERTEX_BUDGET &&
+           triangleWork < INCREMENTAL_TRIANGLE_BUDGET &&
+           atomicProbes < INCREMENTAL_ATOMIC_PROBE_BUDGET) {
+
+        if (state.atomicIndex >= state.atomicCount) {
+            state.complete = true;
+            break;
+        }
+
+        RpAtomic* atomic = GetAtomicAtIndex(
+            clump, state.atomicIndex
+        );
+        ++atomicProbes;
+        if (atomic == nullptr) {
+            state.failed = true;
+            state.complete = true;
+            break;
+        }
+
+        RpGeometry* geometry = RpAtomicGetGeometry(atomic);
+        if (!state.activeAtomic) {
+            ++state.stats.atomicCount;
+            ++state.atomicIndex;
+            if (geometry == nullptr)
+                continue;
+
+            const RwInt32 signedVertices =
+                RpGeometryGetNumVertices(geometry);
+            const RwInt32 signedTriangles =
+                RpGeometryGetNumTriangles(geometry);
+            const uint32_t vertices = signedVertices > 0
+                ? static_cast<uint32_t>(signedVertices) : 0u;
+            const uint32_t triangles = signedTriangles > 0
+                ? static_cast<uint32_t>(signedTriangles) : 0u;
+
+            const bool saneVertices =
+                vertices > 0 && vertices <= MAX_ATOMIC_VERTEX_COUNT;
+            const bool saneTriangles =
+                triangles > 0 && triangles <= MAX_ATOMIC_TRIANGLE_COUNT;
+
+            if (!saneVertices || !saneTriangles ||
+                state.stats.totalVertices + vertices >
+                    MAX_SCAN_TOTAL_VERTEX_COUNT ||
+                state.stats.totalTriangles + triangles >
+                    MAX_SCAN_TOTAL_TRIANGLE_COUNT) {
+                state.failed = true;
+                state.complete = true;
+                break;
+            }
+
+            state.stats.totalVertices += vertices;
+            state.stats.totalTriangles += triangles;
+            ++state.stats.geometryCount;
+
+            const RwUInt32 flags = RpGeometryGetFlags(geometry);
+            const bool cpuVertices =
+                (flags & rpGEOMETRYPOSITIONS) != 0 &&
+                (flags & (rpGEOMETRYNATIVE |
+                          rpGEOMETRYNATIVEINSTANCE)) == 0 &&
+                geometry->numMorphTargets > 0 &&
+                geometry->numMorphTargets <= 16 &&
+                geometry->morphTarget != nullptr &&
+                RpMorphTargetGetVertices(
+                    RpGeometryGetMorphTarget(geometry, 0)
+                ) != nullptr;
+
+            if (!cpuVertices) {
+                ++state.stats.missingVertexDataCount;
+                ++state.stats.skippedNoCpuVertexCount;
+                continue;
+            }
+            if (geometry->triangles == nullptr) {
+                ++state.stats.missingTriangleDataCount;
+                ++state.stats.skippedNoTriangleDataCount;
+                continue;
+            }
+
+            state.geometryIdentity = geometry;
+            state.vertexCount = vertices;
+            state.triangleCount = triangles;
+            state.vertexCursor = 0;
+            state.triangleCursor = 0;
+            state.invalidVertices = false;
+            state.currentMesh = AtomicMesh{};
+            state.currentMesh.atomicIndex = state.atomicIndex - 1;
+            state.currentMesh.frame = RpAtomicGetFrame(atomic);
+            state.currentMesh.hasTextureCoordinates =
+                geometry->numTexCoordSets > 0 &&
+                geometry->numTexCoordSets <= rwMAXTEXTURECOORDS &&
+                geometry->texCoords[0] != nullptr;
+
+            const RwInt32 materialCount = RpGeometryGetNumMaterials(geometry);
+            if (materialCount > 0 &&
+                materialCount <= static_cast<RwInt32>(MAX_SCAN_MATERIAL_COUNT) &&
+                geometry->matList.materials != nullptr) {
+                state.currentMesh.materials.reserve(
+                    static_cast<size_t>(materialCount)
+                );
+                for (RwInt32 i = 0; i < materialCount; ++i) {
+                    MeshMaterialInfo materialInfo;
+                    materialInfo.index = static_cast<int16_t>(i);
+                    RpMaterial* material = geometry->matList.materials[i];
+                    RwTexture* texture = material != nullptr
+                        ? RpMaterialGetTexture(material) : nullptr;
+                    if (texture != nullptr) {
+                        materialInfo.textureName =
+                            ReadTextureName(RwTextureGetName(texture));
+                        materialInfo.maskName =
+                            ReadTextureName(RwTextureGetMaskName(texture));
+                        materialInfo.raster = RwTextureGetRaster(texture);
+                    }
+                    state.currentMesh.materials.push_back(
+                        std::move(materialInfo)
+                    );
+                }
+            }
+
+            state.currentMesh.vertices.resize(vertices);
+            state.currentMesh.triangles.reserve(triangles);
+            state.activeAtomic = true;
+            ++state.stats.cpuVertexGeometryCount;
+        }
+
+        // Re-resolve the atomic and geometry every frame. No RenderWare
+        // geometry/vertex/triangle pointer is retained across game frames.
+        if (geometry == nullptr || geometry != state.geometryIdentity) {
+            state.failed = true;
+            state.complete = true;
+            break;
+        }
+
+        const RwUInt32 flags = RpGeometryGetFlags(geometry);
+        const RpMorphTarget* morphTarget =
+            RpGeometryGetMorphTarget(geometry, 0);
+        const RwV3d* sourceVertices =
+            morphTarget != nullptr
+                ? RpMorphTargetGetVertices(morphTarget) : nullptr;
+        if (sourceVertices == nullptr) {
+            state.failed = true;
+            state.complete = true;
+            break;
+        }
+
+        const bool hasUv =
+            state.currentMesh.hasTextureCoordinates &&
+            geometry->texCoords[0] != nullptr;
+
+        const uint32_t vertexEnd = std::min(
+            state.vertexCount,
+            state.vertexCursor +
+                (INCREMENTAL_VERTEX_BUDGET - vertexWork)
+        );
+        for (; state.vertexCursor < vertexEnd; ++state.vertexCursor) {
+            const RwV3d& source = sourceVertices[state.vertexCursor];
+            if (!IsFiniteVertex(source)) {
+                state.invalidVertices = true;
+                break;
+            }
+            GeometryVertex& target =
+                state.currentMesh.vertices[state.vertexCursor];
+            target.x = source.x;
+            target.y = source.y;
+            target.z = source.z;
+            if (hasUv) {
+                target.u = geometry->texCoords[0][state.vertexCursor].u;
+                target.v = geometry->texCoords[0][state.vertexCursor].v;
+            }
+            ++vertexWork;
+        }
+        if (state.invalidVertices) {
+            ++state.stats.skippedInvalidVertexCount;
+            state.activeAtomic = false;
+            state.geometryIdentity = nullptr;
+            continue;
+        }
+
+        if (state.vertexCursor < state.vertexCount)
+            break;
+
+        const RpTriangle* sourceTriangles =
+            RpGeometryGetTriangles(geometry);
+        if (sourceTriangles == nullptr) {
+            ++state.stats.missingTriangleDataCount;
+            ++state.stats.skippedNoTriangleDataCount;
+            state.activeAtomic = false;
+            state.geometryIdentity = nullptr;
+            continue;
+        }
+
+        const uint32_t triangleEnd = std::min(
+            state.triangleCount,
+            state.triangleCursor +
+                (INCREMENTAL_TRIANGLE_BUDGET - triangleWork)
+        );
+        for (; state.triangleCursor < triangleEnd; ++state.triangleCursor) {
+            const RpTriangle& source = sourceTriangles[state.triangleCursor];
+            const uint16_t a = source.vertIndex[0];
+            const uint16_t b = source.vertIndex[1];
+            const uint16_t c = source.vertIndex[2];
+            if (a >= state.vertexCount ||
+                b >= state.vertexCount ||
+                c >= state.vertexCount) {
+                ++state.stats.invalidTriangleIndexCount;
+                continue;
+            }
+            GeometryTriangle triangle;
+            triangle.a = a;
+            triangle.b = b;
+            triangle.c = c;
+            triangle.materialIndex = source.matIndex;
+            state.currentMesh.triangles.push_back(triangle);
+            ++triangleWork;
+        }
+
+        if (state.triangleCursor < state.triangleCount)
+            break;
+
+        if (!state.currentMesh.vertices.empty() &&
+            !state.currentMesh.triangles.empty()) {
+            ++state.stats.cachedMeshCount;
+            state.stats.cachedVertexCount +=
+                state.currentMesh.vertices.size();
+            state.stats.cachedTriangleCount +=
+                state.currentMesh.triangles.size();
+            state.meshes.push_back(std::move(state.currentMesh));
+        } else {
+            ++state.stats.skippedNoValidTriangleCount;
+        }
+
+        state.activeAtomic = false;
+        state.geometryIdentity = nullptr;
+    }
+
+    if (state.complete && !state.failed) {
+        g_cachedMeshes.swap(state.meshes);
+        g_cachedSurfacePatches.clear();
+        logger->Info(
+            "[VLS] Incremental CPU mesh copy complete: atomics=%u meshes=%u vertices=%llu triangles=%llu",
+            static_cast<unsigned int>(state.stats.atomicCount),
+            static_cast<unsigned int>(state.stats.cachedMeshCount),
+            static_cast<unsigned long long>(state.stats.cachedVertexCount),
+            static_cast<unsigned long long>(state.stats.cachedTriangleCount)
+        );
+    } else if (state.complete && state.failed) {
+        state.meshes.clear();
+        g_cachedMeshes.clear();
+        g_cachedSurfacePatches.clear();
+        logger->Info(
+            "[VLS] Native RGB geometry scan rejected; keeping cache empty."
+        );
+    }
+
+    stats = state.stats;
+    complete = state.complete;
+    return state.complete && !state.failed;
+}
+
 const std::vector<AtomicMesh>&
 VehicleGeometryReader::GetMeshes() {
     return g_cachedMeshes;
@@ -1468,6 +1832,7 @@ const std::vector<SurfacePatch>& VehicleGeometryReader::GetSurfacePatches() {
 }
 
 void VehicleGeometryReader::Clear() {
+    ResetIncrementalScanState();
     std::vector<AtomicMesh>().swap(g_cachedMeshes);
     std::vector<SurfacePatch>().swap(g_cachedSurfacePatches);
 }
