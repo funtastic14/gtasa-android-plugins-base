@@ -61,7 +61,11 @@ enum class EyeShape : uint8_t {
     Round,
     Cat,
     Square,
-    Sleep
+    Sleep,
+    Almond,
+    Diamond,
+    Hexagon,
+    Anime
 };
 
 enum class EyeMotion : uint8_t {
@@ -101,7 +105,10 @@ enum class EyeBrowStyle : uint8_t {
     None,
     Natural,
     Sharp,
-    Thick
+    Thick,
+    Arched,
+    Fierce,
+    Soft
 };
 
 // Motion is independent from color style and effect family.

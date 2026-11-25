@@ -758,7 +758,7 @@ static bool ReadEffect(
     int eyeExpression = static_cast<int>(effect.eyeExpression);
     if ((Find(value, "eyeShape") &&
          (!ReadInt(value, "eyeShape", eyeShape) || eyeShape < 0 ||
-          eyeShape > static_cast<int>(EyeShape::Sleep))) ||
+          eyeShape > static_cast<int>(EyeShape::Anime))) ||
         (Find(value, "eyeMotion") &&
          (!ReadInt(value, "eyeMotion", eyeMotion) || eyeMotion < 0 ||
           eyeMotion > static_cast<int>(EyeMotion::Rinnegan))) ||
@@ -813,7 +813,7 @@ static bool ReadEffect(
           eyeVisualStyle < 0 || eyeVisualStyle > static_cast<int>(EyeVisualStyle::Rinnegan))) ||
         (Find(value, "eyeBrowStyle") &&
          (!ReadInt(value, "eyeBrowStyle", eyeBrowStyle) ||
-          eyeBrowStyle < 0 || eyeBrowStyle > static_cast<int>(EyeBrowStyle::Thick))) ||
+          eyeBrowStyle < 0 || eyeBrowStyle > static_cast<int>(EyeBrowStyle::Soft))) ||
         (Find(value, "eyeTransformationEnabled") &&
          !ReadBool(value, "eyeTransformationEnabled", effect.eyeTransformationEnabled)) ||
         !ReadOptionalUInt32(value, "eyeTransformationIntervalMs", effect.eyeTransformationIntervalMs) ||

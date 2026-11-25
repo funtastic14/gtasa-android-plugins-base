@@ -269,15 +269,37 @@ uint8_t GetGlyphRow(
         {17,17,17,21,21,21,10}, {17,17,10,4,10,17,17},
         {17,17,10,4,4,4,4}, {31,1,2,4,8,16,31}
     };
+    uint8_t bits = 0;
     if (ch >= '0' && ch <= '9')
-        return font[ch - '0'][row];
-    if (ch >= 'A' && ch <= 'Z')
-        return font[10 + ch - 'A'][row];
-    if (ch == '-') return row == 3 ? 14 : 0;
-    if (ch == '.') return row == 6 ? 4 : 0;
-    if (ch == ':') return (row == 2 || row == 5) ? 4 : 0;
-    if (ch == ' ') return 0;
-    return row == 0 || row == 6 ? 31 : 17;
+        bits = font[ch - '0'][row];
+    else if (ch >= 'A' && ch <= 'Z')
+        bits = font[10 + ch - 'A'][row];
+    else if (ch == '-') bits = row == 3 ? 14 : 0;
+    else if (ch == '.') bits = row == 6 ? 4 : 0;
+    else if (ch == ':') bits = (row == 2 || row == 5) ? 4 : 0;
+    else if (ch == ' ') bits = 0;
+    else bits = row == 0 || row == 6 ? 31 : 17;
+
+    if (fontName == "bold" || fontName == "wide") {
+        const uint8_t expanded = static_cast<uint8_t>(bits | (bits >> 1) | ((bits << 1) & 0x1Fu));
+        bits = fontName == "wide"
+            ? static_cast<uint8_t>((expanded | (expanded >> 1)) & 0x1Fu)
+            : expanded;
+    } else if (fontName == "condensed") {
+        bits = static_cast<uint8_t>(((bits >> 1) & 0x07u) << 1);
+    } else if (fontName == "italic") {
+        const int shift = row < 2 ? 2 : (row < 4 ? 1 : 0);
+        bits = static_cast<uint8_t>((bits << shift) & 0x1Fu);
+    } else if (fontName == "outline") {
+        const uint8_t above = row > 0
+            ? GetGlyphRow(input, static_cast<uint16_t>(row - 1), "default") : 0;
+        const uint8_t below = row < 6
+            ? GetGlyphRow(input, static_cast<uint16_t>(row + 1), "default") : 0;
+        const uint8_t horizontalCore = static_cast<uint8_t>(bits & (bits >> 1) & ((bits << 1) & 0x1Fu));
+        const uint8_t verticalCore = static_cast<uint8_t>(bits & above & below);
+        bits = static_cast<uint8_t>(bits & ~(horizontalCore & verticalCore));
+    }
+    return static_cast<uint8_t>(bits & 0x1Fu);
 }
 
 
@@ -586,6 +608,10 @@ bool MatrixAnimationEngine::EvaluatePixel(
             case EyeShape::Cat: verticalScale = 0.72f; break;
             case EyeShape::Square: verticalScale = 0.82f; break;
             case EyeShape::Sleep: verticalScale = 0.52f; break;
+            case EyeShape::Almond: verticalScale = 0.78f; break;
+            case EyeShape::Diamond: verticalScale = 0.88f; break;
+            case EyeShape::Hexagon: verticalScale = 0.90f; break;
+            case EyeShape::Anime: verticalScale = 1.34f; break;
             case EyeShape::Classic:
             default: break;
             }
@@ -643,6 +669,22 @@ bool MatrixAnimationEngine::EvaluatePixel(
             }
             case EyeShape::Round:
                 shapeInside = dx * dx + scaledY * scaledY <= 0.86f;
+                break;
+            case EyeShape::Almond: {
+                const float almondLimit = 0.82f + 0.18f * (1.0f - absX);
+                shapeInside = absX <= 1.0f && absY <= almondLimit;
+                break;
+            }
+            case EyeShape::Diamond:
+                shapeInside = absX <= 1.0f && absY <= (1.0f - absX) * 0.92f + 0.08f;
+                break;
+            case EyeShape::Hexagon:
+                shapeInside = absX <= 1.0f && absY <= 0.82f &&
+                    (absX + absY * 0.42f) <= 1.24f;
+                break;
+            case EyeShape::Anime:
+                shapeInside = dx * dx + scaledY * scaledY <= 1.0f &&
+                    absY <= (1.08f - 0.12f * absX);
                 break;
             case EyeShape::Classic:
             case EyeShape::Narrow:
@@ -727,22 +769,36 @@ bool MatrixAnimationEngine::EvaluatePixel(
                 heartTerm * heartTerm * heartTerm -
                 heartX * heartX * heartY * heartY * heartY <= 0.0f;
 
+            // Eyebrow follows the moving iris with a damped offset and stays
+            // close to the upper eyelid, so both read as one animated assembly.
+            const float browDx = dx - gazeX * 0.78f;
+            const float browDy = dy - gazeY * 0.34f;
+            const float browAbsX = std::fabs(browDx);
+            const float browInwardX = browDx * (leftEye ? 1.0f : -1.0f);
             float browThickness = 0.0f;
             switch (effect.eyeBrowStyle) {
             case EyeBrowStyle::Natural: browThickness = 0.105f; break;
             case EyeBrowStyle::Sharp: browThickness = 0.14f; break;
             case EyeBrowStyle::Thick: browThickness = 0.22f; break;
+            case EyeBrowStyle::Arched: browThickness = 0.12f; break;
+            case EyeBrowStyle::Fierce: browThickness = 0.17f; break;
+            case EyeBrowStyle::Soft: browThickness = 0.085f; break;
             case EyeBrowStyle::None:
             default: break;
             }
             float browTilt = effect.eyeBrowTilt * 0.18f;
-            if (activeExpression == EyeExpression::Angry ||
-                activeExpression == EyeExpression::Evil)
-                browTilt += 0.16f;
-            const float browLine = -1.04f + inwardX * browTilt;
+            if (effect.eyeBrowStyle == EyeBrowStyle::Fierce)
+                browTilt += 0.22f;
+            else if (effect.eyeBrowStyle == EyeBrowStyle::Soft)
+                browTilt *= 0.45f;
+            const float browCurve = effect.eyeBrowStyle == EyeBrowStyle::Arched
+                ? 0.20f * (1.0f - browAbsX * browAbsX) : 0.0f;
+            const float browLine = -0.98f + browInwardX * browTilt - browCurve;
+            const float browWidth = effect.eyeBrowStyle == EyeBrowStyle::Soft
+                ? 0.76f : 0.90f;
             const bool browPixel = effect.eyeBrowStyle != EyeBrowStyle::None &&
-                matrix.rows >= 10 && absX < 0.88f &&
-                std::fabs(dy - browLine) <= browThickness;
+                matrix.rows >= 10 && browAbsX < browWidth &&
+                std::fabs(browDy - browLine) <= browThickness;
 
             if (browPixel) {
                 preserveEyeDetailColor = true;

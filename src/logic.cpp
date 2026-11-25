@@ -899,15 +899,25 @@ static void RenderEditor() {
             std::strncpy(g_runningFontBuffer, effect.fontName.c_str(), sizeof(g_runningFontBuffer) - 1);
             g_runningFontBufferEffect = &effect;
         }
-        static const char* fontChoices[] = {"default", "Custom..."};
-        int fontChoice = effect.fontName == "default" ? 0 : 1;
+        static const char* fontChoices[] = {
+            "Default", "Bold", "Italic", "Condensed", "Outline", "Wide", "Custom..."
+        };
+        static const char* fontIds[] = {
+            "default", "bold", "italic", "condensed", "outline", "wide"
+        };
+        int fontChoice = 6;
+        for (int i = 0; i < 6; ++i) {
+            if (effect.fontName == fontIds[i]) { fontChoice = i; break; }
+        }
         if (ImGui::Combo("Bitmap Font", &fontChoice, fontChoices, IM_ARRAYSIZE(fontChoices))) {
-            if (fontChoice == 0) effect.fontName = "default";
-            else if (effect.fontName == "default") effect.fontName.clear();
+            if (fontChoice >= 0 && fontChoice < 6)
+                effect.fontName = fontIds[fontChoice];
+            else if (fontChoice == 6 && effect.fontName == "default")
+                effect.fontName.clear();
             g_runningFontBufferEffect = nullptr;
             changed = true;
         }
-        if (fontChoice == 1) {
+        if (fontChoice == 6) {
             if (g_runningFontBufferEffect != &effect) {
                 std::memset(g_runningFontBuffer, 0, sizeof(g_runningFontBuffer));
                 std::strncpy(g_runningFontBuffer, effect.fontName.c_str(), sizeof(g_runningFontBuffer) - 1);
@@ -918,7 +928,7 @@ static void RenderEditor() {
                 changed = true;
             }
         }
-        ImGui::TextWrapped("Bundled choice: default.vlsfont. Custom files belong in VehicleLEDSystem/fonts/.");
+        ImGui::TextWrapped("Built-in bitmap styles: Default, Bold, Italic, Condensed, Outline and Wide. Custom .vlsfont files belong in VehicleLEDSystem/fonts/.");
 
         if (g_runningTextureBufferEffect != &effect) {
             std::memset(g_runningTextureBuffer, 0, sizeof(g_runningTextureBuffer));
@@ -1040,9 +1050,12 @@ static void RenderEditor() {
     } else if (effect.type == VLS::LedEffectType::StroboEyes) {
         ImGui::Separator();
         ImGui::Text("STROBO EYES - Dedicated Eye Engine");
-        static const char* eyeShapeNames[] = {"Classic", "Narrow", "Wide", "Round", "Cat Eye", "Square", "Sleep"};
+        static const char* eyeShapeNames[] = {
+            "Classic", "Narrow", "Wide", "Round", "Cat Eye", "Square", "Sleep",
+            "Almond", "Diamond", "Hexagon", "Anime"
+        };
         int eyeShape = static_cast<int>(effect.eyeShape);
-        if (ImGui::Combo("Eye Shape", &eyeShape, eyeShapeNames, 7)) {
+        if (ImGui::Combo("Eye Shape", &eyeShape, eyeShapeNames, IM_ARRAYSIZE(eyeShapeNames))) {
             effect.eyeShape = static_cast<VLS::EyeShape>(eyeShape); changed = true;
         }
         static const char* playbackNames[] = {"Manual", "Automatic", "Sequence", "Random"};
@@ -1077,9 +1090,11 @@ static void RenderEditor() {
             effect.eyePupilGreen = static_cast<uint8_t>(pupilColor[1] * 255.0f);
             effect.eyePupilBlue = static_cast<uint8_t>(pupilColor[2] * 255.0f); changed = true;
         }
-        static const char* eyeBrowNames[] = {"Off", "Natural", "Sharp", "Thick"};
+        static const char* eyeBrowNames[] = {
+            "Off", "Natural", "Sharp", "Thick", "Arched", "Fierce", "Soft"
+        };
         int eyeBrow = static_cast<int>(effect.eyeBrowStyle);
-        if (ImGui::Combo("Eyebrows", &eyeBrow, eyeBrowNames, 4)) {
+        if (ImGui::Combo("Eyebrows", &eyeBrow, eyeBrowNames, IM_ARRAYSIZE(eyeBrowNames))) {
             effect.eyeBrowStyle = static_cast<VLS::EyeBrowStyle>(eyeBrow); changed = true;
         }
         if (effect.eyeBrowStyle != VLS::EyeBrowStyle::None) {
