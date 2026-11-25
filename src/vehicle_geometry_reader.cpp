@@ -2010,6 +2010,7 @@ bool VehicleGeometryReader::ScanIncremental(
             return value;
         };
 
+        uint32_t newPartsThisFrame = 0;
         for (; state.analysisTriangleCursor < triangleEnd;
              ++state.analysisTriangleCursor) {
             const uint32_t index = state.analysisTriangleCursor;
@@ -2100,6 +2101,8 @@ bool VehicleGeometryReader::ScanIncremental(
                 if (g_cachedSurfacePatches.size() +
                     state.currentInfo.glassParts.size() >= 512u)
                     continue;
+                if (newPartsThisFrame >= 8u)
+                    break;
 
                 GlassPart part;
                 const float high = std::numeric_limits<float>::max();
@@ -2113,6 +2116,7 @@ bool VehicleGeometryReader::ScanIncremental(
                 );
                 state.rootToPart[root] = partIndex;
                 state.currentInfo.glassParts.push_back(std::move(part));
+                ++newPartsThisFrame;
             }
 
             GlassPart& part =
