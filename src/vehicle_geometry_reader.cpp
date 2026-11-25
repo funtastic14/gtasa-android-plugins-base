@@ -797,6 +797,33 @@ static std::string SurfaceRoleHint(const AtomicGeometryInfo& info, const GlassPa
         contains(maskName, "taillight");
     if (explicitLamp) return "LIGHTING_CANDIDATE";
 
+    // Generic frame/material names are common in vehicle mods. Recognize
+    // only compact front/rear-facing surface islands near the atomic ends.
+    // This avoids turning broad body panels, bumpers or grilles into emitters.
+    const float vehicleWidth = info.hasVehicleSpaceBounds
+        ? info.vehicleMaxX - info.vehicleMinX : 0.0f;
+    const float vehicleLength = info.hasVehicleSpaceBounds
+        ? info.vehicleMaxY - info.vehicleMinY : 0.0f;
+    const float patchWidth = part.maxX - part.minX;
+    const float patchHeight = part.maxZ - part.minZ;
+    const float patchDepth = part.maxY - part.minY;
+    const float edgeMargin = std::max(0.35f, vehicleLength * 0.12f);
+    const bool frontEdge = info.hasVehicleSpaceBounds &&
+        part.cy >= info.vehicleMaxY - edgeMargin;
+    const bool rearEdge = info.hasVehicleSpaceBounds &&
+        part.cy <= info.vehicleMinY + edgeMargin;
+    const bool frontRearFacing =
+        ay >= ax * 1.20f && ay >= az * 1.20f;
+    const bool compactLampIsland =
+        vehicleWidth > 0.5f && vehicleLength > 1.0f &&
+        patchWidth >= 0.04f &&
+        patchWidth <= std::min(1.80f, vehicleWidth * 0.78f) &&
+        patchHeight >= 0.025f && patchHeight <= 0.85f &&
+        patchDepth <= 0.35f &&
+        part.area >= 0.003f && part.area <= 2.25f;
+    if (frontRearFacing && compactLampIsland && (frontEdge || rearEdge))
+        return "LIGHTING_CANDIDATE";
+
     const bool frameGlass =
         contains(frameName, "glass") || contains(frameName, "window") ||
         contains(frameName, "windscreen") || contains(frameName, "windshield") ||
