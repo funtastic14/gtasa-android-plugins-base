@@ -1867,13 +1867,14 @@ static void UpdateVehicleGeometryScan() {
                 if (patch.role == VLS::SurfaceRoleCandidate::Lighting)
                     ++lightingPatches;
             }
-            char diagnostic[512];
+            char diagnostic[768];
             const int diagnosticLength = std::snprintf(
                 diagnostic,
                 sizeof(diagnostic),
                 "VLS Native RGB Geometry Scan Diagnostic\n"
                 "Model ID: %d\n"
                 "Scan success: %d\n"
+                "Failure reason: %s\n"
                 "Atomic count: %u\n"
                 "Cached meshes: %u\n"
                 "Cached vertices: %llu\n"
@@ -1883,6 +1884,8 @@ static void UpdateVehicleGeometryScan() {
                 "Skipped without CPU vertices: %u\n",
                 modelId,
                 succeeded ? 1 : 0,
+                stats.failureReason[0] != '\0'
+                    ? stats.failureReason : "none",
                 static_cast<unsigned int>(stats.atomicCount),
                 static_cast<unsigned int>(meshes.size()),
                 static_cast<unsigned long long>(stats.cachedVertexCount),
