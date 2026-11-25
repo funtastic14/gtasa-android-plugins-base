@@ -21,6 +21,7 @@ namespace VLS {
 namespace {
 
 constexpr uint32_t SEGMENTS = 12;
+constexpr float NATIVE_RGB_SURFACE_OFFSET = 0.012f;
 
 class RenderStateGuard {
 public:
@@ -386,7 +387,7 @@ static bool RenderMatrixEffect(
     const float cellHeight = effectiveHeight / static_cast<float>(rows);
 
     const float matrixGap = motionFrame.pattern == LedMotionPattern::Checkerboard
-        ? 0.88f : 0.12f;
+        ? 0.42f : 0.12f;
     const float gapX = cellWidth * matrixGap;
     const float gapZ = cellHeight * matrixGap;
 
@@ -903,7 +904,7 @@ static bool RenderNativeLightPatch(
                 CVector vehicleLocal(local.x, local.y, local.z);
                 // Keep the overlay nearly coplanar with the original lamp surface.
                 // A large normal offset made the RGB layer visibly float outside it.
-                vehicleLocal += outward * 0.002f;
+                vehicleLocal += outward * NATIVE_RGB_SURFACE_OFFSET;
                 const CVector world = vehicleMatrix->TransformPoint(vehicleLocal);
                 const float normalizedX = (local.x - minX) / width;
                 uint8_t red = 255, green = 255, blue = 255;
