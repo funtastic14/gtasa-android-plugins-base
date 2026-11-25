@@ -1620,7 +1620,7 @@ bool VehicleGeometryReader::ScanIncremental(
         return !state.failed;
     }
 
-    const auto failClosed = [&](const char* reason) -> bool {
+    const auto failClosed = [&](const char* reason = "unspecified failure") -> bool {
         const GeometryScanStats failedStats = state.stats;
         char diagnostic[640] = {};
         std::snprintf(
