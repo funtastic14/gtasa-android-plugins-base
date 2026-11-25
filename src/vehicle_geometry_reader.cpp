@@ -1574,11 +1574,6 @@ bool VehicleGeometryReader::ScanIncremental(
            triangleWork < INCREMENTAL_TRIANGLE_BUDGET &&
            atomicProbes < INCREMENTAL_ATOMIC_PROBE_BUDGET) {
 
-        if (state.atomicIndex >= state.atomicCount) {
-            state.complete = true;
-            break;
-        }
-
         if (!state.activeAtomic &&
             state.atomicIndex >= state.atomicCount) {
             state.complete = true;
@@ -1587,6 +1582,14 @@ bool VehicleGeometryReader::ScanIncremental(
 
         const uint32_t lookupIndex = state.activeAtomic
             ? state.activeAtomicIndex : state.atomicIndex;
+        if (static_cast<uint32_t>(
+                std::max<RwInt32>(0, RpClumpGetNumAtomics(clump))
+            ) != state.atomicCount) {
+            state.failed = true;
+            state.complete = true;
+            break;
+        }
+
         RpAtomic* atomic = GetAtomicAtIndex(clump, lookupIndex);
         ++atomicProbes;
         if (atomic == nullptr) {
@@ -1773,6 +1776,7 @@ bool VehicleGeometryReader::ScanIncremental(
         );
         const uint32_t trianglesThisChunk = triangleEnd - state.triangleCursor;
         for (; state.triangleCursor < triangleEnd; ++state.triangleCursor) {
+            ++triangleWork;
             const RpTriangle& source = sourceTriangles[state.triangleCursor];
             const uint16_t a = source.vertIndex[0];
             const uint16_t b = source.vertIndex[1];
@@ -1789,7 +1793,6 @@ bool VehicleGeometryReader::ScanIncremental(
             triangle.c = c;
             triangle.materialIndex = source.matIndex;
             state.currentMesh.triangles.push_back(triangle);
-            ++triangleWork;
         }
 
         if (state.triangleCursor < state.triangleCount)
