@@ -1676,33 +1676,9 @@ static void OnRenderEffects() {
                     if (!led.enabled || led.effects.empty()) continue;
                     const uint32_t selected = led.activeEffectIndex < led.effects.size()
                         ? led.activeEffectIndex : 0u;
-                    bool hasCanvasComposition = false;
-                    for (const VLS::LedEffectConfig& effect : led.effects) {
-                        if (effect.enabled && effect.matrix.enabled &&
-                            effect.matrix.canvasEnabled) {
-                            hasCanvasComposition = true;
-                            break;
-                        }
-                    }
-                    if (hasCanvasComposition) {
-                        // A placement may host several simultaneous motifs.
-                        // Only effects explicitly assigned to the shared canvas
-                        // are composited; legacy placements keep selected-only behavior.
-                        for (uint32_t effectIndex = 0;
-                             effectIndex < led.effects.size(); ++effectIndex) {
-                            const VLS::LedEffectConfig& effect = led.effects[effectIndex];
-                            if (!effect.enabled || !effect.matrix.enabled ||
-                                !effect.matrix.canvasEnabled)
-                                continue;
-                            VLS::ProfileRenderer::RenderSelectedEffect(
-                                vehicle, *profile, led.id, effectIndex
-                            );
-                        }
-                    } else {
-                        VLS::ProfileRenderer::RenderSelectedEffect(
-                            vehicle, *profile, led.id, selected
-                        );
-                    }
+                    VLS::ProfileRenderer::RenderSelectedEffect(
+                        vehicle, *profile, led.id, selected
+                    );
                 }
             }
         }

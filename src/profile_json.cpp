@@ -656,11 +656,11 @@ static bool ReadMatrix(
     if (!ReadBool(value, "enabled", matrix.enabled) ||
         !ReadUInt16(value, "columns", matrix.columns) ||
         !ReadUInt16(value, "rows", matrix.rows) ||
-        !ReadOptionalBool(value, "canvasEnabled", matrix.canvasEnabled) ||
-        !ReadOptionalUInt16(value, "canvasColumns", matrix.canvasColumns) ||
-        !ReadOptionalUInt16(value, "canvasRows", matrix.canvasRows) ||
-        !ReadOptionalUInt16(value, "canvasOffsetColumn", matrix.canvasOffsetColumn) ||
-        !ReadOptionalUInt16(value, "canvasOffsetRow", matrix.canvasOffsetRow)) {
+        !ReadBool(value, "canvasEnabled", matrix.canvasEnabled) ||
+        !ReadUInt16(value, "canvasColumns", matrix.canvasColumns) ||
+        !ReadUInt16(value, "canvasRows", matrix.canvasRows) ||
+        !ReadUInt16(value, "canvasOffsetColumn", matrix.canvasOffsetColumn) ||
+        !ReadUInt16(value, "canvasOffsetRow", matrix.canvasOffsetRow)) {
         return false;
     }
 
