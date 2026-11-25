@@ -25,6 +25,7 @@
 #include <cstdint>
 #include <cstddef>
 #include <cstring>
+#include <cstdio>
 
 namespace Logic {
 
@@ -1578,6 +1579,51 @@ static void OnRenderEffects() {
                         if (patch.centroid.y > 0.25f) ++frontPatches;
                         else if (patch.centroid.y < -0.25f) ++rearPatches;
                     }
+                    char diagnostic[768];
+                    const int diagnosticLength = std::snprintf(
+                        diagnostic,
+                        sizeof(diagnostic),
+                        "VLS Native RGB Render Diagnostic\n"
+                        "Model ID: %d\n"
+                        "Lighting patches: %u\n"
+                        "Front patches: %u\n"
+                        "Rear patches: %u\n"
+                        "Rendered patches: %u\n"
+                        "Side disabled: %u\n"
+                        "Missing mesh: %u\n"
+                        "Invalid geometry: %u\n"
+                        "Missing vehicle matrix: %u\n"
+                        "Empty triangle output: %u\n"
+                        "Transform failed: %u\n"
+                        "Draw failed: %u\n"
+                        "Submitted vertices: %u\n"
+                        "Submitted indices: %u\n"
+                        "Valid triangles: %u\n"
+                        "Alpha: %u\n",
+                        modelId,
+                        static_cast<unsigned int>(lightingPatches),
+                        static_cast<unsigned int>(frontPatches),
+                        static_cast<unsigned int>(rearPatches),
+                        static_cast<unsigned int>(renderedPatches),
+                        static_cast<unsigned int>(nativeStats.sideDisabled),
+                        static_cast<unsigned int>(nativeStats.missingMesh),
+                        static_cast<unsigned int>(nativeStats.invalidGeometry),
+                        static_cast<unsigned int>(nativeStats.missingVehicleMatrix),
+                        static_cast<unsigned int>(nativeStats.emptyTriangleOutput),
+                        static_cast<unsigned int>(nativeStats.transformFailed),
+                        static_cast<unsigned int>(nativeStats.drawFailed),
+                        static_cast<unsigned int>(nativeStats.submittedVertices),
+                        static_cast<unsigned int>(nativeStats.submittedIndices),
+                        static_cast<unsigned int>(nativeStats.validTriangles),
+                        static_cast<unsigned int>(nativeStats.alpha)
+                    );
+                    if (diagnosticLength > 0 &&
+                        static_cast<size_t>(diagnosticLength) < sizeof(diagnostic)) {
+                        VLS::ProfileStorage::SaveDiagnosticText(
+                            "native_rgb_render.txt",
+                            std::string(diagnostic, static_cast<size_t>(diagnosticLength))
+                        );
+                    }
                     logger->Info(
                         "VLS native RGB render: patches=%u front=%u rear=%u rendered=%u sideOff=%u noMesh=%u badGeo=%u noMatrix=%u empty=%u transformFail=%u drawFail=%u verts=%u indices=%u triangles=%u alpha=%u",
                         static_cast<unsigned int>(lightingPatches),
@@ -1711,6 +1757,37 @@ static void UpdateVehicleGeometryScan() {
             for (const VLS::SurfacePatch& patch : patches) {
                 if (patch.role == VLS::SurfaceRoleCandidate::Lighting)
                     ++lightingPatches;
+            }
+            char diagnostic[512];
+            const int diagnosticLength = std::snprintf(
+                diagnostic,
+                sizeof(diagnostic),
+                "VLS Native RGB Geometry Scan Diagnostic\n"
+                "Model ID: %d\n"
+                "Scan success: %d\n"
+                "Atomic count: %u\n"
+                "Cached meshes: %u\n"
+                "Cached vertices: %llu\n"
+                "Cached triangles: %llu\n"
+                "Surface patches: %u\n"
+                "Lighting patches: %u\n"
+                "Skipped without CPU vertices: %u\n",
+                modelId,
+                succeeded ? 1 : 0,
+                static_cast<unsigned int>(stats.atomicCount),
+                static_cast<unsigned int>(meshes.size()),
+                static_cast<unsigned long long>(stats.cachedVertexCount),
+                static_cast<unsigned long long>(stats.cachedTriangleCount),
+                static_cast<unsigned int>(patches.size()),
+                static_cast<unsigned int>(lightingPatches),
+                static_cast<unsigned int>(stats.skippedNoCpuVertexCount)
+            );
+            if (diagnosticLength > 0 &&
+                static_cast<size_t>(diagnosticLength) < sizeof(diagnostic)) {
+                VLS::ProfileStorage::SaveDiagnosticText(
+                    "native_rgb_scan.txt",
+                    std::string(diagnostic, static_cast<size_t>(diagnosticLength))
+                );
             }
             logger->Info(
                 "VLS native RGB scan: success=%d atomics=%u meshes=%u vertices=%llu triangles=%llu patches=%u lighting=%u skippedNoCpu=%u",
