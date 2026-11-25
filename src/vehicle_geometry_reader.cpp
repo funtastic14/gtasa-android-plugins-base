@@ -1539,7 +1539,6 @@ bool VehicleGeometryReader::ScanIncremental(
     if (clump == nullptr) {
         ResetIncrementalScanState();
         Clear();
-        complete = true;
         return false;
     }
 
