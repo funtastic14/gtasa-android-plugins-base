@@ -86,6 +86,7 @@ static int g_geometryScanModelId = -1;
 static uint32_t g_nextGeometryScanTimeMs = 0;
 static bool g_geometryScanSucceeded = false;
 static bool g_geometryScanAttemptComplete = false;
+static bool g_geometryScanClumpUnavailable = false;
 
 
 // ---------------------------------------------------------
@@ -1558,6 +1559,7 @@ static void ResetVehicleGeometryScan() {
     g_nextGeometryScanTimeMs = 0;
     g_geometryScanSucceeded = false;
     g_geometryScanAttemptComplete = false;
+    g_geometryScanClumpUnavailable = false;
 }
 
 static void UpdateVehicleGeometryScan() {
@@ -1578,23 +1580,38 @@ static void UpdateVehicleGeometryScan() {
         g_geometryScanModelId = modelId;
         g_geometryScanSucceeded = false;
         g_geometryScanAttemptComplete = false;
+        g_geometryScanClumpUnavailable = false;
+        g_nextGeometryScanTimeMs = 0;
+    }
+
+    // A clump can temporarily disappear during model streaming. Never
+    // leave a completed cache active while its source clump is unavailable.
+    if (vehicle->m_pRwClump == nullptr) {
+        g_geometryScanSucceeded = false;
+        if (!g_geometryScanClumpUnavailable) {
+            VLS::VehicleGeometryReader::Clear();
+            g_geometryScanAttemptComplete = false;
+            g_geometryScanClumpUnavailable = true;
+        }
+
+        const uint32_t nowMs = CTimer::GetTimeMS();
+        if (static_cast<int32_t>(
+                nowMs - g_nextGeometryScanTimeMs
+            ) >= 0)
+            g_nextGeometryScanTimeMs = nowMs + 500;
+        return;
+    }
+
+    if (g_geometryScanClumpUnavailable) {
+        VLS::VehicleGeometryReader::Clear();
+        g_geometryScanSucceeded = false;
+        g_geometryScanAttemptComplete = false;
+        g_geometryScanClumpUnavailable = false;
         g_nextGeometryScanTimeMs = 0;
     }
 
     if (g_geometryScanAttemptComplete)
         return;
-
-    // A model can be selected before its RenderWare clump is ready.
-    // Retry that short readiness check periodically, but advance the
-    // actual geometry pipeline every game frame once the clump exists.
-    if (vehicle->m_pRwClump == nullptr) {
-        const uint32_t nowMs = CTimer::GetTimeMS();
-        if (static_cast<int32_t>(
-                nowMs - g_nextGeometryScanTimeMs
-            ) < 0)
-            return;
-        g_nextGeometryScanTimeMs = nowMs + 500;
-    }
 
     VLS::GeometryScanStats stats;
     bool complete = false;
