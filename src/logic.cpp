@@ -1001,7 +1001,7 @@ static void RenderEditor() {
             changed = true;
         }
         const uint16_t minimumRows =
-            effect.type == VLS::LedEffectType::StroboEyes ? 10u : 7u;
+            effect.type == VLS::LedEffectType::StroboEyes ? 12u : 7u;
         const uint16_t minimumColumns =
             effect.type == VLS::LedEffectType::StroboEyes ? 32u : 24u;
         if (effect.matrix.rows < minimumRows) {
