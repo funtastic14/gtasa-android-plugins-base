@@ -910,10 +910,15 @@ static void RenderEditor() {
             if (effect.fontName == fontIds[i]) { fontChoice = i; break; }
         }
         if (ImGui::Combo("Bitmap Font", &fontChoice, fontChoices, IM_ARRAYSIZE(fontChoices))) {
-            if (fontChoice >= 0 && fontChoice < 6)
+            if (fontChoice >= 0 && fontChoice < 6) {
                 effect.fontName = fontIds[fontChoice];
-            else if (fontChoice == 6 && effect.fontName == "default")
-                effect.fontName.clear();
+            } else if (fontChoice == 6) {
+                bool wasBuiltIn = false;
+                for (int i = 0; i < 6; ++i)
+                    wasBuiltIn = wasBuiltIn || effect.fontName == fontIds[i];
+                if (wasBuiltIn)
+                    effect.fontName.clear();
+            }
             g_runningFontBufferEffect = nullptr;
             changed = true;
         }
