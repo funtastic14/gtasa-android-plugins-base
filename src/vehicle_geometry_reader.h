@@ -13,6 +13,7 @@ struct RwRaster;
 namespace VLS {
 
 struct GeometryScanStats {
+    char failureReason[128] = {};
     uint32_t atomicCount = 0;
     uint32_t geometryCount = 0;
 
