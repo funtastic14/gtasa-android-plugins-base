@@ -665,11 +665,11 @@ static bool ReadMatrix(
     }
 
     if (matrix.columns == 0 || matrix.rows == 0 ||
-        matrix.canvasColumns == 0 || matrix.canvasRows == 0 ||
-        matrix.canvasColumns > 256 || matrix.canvasRows > 256 ||
-        matrix.canvasOffsetColumn > 255 || matrix.canvasOffsetRow > 255 ||
         (matrix.canvasEnabled &&
-         (static_cast<uint32_t>(matrix.canvasOffsetColumn) + matrix.columns > matrix.canvasColumns ||
+         (matrix.canvasColumns == 0 || matrix.canvasRows == 0 ||
+          matrix.canvasColumns > 256 || matrix.canvasRows > 256 ||
+          matrix.canvasOffsetColumn > 255 || matrix.canvasOffsetRow > 255 ||
+          static_cast<uint32_t>(matrix.canvasOffsetColumn) + matrix.columns > matrix.canvasColumns ||
           static_cast<uint32_t>(matrix.canvasOffsetRow) + matrix.rows > matrix.canvasRows)))
         return false;
 
@@ -1070,11 +1070,11 @@ static bool ValidateProfileReferences(
             const LedMatrixConfig& matrix = effect.matrix;
 
             if (matrix.columns == 0 || matrix.rows == 0 ||
-                matrix.canvasColumns == 0 || matrix.canvasRows == 0 ||
-                matrix.canvasColumns > 256 || matrix.canvasRows > 256 ||
-                matrix.canvasOffsetColumn > 255 || matrix.canvasOffsetRow > 255 ||
                 (matrix.canvasEnabled &&
-                 (static_cast<uint32_t>(matrix.canvasOffsetColumn) + matrix.columns > matrix.canvasColumns ||
+                 (matrix.canvasColumns == 0 || matrix.canvasRows == 0 ||
+                  matrix.canvasColumns > 256 || matrix.canvasRows > 256 ||
+                  matrix.canvasOffsetColumn > 255 || matrix.canvasOffsetRow > 255 ||
+                  static_cast<uint32_t>(matrix.canvasOffsetColumn) + matrix.columns > matrix.canvasColumns ||
                   static_cast<uint32_t>(matrix.canvasOffsetRow) + matrix.rows > matrix.canvasRows)))
                 return false;
 
