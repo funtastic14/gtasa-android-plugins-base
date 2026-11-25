@@ -157,7 +157,7 @@ struct IncrementalScanState {
     uint32_t triangleCount = 0;
     uint32_t vertexCursor = 0;
     uint32_t triangleCursor = 0;
-    RpGeometry* geometryIdentity = nullptr;
+    uintptr_t geometryIdentity = 0;
     bool activeAtomic = false;
     bool invalidVertices = false;
     bool failed = false;
@@ -1692,7 +1692,8 @@ bool VehicleGeometryReader::ScanIncremental(
                     continue;
                 }
 
-                state.geometryIdentity = geometry;
+                state.geometryIdentity =
+                    reinterpret_cast<uintptr_t>(geometry);
                 state.vertexCount = vertices;
                 state.triangleCount = triangles;
                 state.vertexCursor = 0;
@@ -1744,7 +1745,9 @@ bool VehicleGeometryReader::ScanIncremental(
 
             // Re-resolve the atomic and geometry every frame. No RenderWare
             // geometry/vertex/triangle pointer is retained between frames.
-            if (geometry == nullptr || geometry != state.geometryIdentity)
+            if (geometry == nullptr ||
+                reinterpret_cast<uintptr_t>(geometry) !=
+                    state.geometryIdentity)
                 return failClosed();
 
             const RpMorphTarget* morphTarget =
@@ -1784,7 +1787,7 @@ bool VehicleGeometryReader::ScanIncremental(
             if (state.invalidVertices) {
                 ++state.stats.skippedInvalidVertexCount;
                 state.activeAtomic = false;
-                state.geometryIdentity = nullptr;
+                state.geometryIdentity = 0;
                 continue;
             }
             if (state.vertexCursor < state.vertexCount)
