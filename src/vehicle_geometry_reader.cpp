@@ -130,6 +130,7 @@ struct IncrementalScanState {
     int modelId = -1;
     uint32_t atomicIndex = 0;
     uint32_t activeAtomicIndex = 0;
+    uint32_t geometryIndex = 0;
     uint32_t atomicCount = 0;
     uint32_t vertexCount = 0;
     uint32_t triangleCount = 0;
@@ -1633,6 +1634,7 @@ bool VehicleGeometryReader::ScanIncremental(
             state.stats.totalVertices += vertices;
             state.stats.totalTriangles += triangles;
             ++state.stats.geometryCount;
+            const uint32_t currentGeometryIndex = state.geometryIndex++;
 
             const RwUInt32 flags = RpGeometryGetFlags(geometry);
             const bool cpuVertices =
@@ -1665,7 +1667,7 @@ bool VehicleGeometryReader::ScanIncremental(
             state.invalidVertices = false;
             state.currentMesh = AtomicMesh{};
             state.currentMesh.atomicIndex = state.activeAtomicIndex;
-            state.currentMesh.geometryIndex = state.activeAtomicIndex;
+            state.currentMesh.geometryIndex = currentGeometryIndex;
             state.currentMesh.frame = RpAtomicGetFrame(atomic);
             state.currentMesh.hasTextureCoordinates =
                 geometry->numTexCoordSets > 0 &&
