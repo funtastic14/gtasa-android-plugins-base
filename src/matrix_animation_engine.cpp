@@ -188,14 +188,14 @@ uint8_t GetGlyphRow(
     static FontCacheEntry cache[8];
     static uint32_t nextSlot = 0;
     FontCacheEntry* entry = nullptr;
-    for (size_t i = 0; i < 4; ++i) {
+    for (size_t i = 0; i < 8; ++i) {
         if (cache[i].name == fontName) {
             entry = &cache[i];
             break;
         }
     }
     if (entry == nullptr) {
-        entry = &cache[nextSlot++ % 4u];
+        entry = &cache[nextSlot++ % 8u];
         entry->name = fontName;
         entry->valid = false;
         std::string bitmap;
