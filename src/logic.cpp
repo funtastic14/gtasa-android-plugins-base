@@ -87,6 +87,8 @@ static bool g_geometryScanSucceeded = false;
 static bool g_geometryScanAttemptComplete = false;
 static bool g_geometryScanClumpUnavailable = false;
 static uintptr_t g_geometryScanClumpIdentity = 0;
+static bool g_geometryScanDiagnosticLogged = false;
+static bool g_nativeRgbRenderDiagnosticLogged = false;
 
 
 // ---------------------------------------------------------
@@ -1532,7 +1534,30 @@ static void OnRenderEffects() {
                 ) == g_geometryScanClumpIdentity &&
                 (profile->nativeLights.rgbHeadlightsEnabled ||
                  profile->nativeLights.rgbTaillightsEnabled)) {
-                VLS::ProfileRenderer::RenderNativeLights(currentVehicle, *profile);
+                const uint32_t renderedPatches =
+                    VLS::ProfileRenderer::RenderNativeLights(currentVehicle, *profile);
+                if (!g_nativeRgbRenderDiagnosticLogged) {
+                    const auto& patches =
+                        VLS::VehicleGeometryReader::GetSurfacePatches();
+                    uint32_t lightingPatches = 0;
+                    uint32_t frontPatches = 0;
+                    uint32_t rearPatches = 0;
+                    for (const VLS::SurfacePatch& patch : patches) {
+                        if (patch.role != VLS::SurfaceRoleCandidate::Lighting)
+                            continue;
+                        ++lightingPatches;
+                        if (patch.centroid.y > 0.25f) ++frontPatches;
+                        else if (patch.centroid.y < -0.25f) ++rearPatches;
+                    }
+                    logger->Info(
+                        "VLS native RGB render: patches=%u front=%u rear=%u rendered=%u",
+                        static_cast<unsigned int>(lightingPatches),
+                        static_cast<unsigned int>(frontPatches),
+                        static_cast<unsigned int>(rearPatches),
+                        static_cast<unsigned int>(renderedPatches)
+                    );
+                    g_nativeRgbRenderDiagnosticLogged = true;
+                }
             }
             for (CVehicle* vehicle : g_frameVehicles) {
                 if (vehicle != currentVehicle || !IsVehiclePointerValid(vehicle)) continue;
@@ -1564,6 +1589,8 @@ static void ResetVehicleGeometryScan() {
     g_geometryScanAttemptComplete = false;
     g_geometryScanClumpUnavailable = false;
     g_geometryScanClumpIdentity = 0;
+    g_geometryScanDiagnosticLogged = false;
+    g_nativeRgbRenderDiagnosticLogged = false;
 }
 
 static void UpdateVehicleGeometryScan() {
@@ -1635,6 +1662,27 @@ static void UpdateVehicleGeometryScan() {
     if (complete) {
         g_geometryScanAttemptComplete = true;
         g_geometryScanSucceeded = succeeded;
+        if (!g_geometryScanDiagnosticLogged) {
+            const auto& meshes = VLS::VehicleGeometryReader::GetMeshes();
+            const auto& patches = VLS::VehicleGeometryReader::GetSurfacePatches();
+            uint32_t lightingPatches = 0;
+            for (const VLS::SurfacePatch& patch : patches) {
+                if (patch.role == VLS::SurfaceRoleCandidate::Lighting)
+                    ++lightingPatches;
+            }
+            logger->Info(
+                "VLS native RGB scan: success=%d atomics=%u meshes=%u vertices=%llu triangles=%llu patches=%u lighting=%u skippedNoCpu=%u",
+                succeeded ? 1 : 0,
+                static_cast<unsigned int>(stats.atomicCount),
+                static_cast<unsigned int>(meshes.size()),
+                static_cast<unsigned long long>(stats.cachedVertexCount),
+                static_cast<unsigned long long>(stats.cachedTriangleCount),
+                static_cast<unsigned int>(patches.size()),
+                static_cast<unsigned int>(lightingPatches),
+                static_cast<unsigned int>(stats.skippedNoCpuVertexCount)
+            );
+            g_geometryScanDiagnosticLogged = true;
+        }
     }
 }
 
