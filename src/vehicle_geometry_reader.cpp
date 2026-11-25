@@ -801,6 +801,32 @@ static std::string SurfaceRoleHint(const AtomicGeometryInfo& info, const GlassPa
     const float ay = std::fabs(part.ny);
     const float az = std::fabs(part.nz);
 
+
+    const bool frameGlass =
+        contains(frameName, "glass") || contains(frameName, "window") ||
+        contains(frameName, "windscreen") || contains(frameName, "windshield") ||
+        contains(frameName, "screen") || contains(frameName, "kaca");
+    const bool textureGlass =
+        contains(textureName, "glass") || contains(textureName, "window") ||
+        contains(textureName, "windscreen") || contains(textureName, "windshield") ||
+        contains(textureName, "kaca") ||
+        contains(maskName, "glass") || contains(maskName, "window") ||
+        contains(maskName, "windscreen") || contains(maskName, "windshield") ||
+        contains(maskName, "kaca");
+    const bool doorNamed =
+        contains(frameName, "door") || contains(frameName, "pintu");
+
+    if ((!bodyFrame && frameGlass) || textureGlass || (!bodyFrame && doorNamed && part.cz > 0.30f)) {
+        if (ax > ay && ax > az) return "SIDE_GLASS_CANDIDATE";
+        if (ay >= ax && ay > az) {
+            if (part.cy > 0.25f) return "FRONT_GLASS_CANDIDATE";
+            if (part.cy < -0.25f) return "REAR_GLASS_CANDIDATE";
+        }
+        return "GLASS_PANEL_UNRESOLVED";
+    }
+
+    // The frame is chassis/body unless material evidence identifies an
+    // attached glass or lighting component.
     // Generic frame/material names are common in vehicle mods. Recognize
     // only compact front/rear-facing surface islands near the atomic ends.
     // This avoids turning broad body panels, bumpers or grilles into emitters.
@@ -828,31 +854,6 @@ static std::string SurfaceRoleHint(const AtomicGeometryInfo& info, const GlassPa
     if (frontRearFacing && compactLampIsland && (frontEdge || rearEdge))
         return "LIGHTING_CANDIDATE";
 
-    const bool frameGlass =
-        contains(frameName, "glass") || contains(frameName, "window") ||
-        contains(frameName, "windscreen") || contains(frameName, "windshield") ||
-        contains(frameName, "screen") || contains(frameName, "kaca");
-    const bool textureGlass =
-        contains(textureName, "glass") || contains(textureName, "window") ||
-        contains(textureName, "windscreen") || contains(textureName, "windshield") ||
-        contains(textureName, "kaca") ||
-        contains(maskName, "glass") || contains(maskName, "window") ||
-        contains(maskName, "windscreen") || contains(maskName, "windshield") ||
-        contains(maskName, "kaca");
-    const bool doorNamed =
-        contains(frameName, "door") || contains(frameName, "pintu");
-
-    if ((!bodyFrame && frameGlass) || textureGlass || (!bodyFrame && doorNamed && part.cz > 0.30f)) {
-        if (ax > ay && ax > az) return "SIDE_GLASS_CANDIDATE";
-        if (ay >= ax && ay > az) {
-            if (part.cy > 0.25f) return "FRONT_GLASS_CANDIDATE";
-            if (part.cy < -0.25f) return "REAR_GLASS_CANDIDATE";
-        }
-        return "GLASS_PANEL_UNRESOLVED";
-    }
-
-    // The frame is chassis/body unless material evidence identifies an
-    // attached glass or lighting component.
     if (bodyFrame) return "BODY_CHASSIS";
     return "UNCLASSIFIED_SURFACE";
 }
