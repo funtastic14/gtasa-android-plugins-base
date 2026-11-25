@@ -1760,7 +1760,8 @@ bool VehicleGeometryReader::ScanIncremental(
             // geometry/vertex/triangle pointer is retained between frames.
             if (geometry == nullptr ||
                 reinterpret_cast<uintptr_t>(geometry) !=
-                    state.geometryIdentity)
+                    state.geometryIdentity ||
+                RpAtomicGetFrame(atomic) != state.currentMesh.frame)
                 return failClosed();
 
             const RpMorphTarget* morphTarget =
