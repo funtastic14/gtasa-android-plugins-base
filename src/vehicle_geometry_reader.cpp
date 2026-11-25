@@ -1620,8 +1620,28 @@ bool VehicleGeometryReader::ScanIncremental(
         return !state.failed;
     }
 
-    const auto failClosed = [&]() -> bool {
+    const auto failClosed = [&](const char* reason) -> bool {
         const GeometryScanStats failedStats = state.stats;
+        char diagnostic[640] = {};
+        std::snprintf(
+            diagnostic, sizeof(diagnostic),
+            "Model ID: %d\\nFailure: %s\\nPhase: %u\\nAtomic index: %u\\nActive atomic index: %u\\nAtomic count expected: %u\\nAtomic count visited: %u\\nGeometry count: %u\\nVertex count: %u\\nTriangle count: %u\\nVertex cursor: %u\\nTriangle cursor: %u\\nGeometry identity: 0x%llx\\n",
+            modelId, reason != nullptr ? reason : "unspecified",
+            static_cast<unsigned int>(state.phase),
+            static_cast<unsigned int>(state.atomicIndex),
+            static_cast<unsigned int>(state.activeAtomicIndex),
+            static_cast<unsigned int>(state.atomicCount),
+            static_cast<unsigned int>(state.stats.atomicCount),
+            static_cast<unsigned int>(state.stats.geometryCount),
+            static_cast<unsigned int>(state.vertexCount),
+            static_cast<unsigned int>(state.triangleCount),
+            static_cast<unsigned int>(state.vertexCursor),
+            static_cast<unsigned int>(state.triangleCursor),
+            static_cast<unsigned long long>(state.geometryIdentity)
+        );
+        ProfileStorage::SaveDiagnosticText(
+            "native_rgb_scan_failure.txt", diagnostic
+        );
         ResetIncrementalScanState();
         state.vehicle = vehicle;
         state.clump = clump;
@@ -1633,7 +1653,8 @@ bool VehicleGeometryReader::ScanIncremental(
         std::vector<AtomicMesh>().swap(g_cachedMeshes);
         std::vector<SurfacePatch>().swap(g_cachedSurfacePatches);
         logger->Info(
-            "[VLS] Native RGB geometry pipeline rejected; cache remains empty."
+            "[VLS] Native RGB geometry pipeline rejected (%s); cache remains empty.",
+            reason != nullptr ? reason : "unspecified"
         );
         stats = state.stats;
         complete = true;
@@ -1644,7 +1665,7 @@ bool VehicleGeometryReader::ScanIncremental(
         static_cast<uint32_t>(
             std::max<RwInt32>(0, RpClumpGetNumAtomics(clump))
         ) != state.atomicCount)
-        return failClosed();
+        return failClosed("clump atomic count changed between scan phases");
 
     if (state.phase == IncrementalPhase::CopyMeshes) {
         uint32_t vertexWork = 0;
