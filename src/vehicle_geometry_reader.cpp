@@ -167,6 +167,7 @@ struct IncrementalScanState {
     std::vector<AtomicMesh> meshes;
 
     size_t meshIndex = 0;
+    uintptr_t rootFrameIdentity = 0;
     bool analysisMeshInitialized = false;
     uint32_t transformCursor = 0;
     uint32_t analysisTriangleCursor = 0;
@@ -1609,6 +1610,12 @@ bool VehicleGeometryReader::ScanIncremental(
         return false;
     };
 
+    if (state.phase != IncrementalPhase::CopyMeshes &&
+        static_cast<uint32_t>(
+            std::max<RwInt32>(0, RpClumpGetNumAtomics(clump))
+        ) != state.atomicCount)
+        return failClosed();
+
     if (state.phase == IncrementalPhase::CopyMeshes) {
         uint32_t vertexWork = 0;
         uint32_t triangleWork = 0;
@@ -1925,6 +1932,13 @@ bool VehicleGeometryReader::ScanIncremental(
         if (rootFrame == nullptr)
             return failClosed();
 
+        const uintptr_t rootIdentity =
+            reinterpret_cast<uintptr_t>(rootFrame);
+        if (state.rootFrameIdentity == 0)
+            state.rootFrameIdentity = rootIdentity;
+        else if (state.rootFrameIdentity != rootIdentity)
+            return failClosed();
+
         state.vehicleTransform =
             BuildVehicleSpaceTransform(rootFrame->ltm);
         if (!state.vehicleTransform.valid)
@@ -1999,6 +2013,11 @@ bool VehicleGeometryReader::ScanIncremental(
     if (state.phase == IncrementalPhase::BuildConnectivity) {
         AtomicMesh& mesh = g_cachedMeshes[state.meshIndex];
         RpAtomic* liveAtomic = GetAtomicAtIndex(clump, mesh.atomicIndex);
+        RwFrame* liveRootFrame = RpClumpGetFrame(clump);
+        if (liveRootFrame == nullptr ||
+            reinterpret_cast<uintptr_t>(liveRootFrame) !=
+                state.rootFrameIdentity)
+            return failClosed();
         if (liveAtomic == nullptr ||
             RpAtomicGetFrame(liveAtomic) != mesh.frame ||
             reinterpret_cast<uintptr_t>(
@@ -2081,6 +2100,11 @@ bool VehicleGeometryReader::ScanIncremental(
     if (state.phase == IncrementalPhase::AggregateComponents) {
         AtomicMesh& mesh = g_cachedMeshes[state.meshIndex];
         RpAtomic* liveAtomic = GetAtomicAtIndex(clump, mesh.atomicIndex);
+        RwFrame* liveRootFrame = RpClumpGetFrame(clump);
+        if (liveRootFrame == nullptr ||
+            reinterpret_cast<uintptr_t>(liveRootFrame) !=
+                state.rootFrameIdentity)
+            return failClosed();
         if (liveAtomic == nullptr ||
             RpAtomicGetFrame(liveAtomic) != mesh.frame ||
             reinterpret_cast<uintptr_t>(
@@ -2232,6 +2256,11 @@ bool VehicleGeometryReader::ScanIncremental(
     if (state.phase == IncrementalPhase::BuildPatches) {
         AtomicMesh& mesh = g_cachedMeshes[state.meshIndex];
         RpAtomic* liveAtomic = GetAtomicAtIndex(clump, mesh.atomicIndex);
+        RwFrame* liveRootFrame = RpClumpGetFrame(clump);
+        if (liveRootFrame == nullptr ||
+            reinterpret_cast<uintptr_t>(liveRootFrame) !=
+                state.rootFrameIdentity)
+            return failClosed();
         if (liveAtomic == nullptr ||
             RpAtomicGetFrame(liveAtomic) != mesh.frame ||
             reinterpret_cast<uintptr_t>(
