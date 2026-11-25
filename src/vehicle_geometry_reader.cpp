@@ -1990,6 +1990,10 @@ bool VehicleGeometryReader::ScanIncremental(
 
     if (state.phase == IncrementalPhase::BuildConnectivity) {
         AtomicMesh& mesh = g_cachedMeshes[state.meshIndex];
+        RpAtomic* liveAtomic = GetAtomicAtIndex(clump, mesh.atomicIndex);
+        if (liveAtomic == nullptr ||
+            RpAtomicGetFrame(liveAtomic) != mesh.frame)
+            return failClosed();
         const uint32_t triangleCount =
             static_cast<uint32_t>(mesh.triangles.size());
         const uint32_t triangleEnd = std::min(
@@ -2065,6 +2069,10 @@ bool VehicleGeometryReader::ScanIncremental(
 
     if (state.phase == IncrementalPhase::AggregateComponents) {
         AtomicMesh& mesh = g_cachedMeshes[state.meshIndex];
+        RpAtomic* liveAtomic = GetAtomicAtIndex(clump, mesh.atomicIndex);
+        if (liveAtomic == nullptr ||
+            RpAtomicGetFrame(liveAtomic) != mesh.frame)
+            return failClosed();
         const uint32_t triangleCount =
             static_cast<uint32_t>(mesh.triangles.size());
         const uint32_t triangleEnd = std::min(
@@ -2204,6 +2212,12 @@ bool VehicleGeometryReader::ScanIncremental(
     }
 
     if (state.phase == IncrementalPhase::BuildPatches) {
+        AtomicMesh& mesh = g_cachedMeshes[state.meshIndex];
+        RpAtomic* liveAtomic = GetAtomicAtIndex(clump, mesh.atomicIndex);
+        if (liveAtomic == nullptr ||
+            RpAtomicGetFrame(liveAtomic) != mesh.frame)
+            return failClosed();
+
         const uint32_t partCount =
             static_cast<uint32_t>(state.currentInfo.glassParts.size());
         const uint32_t patchEnd = std::min(
