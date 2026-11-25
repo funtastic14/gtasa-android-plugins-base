@@ -44,7 +44,7 @@ inline LedMotionPattern ResolveMotionPattern(
         return effect.motionPattern;
     const uint32_t interval = intervalMs < 500 ? 500 : intervalMs;
     const uint32_t step = timeMs / interval;
-    const uint32_t count = static_cast<uint32_t>(LedMotionPattern::OrbitRing) + 1u;
+    const uint32_t count = static_cast<uint32_t>(LedMotionPattern::PoliceFlash) + 1u;
     if (playback == MotionPlaybackMode::Sequential)
         return static_cast<LedMotionPattern>(step % count);
     if (playback == MotionPlaybackMode::Automatic) {
@@ -68,6 +68,11 @@ inline LedMotionPattern ResolveMotionPattern(
             LedMotionPattern::VerticalSweep, LedMotionPattern::SideCollision,
             LedMotionPattern::CornerBurst, LedMotionPattern::TwinSpiral,
             LedMotionPattern::OrbitRing,
+            LedMotionPattern::MeteorShower, LedMotionPattern::CometChase,
+            LedMotionPattern::KnightScanner, LedMotionPattern::Heartbeat,
+            LedMotionPattern::AuroraFlow, LedMotionPattern::Sparkle,
+            LedMotionPattern::FlameFlicker, LedMotionPattern::Waterfall,
+            LedMotionPattern::Vortex, LedMotionPattern::PoliceFlash,
             LedMotionPattern::RightToLeft, LedMotionPattern::EdgeToCenter,
             LedMotionPattern::ZoomOut, LedMotionPattern::Flow
         };
@@ -370,6 +375,90 @@ inline float EvaluateMotionIntensity(
             return spark > 0.88f ? 1.0f : 0.18f + 0.72f * trail;
         }
         return 0.025f;
+    }
+    case LedMotionPattern::MeteorShower: {
+        // Three diagonal meteor lanes with a bright head and fading tail.
+        const float lane = fract(y * 3.0f + x * 0.72f);
+        const float head = fract(phase * 1.35f + std::floor(y * 3.0f) * 0.31f);
+        const float d = fract(head - x * 0.82f);
+        const float tail = d < 0.34f ? 1.0f - d / 0.34f : 0.0f;
+        const float sparkle = 0.82f + 0.18f * std::sin(wavePhase * 2.0f + lane * PI2);
+        return 0.025f + 0.975f * tail * sparkle;
+    }
+    case LedMotionPattern::CometChase: {
+        // Two comet heads chase around the strip with unequal tail lengths.
+        const float a = fract(phase - x);
+        const float b = fract(phase - x + 0.5f);
+        const float ta = a < 0.30f ? 1.0f - a / 0.30f : 0.0f;
+        const float tb = b < 0.18f ? 1.0f - b / 0.18f : 0.0f;
+        return 0.025f + 0.975f * std::max(ta, tb * 0.78f);
+    }
+    case LedMotionPattern::KnightScanner: {
+        // A single scanner bar travels to each end and reverses smoothly.
+        const float travel = phase < 0.5f ? phase * 2.0f : 2.0f - phase * 2.0f;
+        const float distance = std::fabs(x - travel);
+        const float head = clamp01(1.0f - distance * 16.0f);
+        const float trail = distance < 0.42f ? (1.0f - distance / 0.42f) * 0.48f : 0.0f;
+        return 0.025f + 0.975f * std::max(head, trail);
+    }
+    case LedMotionPattern::Heartbeat: {
+        // Two short pulses with a pause, shaped like a lub-dub heartbeat.
+        const float beat = phase < 0.18f
+            ? std::sin((phase / 0.18f) * 3.14159265f)
+            : (phase >= 0.27f && phase < 0.43f
+                ? 0.78f * std::sin(((phase - 0.27f) / 0.16f) * 3.14159265f)
+                : 0.0f);
+        return 0.025f + 0.975f * beat;
+    }
+    case LedMotionPattern::AuroraFlow: {
+        // Layered, slow-moving luminous curtains; best on multi-row matrices.
+        const float curtainA = std::sin(x * 8.0f + wavePhase + std::sin(y * 5.0f - wavePhase) * 1.4f);
+        const float curtainB = std::sin(x * 13.0f - wavePhase * 0.72f + y * 3.2f);
+        const float verticalFade = 0.35f + 0.65f * std::sin(y * 3.14159265f);
+        return clamp01((0.18f + 0.42f * (0.5f + 0.5f * curtainA)
+            + 0.40f * (0.5f + 0.5f * curtainB)) * verticalFade);
+    }
+    case LedMotionPattern::Sparkle: {
+        // Deterministic twinkling stars; no random calls or per-frame allocation.
+        const float cellX = std::floor(x * 12.0f);
+        const float cellY = std::floor(y * 6.0f);
+        const float seed = fract(std::sin(cellX * 127.1f + cellY * 311.7f) * 43758.5453f);
+        const float twinkle = 0.5f + 0.5f * std::sin(wavePhase * (1.0f + seed * 3.0f) + seed * PI2);
+        const float gate = seed > 0.58f ? 1.0f : 0.0f;
+        return 0.025f + 0.975f * gate * std::pow(twinkle, 5.0f);
+    }
+    case LedMotionPattern::FlameFlicker: {
+        // Fast, irregular-looking flame tongues with a brighter lower edge.
+        const float noiseA = std::sin(x * 31.0f + wavePhase * 2.7f);
+        const float noiseB = std::sin(x * 57.0f - wavePhase * 1.9f + y * 8.0f);
+        const float tongue = 0.5f + 0.25f * noiseA + 0.25f * noiseB;
+        const float base = 1.0f - y * 0.72f;
+        return clamp01((tongue * 0.72f + base * 0.48f) * (0.72f + 0.28f * std::sin(wavePhase * 3.0f + x * 9.0f)));
+    }
+    case LedMotionPattern::Waterfall: {
+        // Independent vertical streams fall at staggered speeds.
+        const float column = std::floor(x * 8.0f);
+        const float stream = fract(y * 2.6f - phase * (1.1f + fract(column * 0.37f)));
+        const float head = stream < 0.16f ? 1.0f - stream / 0.16f : 0.0f;
+        const float tail = stream < 0.48f ? (1.0f - stream / 0.48f) * 0.42f : 0.0f;
+        return 0.025f + 0.975f * std::max(head, tail);
+    }
+    case LedMotionPattern::Vortex: {
+        // Rotating spiral arms tighten and loosen around the center.
+        const float angle = std::atan2(dy, dx);
+        const float twist = radius * 22.0f - angle * 2.6f - wavePhase;
+        const float arm = 0.5f + 0.5f * std::cos(twist);
+        const float breathing = 0.72f + 0.28f * std::sin(wavePhase * 0.5f);
+        return 0.035f + 0.965f * std::pow(arm, 2.0f) * breathing;
+    }
+    case LedMotionPattern::PoliceFlash: {
+        // Alternating left/right warning blocks with a brief center blackout.
+        const bool left = x < 0.5f;
+        const float local = phase < 0.46f ? phase / 0.46f : (phase < 0.54f ? 0.0f : (phase - 0.54f) / 0.46f);
+        const bool activeSide = phase < 0.46f ? left : !left;
+        const float pulse = local < 0.18f ? 1.0f : (local < 0.34f ? 0.12f : 0.82f);
+        const float block = (static_cast<int>(std::floor(x * 8.0f)) % 2 == 0) ? 1.0f : 0.58f;
+        return activeSide ? pulse * block : 0.025f;
     }
     case LedMotionPattern::ArrowRight:
     case LedMotionPattern::ArrowLeft:
