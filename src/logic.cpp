@@ -86,6 +86,7 @@ static int g_geometryScanModelId = -1;
 static bool g_geometryScanSucceeded = false;
 static bool g_geometryScanAttemptComplete = false;
 static bool g_geometryScanClumpUnavailable = false;
+static uintptr_t g_geometryScanClumpIdentity = 0;
 
 
 // ---------------------------------------------------------
@@ -1525,6 +1526,10 @@ static void OnRenderEffects() {
             if (g_geometryScanSucceeded &&
                 g_geometryScanVehicle == currentVehicle &&
                 g_geometryScanModelId == modelId &&
+                currentVehicle->m_pRwClump != nullptr &&
+                reinterpret_cast<uintptr_t>(
+                    currentVehicle->m_pRwClump
+                ) == g_geometryScanClumpIdentity &&
                 (profile->nativeLights.rgbHeadlightsEnabled ||
                  profile->nativeLights.rgbTaillightsEnabled)) {
                 VLS::ProfileRenderer::RenderNativeLights(currentVehicle, *profile);
@@ -1558,6 +1563,7 @@ static void ResetVehicleGeometryScan() {
     g_geometryScanSucceeded = false;
     g_geometryScanAttemptComplete = false;
     g_geometryScanClumpUnavailable = false;
+    g_geometryScanClumpIdentity = 0;
 }
 
 static void UpdateVehicleGeometryScan() {
@@ -1589,6 +1595,7 @@ static void UpdateVehicleGeometryScan() {
             VLS::VehicleGeometryReader::Clear();
             g_geometryScanAttemptComplete = false;
             g_geometryScanClumpUnavailable = true;
+            g_geometryScanClumpIdentity = 0;
         }
 
         return;
@@ -1599,7 +1606,18 @@ static void UpdateVehicleGeometryScan() {
         g_geometryScanSucceeded = false;
         g_geometryScanAttemptComplete = false;
         g_geometryScanClumpUnavailable = false;
+        g_geometryScanClumpIdentity = 0;
     }
+
+    const uintptr_t currentClumpIdentity =
+        reinterpret_cast<uintptr_t>(vehicle->m_pRwClump);
+    if (g_geometryScanClumpIdentity != 0 &&
+        g_geometryScanClumpIdentity != currentClumpIdentity) {
+        VLS::VehicleGeometryReader::Clear();
+        g_geometryScanSucceeded = false;
+        g_geometryScanAttemptComplete = false;
+    }
+    g_geometryScanClumpIdentity = currentClumpIdentity;
 
     if (g_geometryScanAttemptComplete)
         return;
