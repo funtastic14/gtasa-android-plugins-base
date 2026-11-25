@@ -2010,7 +2010,6 @@ bool VehicleGeometryReader::ScanIncremental(
             return value;
         };
 
-        uint32_t newPartsThisFrame = 0;
         for (; state.analysisTriangleCursor < triangleEnd;
              ++state.analysisTriangleCursor) {
             const uint32_t index = state.analysisTriangleCursor;
@@ -2090,6 +2089,7 @@ bool VehicleGeometryReader::ScanIncremental(
             return value;
         };
 
+        uint32_t newPartsThisFrame = 0;
         for (; state.analysisTriangleCursor < triangleEnd;
              ++state.analysisTriangleCursor) {
             const uint32_t index = state.analysisTriangleCursor;
