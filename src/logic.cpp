@@ -1599,7 +1599,6 @@ static void UpdateVehicleGeometryScan() {
         g_geometryScanSucceeded = false;
         g_geometryScanAttemptComplete = false;
         g_geometryScanClumpUnavailable = false;
-        g_nextGeometryScanTimeMs = 0;
     }
 
     if (g_geometryScanAttemptComplete)
