@@ -152,7 +152,17 @@ enum class LedMotionPattern : uint8_t {
     SideCollision,
     CornerBurst,
     TwinSpiral,
-    OrbitRing
+    OrbitRing,
+    MeteorShower,
+    CometChase,
+    KnightScanner,
+    Heartbeat,
+    AuroraFlow,
+    Sparkle,
+    FlameFlicker,
+    Waterfall,
+    Vortex,
+    PoliceFlash
 };
 
 enum class MotionPlaybackMode : uint8_t {
