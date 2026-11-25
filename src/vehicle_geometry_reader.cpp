@@ -129,6 +129,7 @@ struct IncrementalScanState {
     RpClump* clump = nullptr;
     int modelId = -1;
     uint32_t atomicIndex = 0;
+    uint32_t activeAtomicIndex = 0;
     uint32_t atomicCount = 0;
     uint32_t vertexCount = 0;
     uint32_t triangleCount = 0;
@@ -1534,8 +1535,12 @@ bool VehicleGeometryReader::ScanIncremental(
     }
 
     RpClump* clump = vehicle->m_pRwClump;
-    if (clump == nullptr)
+    if (clump == nullptr) {
+        ResetIncrementalScanState();
+        Clear();
+        complete = true;
         return false;
+    }
 
     IncrementalScanState& state = g_incrementalScan;
     if (state.vehicle != vehicle ||
@@ -1574,9 +1579,15 @@ bool VehicleGeometryReader::ScanIncremental(
             break;
         }
 
-        RpAtomic* atomic = GetAtomicAtIndex(
-            clump, state.atomicIndex
-        );
+        if (!state.activeAtomic &&
+            state.atomicIndex >= state.atomicCount) {
+            state.complete = true;
+            break;
+        }
+
+        const uint32_t lookupIndex = state.activeAtomic
+            ? state.activeAtomicIndex : state.atomicIndex;
+        RpAtomic* atomic = GetAtomicAtIndex(clump, lookupIndex);
         ++atomicProbes;
         if (atomic == nullptr) {
             state.failed = true;
@@ -1587,6 +1598,7 @@ bool VehicleGeometryReader::ScanIncremental(
         RpGeometry* geometry = RpAtomicGetGeometry(atomic);
         if (!state.activeAtomic) {
             ++state.stats.atomicCount;
+            state.activeAtomicIndex = state.atomicIndex;
             ++state.atomicIndex;
             if (geometry == nullptr)
                 continue;
@@ -1649,7 +1661,8 @@ bool VehicleGeometryReader::ScanIncremental(
             state.triangleCursor = 0;
             state.invalidVertices = false;
             state.currentMesh = AtomicMesh{};
-            state.currentMesh.atomicIndex = state.atomicIndex - 1;
+            state.currentMesh.atomicIndex = state.activeAtomicIndex;
+            state.currentMesh.geometryIndex = state.activeAtomicIndex;
             state.currentMesh.frame = RpAtomicGetFrame(atomic);
             state.currentMesh.hasTextureCoordinates =
                 geometry->numTexCoordSets > 0 &&
@@ -1696,7 +1709,6 @@ bool VehicleGeometryReader::ScanIncremental(
             break;
         }
 
-        const RwUInt32 flags = RpGeometryGetFlags(geometry);
         const RpMorphTarget* morphTarget =
             RpGeometryGetMorphTarget(geometry, 0);
         const RwV3d* sourceVertices =
@@ -1759,6 +1771,7 @@ bool VehicleGeometryReader::ScanIncremental(
             state.triangleCursor +
                 (INCREMENTAL_TRIANGLE_BUDGET - triangleWork)
         );
+        const uint32_t trianglesThisChunk = triangleEnd - state.triangleCursor;
         for (; state.triangleCursor < triangleEnd; ++state.triangleCursor) {
             const RpTriangle& source = sourceTriangles[state.triangleCursor];
             const uint16_t a = source.vertIndex[0];
