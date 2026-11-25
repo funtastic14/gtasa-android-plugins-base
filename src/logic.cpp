@@ -1130,9 +1130,13 @@ static void RenderEditor() {
             effect.eyeExpression = static_cast<VLS::EyeExpression>(eyeExpression);
             changed = true;
         }
+        static const char* expressionPlaybackNames[] = {
+            "Manual", "Automatic", "Sequence", "Random"
+        };
         int eyeExpressionPlayback = static_cast<int>(effect.eyeExpressionPlayback);
         if (ImGui::Combo("Expression Playback", &eyeExpressionPlayback,
-                         (const char*[]){"Manual", "Automatic", "Sequence", "Random"}, 4)) {
+                         expressionPlaybackNames,
+                         IM_ARRAYSIZE(expressionPlaybackNames))) {
             effect.eyeExpressionPlayback =
                 static_cast<VLS::MotionPlaybackMode>(eyeExpressionPlayback);
             changed = true;
