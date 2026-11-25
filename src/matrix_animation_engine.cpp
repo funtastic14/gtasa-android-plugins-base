@@ -600,9 +600,10 @@ bool MatrixAnimationEngine::EvaluatePixel(
             const float inwardX = dx * (leftEye ? 1.0f : -1.0f);
             const float t = static_cast<float>(timeMs) * speed;
             const EyeMotion activeMotion = ResolveEyeMotion(effect, timeMs);
-            // Eye Expression is retired: shape controls the eyelid silhouette,
-            // while Eye Motion owns gaze, blinking and the three iris motifs.
-            const EyeExpression activeExpression = EyeExpression::Neutral;
+            // Keep expression playback live: presets may use a fixed angry
+            // expression while Eye Motion independently controls gaze/blinking.
+            const EyeExpression activeExpression =
+                ResolveEyeExpression(effect, timeMs);
             const EyeVisualStyle activeVisualStyle =
                 activeMotion == EyeMotion::Sharingan ? EyeVisualStyle::Sharingan :
                 activeMotion == EyeMotion::Mangekyou ? EyeVisualStyle::Mangekyou :
@@ -664,8 +665,11 @@ bool MatrixAnimationEngine::EvaluatePixel(
             const float absX = std::fabs(dx);
             const float absY = std::fabs(scaledY);
             if (effect.eyeShape == EyeShape::LedPanel) {
-                topLimit = -0.68f + 0.34f * inwardX + 0.12f * absX;
-                bottomLimit = 0.82f - 0.30f * absX;
+                // Reference-matched angry matrix panel: the upper lid rises
+                // toward the outer corner and drops sharply toward the nose.
+                // The lower edge is a broad crescent, tapering at both ends.
+                topLimit = -0.72f + 0.43f * inwardX + 0.10f * absX;
+                bottomLimit = 0.86f - 0.58f * absX;
             }
             bool shapeInside = false;
             switch (effect.eyeShape) {
@@ -704,8 +708,9 @@ bool MatrixAnimationEngine::EvaluatePixel(
                     absY <= (1.08f - 0.12f * absX);
                 break;
             case EyeShape::LedPanel:
-                shapeInside = absX <= 1.0f && absY <= 1.0f &&
-                    (absX + absY * 0.24f) <= 1.18f;
+                // Avoid the old clipped oval: the explicit slanted upper
+                // and curved lower limits above define this silhouette.
+                shapeInside = absX <= 1.0f;
                 break;
             case EyeShape::Classic:
             case EyeShape::Narrow:
@@ -815,12 +820,12 @@ bool MatrixAnimationEngine::EvaluatePixel(
             const float browCurve = effect.eyeBrowStyle == EyeBrowStyle::Arched
                 ? 0.20f * (1.0f - browAbsX * browAbsX) : 0.0f;
             const float browLine = effect.eyeShape == EyeShape::LedPanel
-                ? -0.75f + 0.34f * browInwardX + 0.12f * browAbsX
+                ? -0.91f + 0.48f * browInwardX + 0.08f * browAbsX
                 : -0.98f + browInwardX * browTilt - browCurve;
             const float browWidth = effect.eyeShape == EyeShape::LedPanel
                 ? 1.02f : (effect.eyeBrowStyle == EyeBrowStyle::Soft ? 0.76f : 0.90f);
             const float effectiveBrowThickness = effect.eyeShape == EyeShape::LedPanel
-                ? 0.15f : browThickness;
+                ? 0.19f : browThickness;
             const bool browPixel = (effect.eyeShape == EyeShape::LedPanel ||
                 effect.eyeBrowStyle != EyeBrowStyle::None) &&
                 matrix.rows >= 8 && browAbsX < browWidth &&
@@ -839,29 +844,51 @@ bool MatrixAnimationEngine::EvaluatePixel(
                     ? 0.52f + lidOpening * 0.38f : 0.0f;
             } else if (insideEye) {
                 if (effect.eyeShape == EyeShape::LedPanel) {
-                    const float crescentBoundary = -0.18f + 0.48f * absX;
+                    // Three independently readable LED zones: tiny dark
+                    // pupil, warm-red lower iris arc, and a broad cool lower
+                    // crescent. The general secondary palette drives the
+                    // lower panel so existing profile controls remain valid.
+                    const float crescentBoundary = -0.02f + 0.54f * absX;
+                    const float irisRadius = std::sqrt(pupilDistance);
+                    const bool panelPupil = pupilDistance < 0.060f;
+                    const bool redIrisArc = irisRadius < 0.57f &&
+                        dy > -0.10f && dy < 0.54f;
                     const bool lowerCrescent = dy > crescentBoundary;
-                    const bool panelPupil = pupilDistance < 0.085f;
                     if (panelPupil) {
                         preserveEyeDetailColor = true;
                         red = effect.eyePupilRed;
                         green = effect.eyePupilGreen;
                         blue = effect.eyePupilBlue;
+                        // A compact white catchlight reproduces the bright
+                        // pin-point reflection in the supplied references.
+                        const float glintX = pupilX + 0.075f;
+                        const float glintY = pupilY + 0.075f;
+                        if (glintX * glintX + glintY * glintY < 0.006f) {
+                            red = 255; green = 255; blue = 255;
+                        }
+                        intensity = 1.0f;
+                    } else if (redIrisArc) {
+                        preserveEyeDetailColor = true;
+                        const float arcGlow = 0.84f + 0.16f *
+                            Clamp01(1.0f - absX * 0.35f);
+                        red = ClampColor(effect.eyeIrisRed * arcGlow);
+                        green = ClampColor(effect.eyeIrisGreen * arcGlow);
+                        blue = ClampColor(effect.eyeIrisBlue * arcGlow);
                         intensity = 1.0f;
                     } else if (lowerCrescent) {
                         preserveEyeDetailColor = true;
-                        const float glow = 0.82f + 0.18f *
-                            Clamp01(1.0f - absX * 0.55f);
-                        red = ClampColor(effect.eyeIrisRed * glow);
-                        green = ClampColor(effect.eyeIrisGreen * glow);
-                        blue = ClampColor(effect.eyeIrisBlue * glow);
+                        const float glow = 0.78f + 0.22f *
+                            Clamp01(1.0f - absX * 0.48f);
+                        red = ClampColor(effect.secondaryRed * glow);
+                        green = ClampColor(effect.secondaryGreen * glow);
+                        blue = ClampColor(effect.secondaryBlue * glow);
                         intensity = 1.0f;
                     } else {
                         preserveEyeDetailColor = true;
                         red = static_cast<uint8_t>(effect.eyePupilRed / 2u);
                         green = static_cast<uint8_t>(effect.eyePupilGreen / 2u);
                         blue = static_cast<uint8_t>(effect.eyePupilBlue / 2u);
-                        intensity = 0.45f;
+                        intensity = 0.38f;
                     }
                 } else if ((activeExpression == EyeExpression::Love && heartPupil) ||
                     (activeExpression != EyeExpression::Love &&
