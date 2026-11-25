@@ -797,6 +797,10 @@ static std::string SurfaceRoleHint(const AtomicGeometryInfo& info, const GlassPa
         contains(maskName, "taillight");
     if (explicitLamp) return "LIGHTING_CANDIDATE";
 
+    const float ax = std::fabs(part.nx);
+    const float ay = std::fabs(part.ny);
+    const float az = std::fabs(part.nz);
+
     // Generic frame/material names are common in vehicle mods. Recognize
     // only compact front/rear-facing surface islands near the atomic ends.
     // This avoids turning broad body panels, bumpers or grilles into emitters.
@@ -837,10 +841,6 @@ static std::string SurfaceRoleHint(const AtomicGeometryInfo& info, const GlassPa
         contains(maskName, "kaca");
     const bool doorNamed =
         contains(frameName, "door") || contains(frameName, "pintu");
-
-    const float ax = std::fabs(part.nx);
-    const float ay = std::fabs(part.ny);
-    const float az = std::fabs(part.nz);
 
     if ((!bodyFrame && frameGlass) || textureGlass || (!bodyFrame && doorNamed && part.cz > 0.30f)) {
         if (ax > ay && ax > az) return "SIDE_GLASS_CANDIDATE";
