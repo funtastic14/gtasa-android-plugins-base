@@ -113,6 +113,15 @@ public:
         GeometryScanStats& stats
     );
 
+    // Advances a bounded CPU-mesh copy on the game thread.
+    // complete becomes true on success or a fail-closed rejection.
+    static bool ScanIncremental(
+        CVehicle* vehicle,
+        int modelId,
+        GeometryScanStats& stats,
+        bool& complete
+    );
+
     // Mengakses mesh kendaraan yang terakhir dipindai.
     static const std::vector<AtomicMesh>& GetMeshes();
 
