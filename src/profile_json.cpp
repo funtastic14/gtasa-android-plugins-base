@@ -656,20 +656,20 @@ static bool ReadMatrix(
     if (!ReadBool(value, "enabled", matrix.enabled) ||
         !ReadUInt16(value, "columns", matrix.columns) ||
         !ReadUInt16(value, "rows", matrix.rows) ||
-        !ReadBool(value, "canvasEnabled", matrix.canvasEnabled) ||
-        !ReadUInt16(value, "canvasColumns", matrix.canvasColumns) ||
-        !ReadUInt16(value, "canvasRows", matrix.canvasRows) ||
-        !ReadUInt16(value, "canvasOffsetColumn", matrix.canvasOffsetColumn) ||
-        !ReadUInt16(value, "canvasOffsetRow", matrix.canvasOffsetRow)) {
+        !ReadOptionalBool(value, "canvasEnabled", matrix.canvasEnabled) ||
+        !ReadOptionalUInt16(value, "canvasColumns", matrix.canvasColumns) ||
+        !ReadOptionalUInt16(value, "canvasRows", matrix.canvasRows) ||
+        !ReadOptionalUInt16(value, "canvasOffsetColumn", matrix.canvasOffsetColumn) ||
+        !ReadOptionalUInt16(value, "canvasOffsetRow", matrix.canvasOffsetRow)) {
         return false;
     }
 
     if (matrix.columns == 0 || matrix.rows == 0 ||
+        matrix.canvasColumns == 0 || matrix.canvasRows == 0 ||
+        matrix.canvasColumns > 256 || matrix.canvasRows > 256 ||
+        matrix.canvasOffsetColumn > 255 || matrix.canvasOffsetRow > 255 ||
         (matrix.canvasEnabled &&
-         (matrix.canvasColumns == 0 || matrix.canvasRows == 0 ||
-          matrix.canvasColumns > 256 || matrix.canvasRows > 256 ||
-          matrix.canvasOffsetColumn > 255 || matrix.canvasOffsetRow > 255 ||
-          static_cast<uint32_t>(matrix.canvasOffsetColumn) + matrix.columns > matrix.canvasColumns ||
+         (static_cast<uint32_t>(matrix.canvasOffsetColumn) + matrix.columns > matrix.canvasColumns ||
           static_cast<uint32_t>(matrix.canvasOffsetRow) + matrix.rows > matrix.canvasRows)))
         return false;
 
@@ -1070,11 +1070,11 @@ static bool ValidateProfileReferences(
             const LedMatrixConfig& matrix = effect.matrix;
 
             if (matrix.columns == 0 || matrix.rows == 0 ||
+                matrix.canvasColumns == 0 || matrix.canvasRows == 0 ||
+                matrix.canvasColumns > 256 || matrix.canvasRows > 256 ||
+                matrix.canvasOffsetColumn > 255 || matrix.canvasOffsetRow > 255 ||
                 (matrix.canvasEnabled &&
-                 (matrix.canvasColumns == 0 || matrix.canvasRows == 0 ||
-                  matrix.canvasColumns > 256 || matrix.canvasRows > 256 ||
-                  matrix.canvasOffsetColumn > 255 || matrix.canvasOffsetRow > 255 ||
-                  static_cast<uint32_t>(matrix.canvasOffsetColumn) + matrix.columns > matrix.canvasColumns ||
+                 (static_cast<uint32_t>(matrix.canvasOffsetColumn) + matrix.columns > matrix.canvasColumns ||
                   static_cast<uint32_t>(matrix.canvasOffsetRow) + matrix.rows > matrix.canvasRows)))
                 return false;
 
