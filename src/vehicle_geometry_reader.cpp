@@ -1776,7 +1776,6 @@ bool VehicleGeometryReader::ScanIncremental(
             state.triangleCursor +
                 (INCREMENTAL_TRIANGLE_BUDGET - triangleWork)
         );
-        const uint32_t trianglesThisChunk = triangleEnd - state.triangleCursor;
         for (; state.triangleCursor < triangleEnd; ++state.triangleCursor) {
             ++triangleWork;
             const RpTriangle& source = sourceTriangles[state.triangleCursor];
