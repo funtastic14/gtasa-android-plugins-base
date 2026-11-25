@@ -1880,6 +1880,11 @@ bool VehicleGeometryReader::ScanIncremental(
         }
 
         AtomicMesh& mesh = g_cachedMeshes[state.meshIndex];
+        RpAtomic* liveAtomic = GetAtomicAtIndex(clump, mesh.atomicIndex);
+        if (liveAtomic == nullptr ||
+            RpAtomicGetFrame(liveAtomic) != mesh.frame)
+            return failClosed();
+
         if (!state.analysisMeshInitialized) {
             if (mesh.frame == nullptr || mesh.vertices.empty()) {
                 ++state.meshIndex;
@@ -2084,6 +2089,10 @@ bool VehicleGeometryReader::ScanIncremental(
             uint32_t partIndex = state.rootToPart[root];
 
             if (partIndex == std::numeric_limits<uint32_t>::max()) {
+                if (g_cachedSurfacePatches.size() +
+                    state.currentInfo.glassParts.size() >= 512u)
+                    continue;
+
                 GlassPart part;
                 const float high = std::numeric_limits<float>::max();
                 part.minX = part.minY = part.minZ = high;
@@ -2100,9 +2109,6 @@ bool VehicleGeometryReader::ScanIncremental(
 
             GlassPart& part =
                 state.currentInfo.glassParts[partIndex];
-            ++part.triangles;
-            ++part.materialCounts[0].second;
-            part.triangleIndices.push_back(index);
 
             const GeometryVertex& av =
                 mesh.vehicleSpaceVertices[triangle.a];
@@ -2121,6 +2127,10 @@ bool VehicleGeometryReader::ScanIncremental(
             );
             if (!std::isfinite(length) || length < 1e-5f)
                 continue;
+
+            ++part.triangles;
+            ++part.materialCounts[0].second;
+            part.triangleIndices.push_back(index);
 
             const float area = length * 0.5f;
             part.area += area;
