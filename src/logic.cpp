@@ -85,6 +85,7 @@ static CVehicle* g_geometryScanVehicle = nullptr;
 static int g_geometryScanModelId = -1;
 static uint32_t g_nextGeometryScanTimeMs = 0;
 static bool g_geometryScanSucceeded = false;
+static bool g_geometryScanAttemptComplete = false;
 
 
 // ---------------------------------------------------------
@@ -1556,59 +1557,59 @@ static void ResetVehicleGeometryScan() {
     g_geometryScanModelId = -1;
     g_nextGeometryScanTimeMs = 0;
     g_geometryScanSucceeded = false;
+    g_geometryScanAttemptComplete = false;
 }
 
 static void UpdateVehicleGeometryScan() {
-    CVehicle* vehicle =
-        g_vehicleManager.GetCurrentVehicle();
-
-    const int modelId =
-        g_vehicleManager.GetCurrentModelId();
+    CVehicle* vehicle = g_vehicleManager.GetCurrentVehicle();
+    const int modelId = g_vehicleManager.GetCurrentModelId();
 
     if (vehicle == nullptr ||
         !IsVehiclePointerValid(vehicle) ||
         modelId < 0) {
-
         ResetVehicleGeometryScan();
         return;
     }
 
-    // Kendaraan atau model berubah: lepaskan cache lama
-    // sebelum memulai pemindaian kendaraan yang baru.
     if (vehicle != g_geometryScanVehicle ||
         modelId != g_geometryScanModelId) {
-
         VLS::VehicleGeometryReader::Clear();
-
         g_geometryScanVehicle = vehicle;
         g_geometryScanModelId = modelId;
         g_geometryScanSucceeded = false;
+        g_geometryScanAttemptComplete = false;
         g_nextGeometryScanTimeMs = 0;
     }
 
-    if (g_geometryScanSucceeded)
+    if (g_geometryScanAttemptComplete)
         return;
 
-    const uint32_t nowMs = CTimer::GetTimeMS();
-
-    // Perbandingan ini aman terhadap rollover timer uint32_t.
-    if (static_cast<int32_t>(
-            nowMs - g_nextGeometryScanTimeMs
-        ) < 0) {
-        return;
+    // A model can be selected before its RenderWare clump is ready.
+    // Retry that short readiness check periodically, but advance the
+    // actual geometry pipeline every game frame once the clump exists.
+    if (vehicle->m_pRwClump == nullptr) {
+        const uint32_t nowMs = CTimer::GetTimeMS();
+        if (static_cast<int32_t>(
+                nowMs - g_nextGeometryScanTimeMs
+            ) < 0)
+            return;
+        g_nextGeometryScanTimeMs = nowMs + 500;
     }
 
-    // Jika clump belum tersedia, coba lagi setelah 2 detik.
-    g_nextGeometryScanTimeMs = nowMs + 2000;
-
     VLS::GeometryScanStats stats;
-
-    g_geometryScanSucceeded =
-        VLS::VehicleGeometryReader::Scan(
+    bool complete = false;
+    const bool succeeded =
+        VLS::VehicleGeometryReader::ScanIncremental(
             vehicle,
             modelId,
-            stats
+            stats,
+            complete
         );
+
+    if (complete) {
+        g_geometryScanAttemptComplete = true;
+        g_geometryScanSucceeded = succeeded;
+    }
 }
 
 
@@ -1714,11 +1715,15 @@ static void OnGameProcess() {
 
     g_currentProfile = &profile;
 
-    // Do not run the full RenderWare geometry scan synchronously from
-    // gameProcessEvent. It copies and analyzes every atomic/triangle and can
-    // stall vehicle entry on mobile devices. Native RGB remains fail-closed
-    // until the scanner is converted to a bounded incremental pipeline.
-    ResetVehicleGeometryScan();
+    const bool nativeRgbRequested =
+        profile.enabled &&
+        (profile.nativeLights.rgbHeadlightsEnabled ||
+         profile.nativeLights.rgbTaillightsEnabled);
+
+    if (nativeRgbRequested)
+        UpdateVehicleGeometryScan();
+    else
+        ResetVehicleGeometryScan();
 
     UpdateSequenceRuntime();
 }
