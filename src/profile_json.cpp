@@ -824,7 +824,7 @@ static bool ReadEffect(
     effect.eyeVisualStyle = static_cast<EyeVisualStyle>(eyeVisualStyle);
     effect.eyeBrowStyle = static_cast<EyeBrowStyle>(eyeBrowStyle);
 
-    if (!ReadInt(value, "motionPattern", motionPattern) || motionPattern < 0 || motionPattern > static_cast<int>(LedMotionPattern::PoliceFlash)) return false;
+    if (!ReadInt(value, "motionPattern", motionPattern) || motionPattern < 0 || motionPattern > static_cast<int>(LedMotionPattern::TriangleOrbit)) return false;
     effect.motionPattern = static_cast<LedMotionPattern>(motionPattern);
     // Migrate profiles saved by the earlier modifier-based UI. A legacy
     // modifier becomes a first-class pattern; diagonal combinations retain

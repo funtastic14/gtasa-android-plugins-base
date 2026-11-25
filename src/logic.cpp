@@ -1020,17 +1020,23 @@ static void RenderEditor() {
             "Mirror Reflection", "Reflective Wave", "Collision Rebound", "Center Split",
             "Dual Flow", "Mirrored Diagonal", "Double Rebound",
             "Vertical Sweep", "Side Collision", "Corner Burst",
-            "Twin Spiral", "Orbit Ring"
+            "Twin Spiral", "Orbit Ring",
+            "Meteor Shower", "Comet Chase", "Knight Scanner", "Heartbeat",
+            "Aurora Flow", "Sparkle", "Flame Flicker", "Waterfall",
+            "Vortex", "Police Flash",
+            "Rotating Square", "Curved Sweep", "Square Expand", "Square Collapse",
+            "Circle Expand", "Circle Collapse", "Triangle Converge", "Triangle Orbit"
         };
         int motionIndex = static_cast<int>(effect.motionPattern);
-        if (ImGui::Combo("Motion Pattern", &motionIndex, motionNames, 47)) {
+        if (ImGui::Combo("Motion Pattern", &motionIndex, motionNames, 65)) {
             if (motionIndex < 0) motionIndex = 0;
-            if (motionIndex > 46) motionIndex = 46;
+            if (motionIndex > 64) motionIndex = 64;
             effect.motionPattern = static_cast<VLS::LedMotionPattern>(motionIndex);
             changed = true;
         }
         ImGui::TextWrapped("Collision / Burst: Multi Collision, Cross Burst and Radial Burst add intersecting or expanding fronts. Rebound patterns bounce after impact; Reflection patterns reverse or mirror their wave direction.");
         ImGui::TextWrapped("Laser Write draws a moving beam with a fading trace. Laser Weld adds a hot core and spark-like trail. Color Style controls the beam palette.");
+        ImGui::TextWrapped("Geometry Motion: Rotating Square and Triangle Orbit trace geometric outlines; Curved Sweep bends its travelling front; Square / Circle Expand and Collapse move frames between center and edges; Triangle Converge sends three luminous points to meet at center.");
     } else if (effect.type == VLS::LedEffectType::StroboEyes) {
         ImGui::Separator();
         ImGui::Text("STROBO EYES - Dedicated Eye Engine");

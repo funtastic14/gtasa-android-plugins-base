@@ -44,7 +44,7 @@ inline LedMotionPattern ResolveMotionPattern(
         return effect.motionPattern;
     const uint32_t interval = intervalMs < 500 ? 500 : intervalMs;
     const uint32_t step = timeMs / interval;
-    const uint32_t count = static_cast<uint32_t>(LedMotionPattern::PoliceFlash) + 1u;
+    const uint32_t count = static_cast<uint32_t>(LedMotionPattern::TriangleOrbit) + 1u;
     if (playback == MotionPlaybackMode::Sequential)
         return static_cast<LedMotionPattern>(step % count);
     if (playback == MotionPlaybackMode::Automatic) {
@@ -73,6 +73,10 @@ inline LedMotionPattern ResolveMotionPattern(
             LedMotionPattern::AuroraFlow, LedMotionPattern::Sparkle,
             LedMotionPattern::FlameFlicker, LedMotionPattern::Waterfall,
             LedMotionPattern::Vortex, LedMotionPattern::PoliceFlash,
+            LedMotionPattern::RotatingSquare, LedMotionPattern::CurvedSweep,
+            LedMotionPattern::SquareExpand, LedMotionPattern::SquareCollapse,
+            LedMotionPattern::CircleExpand, LedMotionPattern::CircleCollapse,
+            LedMotionPattern::TriangleConverge, LedMotionPattern::TriangleOrbit,
             LedMotionPattern::RightToLeft, LedMotionPattern::EdgeToCenter,
             LedMotionPattern::ZoomOut, LedMotionPattern::Flow
         };
@@ -459,6 +463,115 @@ inline float EvaluateMotionIntensity(
         const float pulse = local < 0.18f ? 1.0f : (local < 0.34f ? 0.12f : 0.82f);
         const float block = (static_cast<int>(std::floor(x * 8.0f)) % 2 == 0) ? 1.0f : 0.58f;
         return activeSide ? pulse * block : 0.025f;
+    }
+    case LedMotionPattern::RotatingSquare: {
+        // A rotating square perimeter with a brighter travelling corner highlight.
+        const float c = std::cos(wavePhase);
+        const float s = std::sin(wavePhase);
+        const float rx = (dx * c - dy * s) * 2.0f;
+        const float ry = (dx * s + dy * c) * 2.0f;
+        const float squareRadius = std::max(std::fabs(rx), std::fabs(ry));
+        const float frame = clamp01(1.0f - std::fabs(squareRadius - 0.72f) * 30.0f);
+        const float angle = std::atan2(ry, rx);
+        const float head = clamp01(1.0f - std::fabs(std::sin(angle * 2.0f - wavePhase * 1.4f)) * 5.0f);
+        return 0.025f + 0.975f * frame * (0.35f + 0.65f * head);
+    }
+    case LedMotionPattern::CurvedSweep: {
+        // A travelling curved front; the wave bends differently at each row.
+        float front = phase + 0.19f * std::sin(y * PI2 + wavePhase * 0.5f);
+        front = fract(front);
+        float distance = std::fabs(x - front);
+        if (distance > 0.5f) distance = 1.0f - distance;
+        const float core = clamp01(1.0f - distance * 24.0f);
+        const float trail = distance < 0.22f ? 0.42f * (1.0f - distance / 0.22f) : 0.0f;
+        return 0.025f + 0.975f * std::max(core, trail);
+    }
+    case LedMotionPattern::SquareExpand:
+    case LedMotionPattern::SquareCollapse: {
+        // A crisp square frame grows from the center or contracts from the edges.
+        const float squareRadius = std::max(std::fabs(dx), std::fabs(dy)) * 2.0f;
+        const float travel = pattern == LedMotionPattern::SquareExpand
+            ? phase : 1.0f - phase;
+        const float target = 0.025f + travel * 0.94f;
+        const float frame = clamp01(1.0f - std::fabs(squareRadius - target) * 34.0f);
+        const float tailDistance = pattern == LedMotionPattern::SquareExpand
+            ? target - squareRadius : squareRadius - target;
+        const float tail = tailDistance > 0.0f && tailDistance < 0.12f
+            ? 0.34f * (1.0f - tailDistance / 0.12f) : 0.0f;
+        return 0.025f + 0.975f * std::max(frame, tail);
+    }
+    case LedMotionPattern::CircleExpand:
+    case LedMotionPattern::CircleCollapse: {
+        // A round luminous object/ring travels outward from or inward to center.
+        const float travel = pattern == LedMotionPattern::CircleExpand
+            ? phase : 1.0f - phase;
+        const float target = 0.035f + travel * 0.67f;
+        const float frame = clamp01(1.0f - std::fabs(radius - target) * 30.0f);
+        const float tailDistance = pattern == LedMotionPattern::CircleExpand
+            ? target - radius : radius - target;
+        const float tail = tailDistance > 0.0f && tailDistance < 0.15f
+            ? 0.32f * (1.0f - tailDistance / 0.15f) : 0.0f;
+        return 0.025f + 0.975f * std::max(frame, tail);
+    }
+    case LedMotionPattern::TriangleConverge: {
+        // Three bright triangular spokes travel from the outer vertices and meet at center.
+        const float vertices[3][2] = {
+            {0.5f, 0.02f}, {0.04f, 0.92f}, {0.96f, 0.92f}
+        };
+        float result = 0.0f;
+        for (int i = 0; i < 3; ++i) {
+            const float vx = vertices[i][0];
+            const float vy = vertices[i][1];
+            const float tx = vx + (0.5f - vx) * phase;
+            const float ty = vy + (0.5f - vy) * phase;
+            const float headDx = x - tx;
+            const float headDy = y - ty;
+            const float headDistance = std::sqrt(headDx * headDx + headDy * headDy);
+            const float head = clamp01(1.0f - headDistance * 24.0f);
+            const float lineX = x - vx;
+            const float lineY = y - vy;
+            const float lengthX = 0.5f - vx;
+            const float lengthY = 0.5f - vy;
+            const float length2 = lengthX * lengthX + lengthY * lengthY;
+            const float along = (lineX * lengthX + lineY * lengthY) / length2;
+            const float perpendicular = std::fabs(lineX * lengthY - lineY * lengthX)
+                / std::sqrt(length2);
+            const float trail = along >= std::max(0.0f, phase - 0.22f) &&
+                along <= phase && perpendicular < 0.018f
+                ? 0.48f * (1.0f - (phase - along) / 0.22f) : 0.0f;
+            result = std::max(result, std::max(head, trail));
+        }
+        return 0.025f + 0.975f * result;
+    }
+    case LedMotionPattern::TriangleOrbit: {
+        // A rotating equilateral triangle outline with three clean geometric sides.
+        const float angle = wavePhase;
+        const float c = std::cos(angle);
+        const float s = std::sin(angle);
+        const float vx[3] = {0.0f, -0.4330127f, 0.4330127f};
+        const float vy[3] = {-0.50f, 0.25f, 0.25f};
+        float px[3], py[3];
+        for (int i = 0; i < 3; ++i) {
+            px[i] = 0.5f + (vx[i] * c - vy[i] * s) * 0.92f;
+            py[i] = 0.5f + (vx[i] * s + vy[i] * c) * 0.92f;
+        }
+        float nearest = 1.0f;
+        for (int i = 0; i < 3; ++i) {
+            const int j = (i + 1) % 3;
+            const float ex = px[j] - px[i];
+            const float ey = py[j] - py[i];
+            const float wx = x - px[i];
+            const float wy = y - py[i];
+            const float length2 = ex * ex + ey * ey;
+            const float t = clamp01((wx * ex + wy * ey) / length2);
+            const float qx = px[i] + ex * t;
+            const float qy = py[i] + ey * t;
+            const float ddx = x - qx;
+            const float ddy = y - qy;
+            nearest = std::min(nearest, std::sqrt(ddx * ddx + ddy * ddy));
+        }
+        const float outline = clamp01(1.0f - nearest * 34.0f);
+        return 0.025f + 0.975f * outline;
     }
     case LedMotionPattern::ArrowRight:
     case LedMotionPattern::ArrowLeft:

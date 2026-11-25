@@ -162,7 +162,15 @@ enum class LedMotionPattern : uint8_t {
     FlameFlicker,
     Waterfall,
     Vortex,
-    PoliceFlash
+    PoliceFlash,
+    RotatingSquare,
+    CurvedSweep,
+    SquareExpand,
+    SquareCollapse,
+    CircleExpand,
+    CircleCollapse,
+    TriangleConverge,
+    TriangleOrbit
 };
 
 enum class MotionPlaybackMode : uint8_t {
