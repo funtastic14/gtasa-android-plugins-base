@@ -593,7 +593,9 @@ bool MatrixAnimationEngine::EvaluatePixel(
                 ? static_cast<float>(matrix.columns) * 0.25f
                 : static_cast<float>(matrix.columns) * 0.75f;
             const float eyeCenterY = static_cast<float>(matrix.rows - 1) * 0.5f;
-            const float eyeRadiusX = static_cast<float>(matrix.columns) * 0.19f;
+            // Reference panels use wide, low-set eyes that occupy most
+            // of each half while preserving a narrow central bridge.
+            const float eyeRadiusX = static_cast<float>(matrix.columns) * 0.22f;
             float eyeRadiusY = static_cast<float>(matrix.rows) * 0.43f;
             const float dx = (static_cast<float>(column) - eyeCenterX) / eyeRadiusX;
             const float dy = (static_cast<float>(row) - eyeCenterY) / eyeRadiusY;
@@ -848,11 +850,15 @@ bool MatrixAnimationEngine::EvaluatePixel(
                     // pupil, warm-red lower iris arc, and a broad cool lower
                     // crescent. The general secondary palette drives the
                     // lower panel so existing profile controls remain valid.
-                    const float crescentBoundary = -0.02f + 0.54f * absX;
+                    const float crescentBoundary = -0.02f + 0.48f * absX;
                     const float irisRadius = std::sqrt(pupilDistance);
                     const bool panelPupil = pupilDistance < 0.060f;
-                    const bool redIrisArc = irisRadius < 0.57f &&
-                        dy > -0.10f && dy < 0.54f;
+                    // The warm iris is an upper crescent, not a full circular
+                    // iris. The cool zone remains broad below it and widens
+                    // toward the outside corner like the reference light bar.
+                    const bool redIrisArc = irisRadius > 0.10f &&
+                        irisRadius < 0.56f &&
+                        dy < (0.24f + 0.08f * absX);
                     const bool lowerCrescent = dy > crescentBoundary;
                     if (panelPupil) {
                         preserveEyeDetailColor = true;
@@ -986,6 +992,10 @@ bool MatrixAnimationEngine::EvaluatePixel(
                         red = 255; green = 248; blue = 235;
                     }
                     intensity = 1.0f;
+                } else if (effect.eyeShape == EyeShape::LedPanel) {
+                    // The reference is a black LED matrix panel: only the
+                    // brow, iris arc and lower crescent emit light.
+                    intensity = 0.0f;
                 } else {
                     // Keep the sclera slightly brighter near its center and
                     // darker at the tapered corners for a layered eye shell.
