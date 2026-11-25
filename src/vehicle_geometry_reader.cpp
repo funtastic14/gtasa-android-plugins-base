@@ -825,33 +825,26 @@ static std::string SurfaceRoleHint(const AtomicGeometryInfo& info, const GlassPa
         return "GLASS_PANEL_UNRESOLVED";
     }
 
-    // The frame is chassis/body unless material evidence identifies an
-    // attached glass or lighting component.
-    // Generic frame/material names are common in vehicle mods. Recognize
-    // only compact front/rear-facing surface islands near the atomic ends.
-    // This avoids turning broad body panels, bumpers or grilles into emitters.
-    const float vehicleWidth = info.hasVehicleSpaceBounds
-        ? info.vehicleMaxX - info.vehicleMinX : 0.0f;
-    const float vehicleLength = info.hasVehicleSpaceBounds
-        ? info.vehicleMaxY - info.vehicleMinY : 0.0f;
+    // Generic names are common in vehicle mods, and many lamp meshes are
+    // separate atomics containing only the lamp itself. In that case the
+    // atomic bounds are NOT vehicle bounds: requiring an atomic length > 1m
+    // incorrectly rejects the very compact lamp atomics we need to detect.
+    // Coordinates and centroids are already transformed into vehicle space,
+    // so classify only small, front/rear-facing surface islands near the
+    // vehicle's longitudinal ends. Tight size/area limits avoid broad grille
+    // and body panels becoming RGB emitters.
     const float patchWidth = part.maxX - part.minX;
     const float patchHeight = part.maxZ - part.minZ;
     const float patchDepth = part.maxY - part.minY;
-    const float edgeMargin = std::max(0.35f, vehicleLength * 0.12f);
-    const bool frontEdge = info.hasVehicleSpaceBounds &&
-        part.cy >= info.vehicleMaxY - edgeMargin;
-    const bool rearEdge = info.hasVehicleSpaceBounds &&
-        part.cy <= info.vehicleMinY + edgeMargin;
+    const bool nearFrontOrRearEnd = std::fabs(part.cy) >= 0.45f;
     const bool frontRearFacing =
         ay >= ax * 1.20f && ay >= az * 1.20f;
     const bool compactLampIsland =
-        vehicleWidth > 0.5f && vehicleLength > 1.0f &&
-        patchWidth >= 0.04f &&
-        patchWidth <= std::min(1.80f, vehicleWidth * 0.78f) &&
-        patchHeight >= 0.025f && patchHeight <= 0.85f &&
-        patchDepth <= 0.35f &&
-        part.area >= 0.003f && part.area <= 2.25f;
-    if (frontRearFacing && compactLampIsland && (frontEdge || rearEdge))
+        patchWidth >= 0.04f && patchWidth <= 1.10f &&
+        patchHeight >= 0.025f && patchHeight <= 0.70f &&
+        patchDepth <= 0.30f &&
+        part.area >= 0.003f && part.area <= 1.25f;
+    if (frontRearFacing && compactLampIsland && nearFrontOrRearEnd)
         return "LIGHTING_CANDIDATE";
 
     if (bodyFrame) return "BODY_CHASSIS";
