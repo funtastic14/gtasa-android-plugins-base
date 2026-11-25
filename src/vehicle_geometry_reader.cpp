@@ -1620,7 +1620,7 @@ bool VehicleGeometryReader::ScanIncremental(
         return !state.failed;
     }
 
-    const auto failClosed = [&](const char* reason = "unspecified failure") -> bool {
+    const auto failClosed = [&](const char* reason) -> bool {
         const GeometryScanStats failedStats = state.stats;
         char diagnostic[640] = {};
         std::snprintf(
@@ -1686,12 +1686,12 @@ bool VehicleGeometryReader::ScanIncremental(
             if (static_cast<uint32_t>(
                     std::max<RwInt32>(0, RpClumpGetNumAtomics(clump))
                 ) != state.atomicCount)
-                return failClosed();
+                return failClosed("unspecified failure");
 
             RpAtomic* atomic = GetAtomicAtIndex(clump, lookupIndex);
             ++atomicProbes;
             if (atomic == nullptr)
-                return failClosed();
+                return failClosed("unspecified failure");
 
             RpGeometry* geometry = RpAtomicGetGeometry(atomic);
             if (!state.activeAtomic) {
@@ -1727,7 +1727,7 @@ bool VehicleGeometryReader::ScanIncremental(
                         MAX_SCAN_TOTAL_VERTEX_COUNT ||
                     state.stats.totalTriangles + triangles >
                         MAX_SCAN_TOTAL_TRIANGLE_COUNT)
-                    return failClosed();
+                    return failClosed("unspecified failure");
 
                 state.stats.totalVertices += vertices;
                 state.stats.totalTriangles += triangles;
@@ -1813,7 +1813,7 @@ bool VehicleGeometryReader::ScanIncremental(
                 reinterpret_cast<uintptr_t>(geometry) !=
                     state.geometryIdentity ||
                 RpAtomicGetFrame(atomic) != state.currentMesh.frame)
-                return failClosed();
+                return failClosed("unspecified failure");
 
             const RpMorphTarget* morphTarget =
                 RpGeometryGetMorphTarget(geometry, 0);
@@ -1821,7 +1821,7 @@ bool VehicleGeometryReader::ScanIncremental(
                 morphTarget != nullptr
                     ? RpMorphTargetGetVertices(morphTarget) : nullptr;
             if (sourceVertices == nullptr)
-                return failClosed();
+                return failClosed("unspecified failure");
 
             const bool hasUv =
                 state.currentMesh.hasTextureCoordinates &&
@@ -1915,7 +1915,7 @@ bool VehicleGeometryReader::ScanIncremental(
         }
 
         if (state.complete && state.failed)
-            return failClosed();
+            return failClosed("unspecified failure");
 
         if (state.complete) {
             g_cachedMeshes.swap(state.meshes);
@@ -1978,7 +1978,7 @@ bool VehicleGeometryReader::ScanIncremental(
             reinterpret_cast<uintptr_t>(
                 RpAtomicGetGeometry(liveAtomic)
             ) != mesh.geometryIdentity)
-            return failClosed();
+            return failClosed("unspecified failure");
 
         if (!state.analysisMeshInitialized) {
             if (mesh.frame == nullptr || mesh.vertices.empty()) {
@@ -2010,19 +2010,19 @@ bool VehicleGeometryReader::ScanIncremental(
 
         RwFrame* rootFrame = RpClumpGetFrame(clump);
         if (rootFrame == nullptr)
-            return failClosed();
+            return failClosed("unspecified failure");
 
         const uintptr_t rootIdentity =
             reinterpret_cast<uintptr_t>(rootFrame);
         if (state.rootFrameIdentity == 0)
             state.rootFrameIdentity = rootIdentity;
         else if (state.rootFrameIdentity != rootIdentity)
-            return failClosed();
+            return failClosed("unspecified failure");
 
         state.vehicleTransform =
             BuildVehicleSpaceTransform(rootFrame->ltm);
         if (!state.vehicleTransform.valid)
-            return failClosed();
+            return failClosed("unspecified failure");
 
         const uint32_t vertexEnd = std::min(
             static_cast<uint32_t>(mesh.vertices.size()),
@@ -2045,7 +2045,7 @@ bool VehicleGeometryReader::ScanIncremental(
                     state.vehicleTransform,
                     mesh.vertices[state.transformCursor],
                     point))
-                return failClosed();
+                return failClosed("unspecified failure");
 
             GeometryVertex& target =
                 mesh.vehicleSpaceVertices[state.transformCursor];
@@ -2097,13 +2097,13 @@ bool VehicleGeometryReader::ScanIncremental(
         if (liveRootFrame == nullptr ||
             reinterpret_cast<uintptr_t>(liveRootFrame) !=
                 state.rootFrameIdentity)
-            return failClosed();
+            return failClosed("unspecified failure");
         if (liveAtomic == nullptr ||
             RpAtomicGetFrame(liveAtomic) != mesh.frame ||
             reinterpret_cast<uintptr_t>(
                 RpAtomicGetGeometry(liveAtomic)
             ) != mesh.geometryIdentity)
-            return failClosed();
+            return failClosed("unspecified failure");
         const uint32_t triangleCount =
             static_cast<uint32_t>(mesh.triangles.size());
         const uint32_t triangleEnd = std::min(
@@ -2158,7 +2158,7 @@ bool VehicleGeometryReader::ScanIncremental(
                     slot = (slot + 1u) & 65535u;
                 }
                 if (!inserted)
-                    return failClosed();
+                    return failClosed("unspecified failure");
             }
         }
 
@@ -2184,13 +2184,13 @@ bool VehicleGeometryReader::ScanIncremental(
         if (liveRootFrame == nullptr ||
             reinterpret_cast<uintptr_t>(liveRootFrame) !=
                 state.rootFrameIdentity)
-            return failClosed();
+            return failClosed("unspecified failure");
         if (liveAtomic == nullptr ||
             RpAtomicGetFrame(liveAtomic) != mesh.frame ||
             reinterpret_cast<uintptr_t>(
                 RpAtomicGetGeometry(liveAtomic)
             ) != mesh.geometryIdentity)
-            return failClosed();
+            return failClosed("unspecified failure");
         const uint32_t triangleCount =
             static_cast<uint32_t>(mesh.triangles.size());
         const uint32_t triangleEnd = std::min(
@@ -2309,7 +2309,7 @@ bool VehicleGeometryReader::ScanIncremental(
                     slot = (slot + 1u) & 65535u;
                 }
                 if (!inserted)
-                    return failClosed();
+                    return failClosed("unspecified failure");
             }
 
             const float nx = std::fabs(normal.x);
@@ -2340,13 +2340,13 @@ bool VehicleGeometryReader::ScanIncremental(
         if (liveRootFrame == nullptr ||
             reinterpret_cast<uintptr_t>(liveRootFrame) !=
                 state.rootFrameIdentity)
-            return failClosed();
+            return failClosed("unspecified failure");
         if (liveAtomic == nullptr ||
             RpAtomicGetFrame(liveAtomic) != mesh.frame ||
             reinterpret_cast<uintptr_t>(
                 RpAtomicGetGeometry(liveAtomic)
             ) != mesh.geometryIdentity)
-            return failClosed();
+            return failClosed("unspecified failure");
 
         const uint32_t partCount =
             static_cast<uint32_t>(state.currentInfo.glassParts.size());
@@ -2429,7 +2429,7 @@ bool VehicleGeometryReader::ScanIncremental(
         return !state.failed;
     }
 
-    return failClosed();
+    return failClosed("unspecified failure");
 }
 
 const std::vector<AtomicMesh>&
