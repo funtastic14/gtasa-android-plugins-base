@@ -836,14 +836,9 @@ static bool RenderNativeLightPatch(
         return false;
     }
 
-    const auto materialIt = std::find_if(
-        mesh.materials.begin(), mesh.materials.end(),
-        [&patch](const MeshMaterialInfo& material) {
-            return material.index == patch.materialIndex;
-        }
-    );
-    if (materialIt == mesh.materials.end())
-        return false;
+    // The patch already carries the source material index and its triangles.
+    // Material metadata is optional in some imported DFFs; requiring a copied
+    // RpMaterial record here silently suppresses otherwise valid lamp geometry.
 
     CMatrix* vehicleMatrix = vehicle->GetMatrix();
     if (vehicleMatrix == nullptr)
@@ -938,6 +933,12 @@ static bool RenderNativeLightPatch(
     RwRenderStateSet(rwRENDERSTATEVERTEXALPHAENABLE, reinterpret_cast<void*>(1));
     RwRenderStateSet(rwRENDERSTATESRCBLEND, reinterpret_cast<void*>(rwBLENDSRCALPHA));
     RwRenderStateSet(rwRENDERSTATEDESTBLEND, reinterpret_cast<void*>(rwBLENDINVSRCALPHA));
+    // This is a surface-masked overlay: only triangles classified as lamp
+    // geometry are submitted. The vehicle has already written its depth before
+    // RenderEffects, so ordinary Z testing can reject a coplanar overlay even
+    // with a small outward offset. Disable Z testing but never write depth.
+    RwRenderStateSet(rwRENDERSTATEZTESTENABLE, reinterpret_cast<void*>(0));
+    RwRenderStateSet(rwRENDERSTATEZWRITEENABLE, reinterpret_cast<void*>(0));
 
     const RwUInt32 flags =
         rwIM3D_VERTEXXYZ | rwIM3D_VERTEXRGBA;
