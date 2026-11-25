@@ -2099,6 +2099,25 @@ bool VehicleGeometryReader::ScanIncremental(
              ++state.analysisTriangleCursor) {
             const uint32_t index = state.analysisTriangleCursor;
             const GeometryTriangle& triangle = mesh.triangles[index];
+
+            const GeometryVertex& av =
+                mesh.vehicleSpaceVertices[triangle.a];
+            const GeometryVertex& bv =
+                mesh.vehicleSpaceVertices[triangle.b];
+            const GeometryVertex& cv =
+                mesh.vehicleSpaceVertices[triangle.c];
+            const RwV3d a{av.x, av.y, av.z};
+            const RwV3d b{bv.x, bv.y, bv.z};
+            const RwV3d c{cv.x, cv.y, cv.z};
+            const RwV3d ab{b.x-a.x, b.y-a.y, b.z-a.z};
+            const RwV3d ac{c.x-a.x, c.y-a.y, c.z-a.z};
+            const RwV3d normal = CrossProduct(ab, ac);
+            const float length = std::sqrt(
+                RwV3dDotProduct(normal, normal)
+            );
+            if (!std::isfinite(length) || length < 1e-5f)
+                continue;
+
             const uint32_t root = findRoot(index);
             uint32_t partIndex = state.rootToPart[root];
 
@@ -2126,25 +2145,6 @@ bool VehicleGeometryReader::ScanIncremental(
 
             GlassPart& part =
                 state.currentInfo.glassParts[partIndex];
-
-            const GeometryVertex& av =
-                mesh.vehicleSpaceVertices[triangle.a];
-            const GeometryVertex& bv =
-                mesh.vehicleSpaceVertices[triangle.b];
-            const GeometryVertex& cv =
-                mesh.vehicleSpaceVertices[triangle.c];
-            const RwV3d a{av.x, av.y, av.z};
-            const RwV3d b{bv.x, bv.y, bv.z};
-            const RwV3d c{cv.x, cv.y, cv.z};
-            const RwV3d ab{b.x-a.x, b.y-a.y, b.z-a.z};
-            const RwV3d ac{c.x-a.x, c.y-a.y, c.z-a.z};
-            const RwV3d normal = CrossProduct(ab, ac);
-            const float length = std::sqrt(
-                RwV3dDotProduct(normal, normal)
-            );
-            if (!std::isfinite(length) || length < 1e-5f)
-                continue;
-
             ++part.triangles;
             ++part.materialCounts[0].second;
             part.triangleIndices.push_back(index);
