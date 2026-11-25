@@ -1701,6 +1701,8 @@ bool VehicleGeometryReader::ScanIncremental(
                 state.currentMesh = AtomicMesh{};
                 state.currentMesh.atomicIndex = state.activeAtomicIndex;
                 state.currentMesh.geometryIndex = currentGeometryIndex;
+                state.currentMesh.geometryIdentity =
+                    reinterpret_cast<uintptr_t>(geometry);
                 state.currentMesh.frame = RpAtomicGetFrame(atomic);
                 state.currentMesh.hasTextureCoordinates =
                     geometry->numTexCoordSets > 0 &&
@@ -1882,7 +1884,10 @@ bool VehicleGeometryReader::ScanIncremental(
         AtomicMesh& mesh = g_cachedMeshes[state.meshIndex];
         RpAtomic* liveAtomic = GetAtomicAtIndex(clump, mesh.atomicIndex);
         if (liveAtomic == nullptr ||
-            RpAtomicGetFrame(liveAtomic) != mesh.frame)
+            RpAtomicGetFrame(liveAtomic) != mesh.frame ||
+            reinterpret_cast<uintptr_t>(
+                RpAtomicGetGeometry(liveAtomic)
+            ) != mesh.geometryIdentity)
             return failClosed();
 
         if (!state.analysisMeshInitialized) {
