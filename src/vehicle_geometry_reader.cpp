@@ -1799,7 +1799,7 @@ bool VehicleGeometryReader::ScanIncremental(
                 ++state.stats.missingTriangleDataCount;
                 ++state.stats.skippedNoTriangleDataCount;
                 state.activeAtomic = false;
-                state.geometryIdentity = nullptr;
+                state.geometryIdentity = 0;
                 continue;
             }
 
@@ -1844,7 +1844,7 @@ bool VehicleGeometryReader::ScanIncremental(
             }
 
             state.activeAtomic = false;
-            state.geometryIdentity = nullptr;
+            state.geometryIdentity = 0;
         }
 
         if (state.complete && state.failed)
