@@ -1680,8 +1680,6 @@ static void OnGameProcess() {
 
     g_vehicleManager.Update();
 
-    // Automatic geometry scanning is paused until windshield work resumes.
-
     ProcessPendingProfileLoads();
 
     const int modelId =
@@ -1716,6 +1714,7 @@ static void OnGameProcess() {
     g_currentProfile = &profile;
 
     const bool nativeRgbRequested =
+        g_enabled &&
         profile.enabled &&
         (profile.nativeLights.rgbHeadlightsEnabled ||
          profile.nativeLights.rgbTaillightsEnabled);
