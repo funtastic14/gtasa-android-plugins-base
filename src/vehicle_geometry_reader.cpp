@@ -1619,6 +1619,13 @@ bool VehicleGeometryReader::ScanIncremental(
         if (state.atomicCount > MAX_SCAN_ATOMIC_COUNT) {
             state.failed = true;
             state.complete = true;
+            std::snprintf(
+                state.stats.failureReason,
+                sizeof(state.stats.failureReason),
+                "atomic count %u exceeds safety limit %u",
+                static_cast<unsigned int>(state.atomicCount),
+                static_cast<unsigned int>(MAX_SCAN_ATOMIC_COUNT)
+            );
         }
     }
 
@@ -1706,13 +1713,13 @@ bool VehicleGeometryReader::ScanIncremental(
             if (static_cast<uint32_t>(
                     std::max<RwInt32>(0, RpClumpGetNumAtomics(clump))
                 ) != state.atomicCount)
-                return failClosed("unspecified failure");
+                return failClosed("clump atomic count changed during mesh copy");
 
             RpAtomic* atomic = GetAtomicAtIndex(clump, lookupIndex);
             ++atomicProbes;
             state.lastAtomicIdentity = reinterpret_cast<uintptr_t>(atomic);
             if (atomic == nullptr)
-                return failClosed("unspecified failure");
+                return failClosed("atomic lookup returned null during mesh copy");
 
             RpGeometry* geometry = RpAtomicGetGeometry(atomic);
             state.lastGeometryIdentity = reinterpret_cast<uintptr_t>(geometry);
@@ -1773,7 +1780,7 @@ bool VehicleGeometryReader::ScanIncremental(
                         MAX_SCAN_TOTAL_VERTEX_COUNT ||
                     state.stats.totalTriangles + triangles >
                         MAX_SCAN_TOTAL_TRIANGLE_COUNT)
-                    return failClosed("unspecified failure");
+                    return failClosed("geometry exceeds configured vertex/triangle safety limits");
 
                 state.stats.totalVertices += vertices;
                 state.stats.totalTriangles += triangles;
@@ -1859,7 +1866,7 @@ bool VehicleGeometryReader::ScanIncremental(
                 reinterpret_cast<uintptr_t>(geometry) !=
                     state.geometryIdentity ||
                 RpAtomicGetFrame(atomic) != state.currentMesh.frame)
-                return failClosed("unspecified failure");
+                return failClosed("atomic geometry or frame changed during vertex copy");
 
             const RpMorphTarget* morphTarget =
                 RpGeometryGetMorphTarget(geometry, 0);
@@ -1867,7 +1874,7 @@ bool VehicleGeometryReader::ScanIncremental(
                 morphTarget != nullptr
                     ? RpMorphTargetGetVertices(morphTarget) : nullptr;
             if (sourceVertices == nullptr)
-                return failClosed("unspecified failure");
+                return failClosed("CPU morph-target vertex pointer became null during copy");
 
             const bool hasUv =
                 state.currentMesh.hasTextureCoordinates &&
@@ -1961,7 +1968,7 @@ bool VehicleGeometryReader::ScanIncremental(
         }
 
         if (state.complete && state.failed)
-            return failClosed("unspecified failure");
+            return failClosed("incremental mesh copy entered failed state");
 
         if (state.complete) {
             g_cachedMeshes.swap(state.meshes);
@@ -2024,7 +2031,7 @@ bool VehicleGeometryReader::ScanIncremental(
             reinterpret_cast<uintptr_t>(
                 RpAtomicGetGeometry(liveAtomic)
             ) != mesh.geometryIdentity)
-            return failClosed("unspecified failure");
+            return failClosed("atomic/frame/geometry identity changed before vertex transform");
 
         if (!state.analysisMeshInitialized) {
             if (mesh.frame == nullptr || mesh.vertices.empty()) {
@@ -2056,19 +2063,19 @@ bool VehicleGeometryReader::ScanIncremental(
 
         RwFrame* rootFrame = RpClumpGetFrame(clump);
         if (rootFrame == nullptr)
-            return failClosed("unspecified failure");
+            return failClosed("clump root frame is null during vertex transform");
 
         const uintptr_t rootIdentity =
             reinterpret_cast<uintptr_t>(rootFrame);
         if (state.rootFrameIdentity == 0)
             state.rootFrameIdentity = rootIdentity;
         else if (state.rootFrameIdentity != rootIdentity)
-            return failClosed("unspecified failure");
+            return failClosed("clump root frame identity changed during scan");
 
         state.vehicleTransform =
             BuildVehicleSpaceTransform(rootFrame->ltm);
         if (!state.vehicleTransform.valid)
-            return failClosed("unspecified failure");
+            return failClosed("vehicle-space transform could not be constructed");
 
         const uint32_t vertexEnd = std::min(
             static_cast<uint32_t>(mesh.vertices.size()),
@@ -2091,7 +2098,7 @@ bool VehicleGeometryReader::ScanIncremental(
                     state.vehicleTransform,
                     mesh.vertices[state.transformCursor],
                     point))
-                return failClosed("unspecified failure");
+                return failClosed("mesh vertex transform produced invalid coordinates");
 
             GeometryVertex& target =
                 mesh.vehicleSpaceVertices[state.transformCursor];
@@ -2143,13 +2150,13 @@ bool VehicleGeometryReader::ScanIncremental(
         if (liveRootFrame == nullptr ||
             reinterpret_cast<uintptr_t>(liveRootFrame) !=
                 state.rootFrameIdentity)
-            return failClosed("unspecified failure");
+            return failClosed("clump root frame identity changed during connectivity analysis");
         if (liveAtomic == nullptr ||
             RpAtomicGetFrame(liveAtomic) != mesh.frame ||
             reinterpret_cast<uintptr_t>(
                 RpAtomicGetGeometry(liveAtomic)
             ) != mesh.geometryIdentity)
-            return failClosed("unspecified failure");
+            return failClosed("atomic/frame/geometry identity changed during connectivity analysis");
         const uint32_t triangleCount =
             static_cast<uint32_t>(mesh.triangles.size());
         const uint32_t triangleEnd = std::min(
@@ -2204,7 +2211,7 @@ bool VehicleGeometryReader::ScanIncremental(
                     slot = (slot + 1u) & 65535u;
                 }
                 if (!inserted)
-                    return failClosed("unspecified failure");
+                    return failClosed("connectivity hash table exhausted during triangle analysis");
             }
         }
 
@@ -2230,13 +2237,13 @@ bool VehicleGeometryReader::ScanIncremental(
         if (liveRootFrame == nullptr ||
             reinterpret_cast<uintptr_t>(liveRootFrame) !=
                 state.rootFrameIdentity)
-            return failClosed("unspecified failure");
+            return failClosed("clump root frame identity changed during component aggregation");
         if (liveAtomic == nullptr ||
             RpAtomicGetFrame(liveAtomic) != mesh.frame ||
             reinterpret_cast<uintptr_t>(
                 RpAtomicGetGeometry(liveAtomic)
             ) != mesh.geometryIdentity)
-            return failClosed("unspecified failure");
+            return failClosed("atomic/frame/geometry identity changed during component aggregation");
         const uint32_t triangleCount =
             static_cast<uint32_t>(mesh.triangles.size());
         const uint32_t triangleEnd = std::min(
@@ -2355,7 +2362,7 @@ bool VehicleGeometryReader::ScanIncremental(
                     slot = (slot + 1u) & 65535u;
                 }
                 if (!inserted)
-                    return failClosed("unspecified failure");
+                    return failClosed("component vertex hash table exhausted during patch aggregation");
             }
 
             const float nx = std::fabs(normal.x);
@@ -2386,13 +2393,13 @@ bool VehicleGeometryReader::ScanIncremental(
         if (liveRootFrame == nullptr ||
             reinterpret_cast<uintptr_t>(liveRootFrame) !=
                 state.rootFrameIdentity)
-            return failClosed("unspecified failure");
+            return failClosed("clump root frame identity changed during patch construction");
         if (liveAtomic == nullptr ||
             RpAtomicGetFrame(liveAtomic) != mesh.frame ||
             reinterpret_cast<uintptr_t>(
                 RpAtomicGetGeometry(liveAtomic)
             ) != mesh.geometryIdentity)
-            return failClosed("unspecified failure");
+            return failClosed("atomic/frame/geometry identity changed during patch construction");
 
         const uint32_t partCount =
             static_cast<uint32_t>(state.currentInfo.glassParts.size());
@@ -2475,7 +2482,7 @@ bool VehicleGeometryReader::ScanIncremental(
         return !state.failed;
     }
 
-    return failClosed("unspecified failure");
+    return failClosed("unknown incremental geometry scan phase");
 }
 
 const std::vector<AtomicMesh>&
