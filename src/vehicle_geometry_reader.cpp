@@ -1625,7 +1625,7 @@ bool VehicleGeometryReader::ScanIncremental(
         char diagnostic[640] = {};
         std::snprintf(
             diagnostic, sizeof(diagnostic),
-            "Model ID: %d\\nFailure: %s\\nPhase: %u\\nAtomic index: %u\\nActive atomic index: %u\\nAtomic count expected: %u\\nAtomic count visited: %u\\nGeometry count: %u\\nVertex count: %u\\nTriangle count: %u\\nVertex cursor: %u\\nTriangle cursor: %u\\nGeometry identity: 0x%llx\\n",
+            "Model ID: %d\nFailure: %s\nPhase: %u\nAtomic index: %u\nActive atomic index: %u\nAtomic count expected: %u\nAtomic count visited: %u\nGeometry count: %u\nVertex count: %u\nTriangle count: %u\nVertex cursor: %u\nTriangle cursor: %u\nGeometry identity: 0x%llx\n",
             modelId, reason != nullptr ? reason : "unspecified",
             static_cast<unsigned int>(state.phase),
             static_cast<unsigned int>(state.atomicIndex),
