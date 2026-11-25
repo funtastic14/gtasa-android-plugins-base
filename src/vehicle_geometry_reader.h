@@ -92,6 +92,8 @@ struct SurfacePatch {
 struct AtomicMesh {
     uint32_t atomicIndex = 0;
     uint32_t geometryIndex = 0;
+    // Numeric identity only; the RenderWare geometry is always re-resolved.
+    uintptr_t geometryIdentity = 0;
 
     RwFrame* frame = nullptr;
 
