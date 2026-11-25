@@ -934,13 +934,14 @@ static bool RenderNativeLightPatch(
     RwRenderStateSet(rwRENDERSTATEVERTEXALPHAENABLE, reinterpret_cast<void*>(1));
     RwRenderStateSet(rwRENDERSTATESRCBLEND, reinterpret_cast<void*>(rwBLENDSRCALPHA));
     RwRenderStateSet(rwRENDERSTATEDESTBLEND, reinterpret_cast<void*>(rwBLENDINVSRCALPHA));
-    // Keep depth testing enabled so RGB cannot bleed through opaque bodywork.
-    // RenderWare alpha surfaces normally leave depth writes disabled; in that
-    // case the RGB lamp overlay remains visible through glass/transparent parts.
-    // The outward surface offset gives the overlay a small depth advantage at
-    // the lamp itself. Never write depth from this transparent overlay.
-    RwRenderStateSet(rwRENDERSTATEZTESTENABLE, reinterpret_cast<void*>(1));
+    // Native RGB is deliberately allowed to pass through glass/alpha layers.
+    // The overlay is already restricted to classified lamp triangles, so do
+    // not let a transparent windshield/window depth value suppress the lamp.
+    // Keep depth writes disabled and disable face culling as imported DFF
+    // triangle winding is inconsistent across vehicle mods.
+    RwRenderStateSet(rwRENDERSTATEZTESTENABLE, reinterpret_cast<void*>(0));
     RwRenderStateSet(rwRENDERSTATEZWRITEENABLE, reinterpret_cast<void*>(0));
+    RwRenderStateSet(rwRENDERSTATECULLMODE, reinterpret_cast<void*>(rwCULLMODECULLNONE));
 
     const RwUInt32 flags =
         rwIM3D_VERTEXXYZ | rwIM3D_VERTEXRGBA;
