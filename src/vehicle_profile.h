@@ -65,7 +65,8 @@ enum class EyeShape : uint8_t {
     Almond,
     Diamond,
     Hexagon,
-    Anime
+    Anime,
+    LedPanel
 };
 
 enum class EyeMotion : uint8_t {

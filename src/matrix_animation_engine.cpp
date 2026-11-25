@@ -613,6 +613,7 @@ bool MatrixAnimationEngine::EvaluatePixel(
             case EyeShape::Diamond: verticalScale = 0.88f; break;
             case EyeShape::Hexagon: verticalScale = 0.90f; break;
             case EyeShape::Anime: verticalScale = 1.34f; break;
+            case EyeShape::LedPanel: verticalScale = 0.92f; break;
             case EyeShape::Classic:
             default: break;
             }
@@ -651,6 +652,10 @@ bool MatrixAnimationEngine::EvaluatePixel(
             const float scaledY = dy / verticalScale;
             const float absX = std::fabs(dx);
             const float absY = std::fabs(scaledY);
+            if (effect.eyeShape == EyeShape::LedPanel) {
+                topLimit = -0.68f + 0.34f * inwardX + 0.12f * absX;
+                bottomLimit = 0.82f - 0.30f * absX;
+            }
             bool shapeInside = false;
             switch (effect.eyeShape) {
             case EyeShape::Cat: {
@@ -686,6 +691,10 @@ bool MatrixAnimationEngine::EvaluatePixel(
             case EyeShape::Anime:
                 shapeInside = dx * dx + scaledY * scaledY <= 1.0f &&
                     absY <= (1.08f - 0.12f * absX);
+                break;
+            case EyeShape::LedPanel:
+                shapeInside = absX <= 1.0f && absY <= 1.0f &&
+                    (absX + absY * 0.24f) <= 1.18f;
                 break;
             case EyeShape::Classic:
             case EyeShape::Narrow:
@@ -794,12 +803,17 @@ bool MatrixAnimationEngine::EvaluatePixel(
                 browTilt *= 0.45f;
             const float browCurve = effect.eyeBrowStyle == EyeBrowStyle::Arched
                 ? 0.20f * (1.0f - browAbsX * browAbsX) : 0.0f;
-            const float browLine = -0.98f + browInwardX * browTilt - browCurve;
-            const float browWidth = effect.eyeBrowStyle == EyeBrowStyle::Soft
-                ? 0.76f : 0.90f;
-            const bool browPixel = effect.eyeBrowStyle != EyeBrowStyle::None &&
-                matrix.rows >= 10 && browAbsX < browWidth &&
-                std::fabs(browDy - browLine) <= browThickness;
+            const float browLine = effect.eyeShape == EyeShape::LedPanel
+                ? -0.75f + 0.34f * browInwardX + 0.12f * browAbsX
+                : -0.98f + browInwardX * browTilt - browCurve;
+            const float browWidth = effect.eyeShape == EyeShape::LedPanel
+                ? 1.02f : (effect.eyeBrowStyle == EyeBrowStyle::Soft ? 0.76f : 0.90f);
+            const float effectiveBrowThickness = effect.eyeShape == EyeShape::LedPanel
+                ? 0.15f : browThickness;
+            const bool browPixel = (effect.eyeShape == EyeShape::LedPanel ||
+                effect.eyeBrowStyle != EyeBrowStyle::None) &&
+                matrix.rows >= 8 && browAbsX < browWidth &&
+                std::fabs(browDy - browLine) <= effectiveBrowThickness;
 
             if (browPixel) {
                 preserveEyeDetailColor = true;
@@ -813,7 +827,32 @@ bool MatrixAnimationEngine::EvaluatePixel(
                 intensity = insideEye && std::fabs(dy - 0.05f) < lidBand
                     ? 0.52f + lidOpening * 0.38f : 0.0f;
             } else if (insideEye) {
-                if ((activeExpression == EyeExpression::Love && heartPupil) ||
+                if (effect.eyeShape == EyeShape::LedPanel) {
+                    const float crescentBoundary = -0.18f + 0.48f * absX;
+                    const bool lowerCrescent = dy > crescentBoundary;
+                    const bool panelPupil = pupilDistance < 0.085f;
+                    if (panelPupil) {
+                        preserveEyeDetailColor = true;
+                        red = effect.eyePupilRed;
+                        green = effect.eyePupilGreen;
+                        blue = effect.eyePupilBlue;
+                        intensity = 1.0f;
+                    } else if (lowerCrescent) {
+                        preserveEyeDetailColor = true;
+                        const float glow = 0.82f + 0.18f *
+                            Clamp01(1.0f - absX * 0.55f);
+                        red = ClampColor(effect.eyeIrisRed * glow);
+                        green = ClampColor(effect.eyeIrisGreen * glow);
+                        blue = ClampColor(effect.eyeIrisBlue * glow);
+                        intensity = 1.0f;
+                    } else {
+                        preserveEyeDetailColor = true;
+                        red = static_cast<uint8_t>(effect.eyePupilRed / 2u);
+                        green = static_cast<uint8_t>(effect.eyePupilGreen / 2u);
+                        blue = static_cast<uint8_t>(effect.eyePupilBlue / 2u);
+                        intensity = 0.45f;
+                    }
+                } else if ((activeExpression == EyeExpression::Love && heartPupil) ||
                     (activeExpression != EyeExpression::Love &&
                      pupilDistance < pupilRadius)) {
                     preserveEyeDetailColor = true;

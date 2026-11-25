@@ -1058,7 +1058,7 @@ static void RenderEditor() {
         ImGui::Text("STROBO EYES - Dedicated Eye Engine");
         static const char* eyeShapeNames[] = {
             "Classic", "Narrow", "Wide", "Round", "Cat Eye", "Square", "Sleep",
-            "Almond", "Diamond", "Hexagon", "Anime"
+            "Almond", "Diamond", "Hexagon", "Anime", "LED Panel"
         };
         int eyeShape = static_cast<int>(effect.eyeShape);
         if (ImGui::Combo("Eye Shape", &eyeShape, eyeShapeNames, IM_ARRAYSIZE(eyeShapeNames))) {

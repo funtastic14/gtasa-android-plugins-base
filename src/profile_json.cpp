@@ -758,7 +758,7 @@ static bool ReadEffect(
     int eyeExpression = static_cast<int>(effect.eyeExpression);
     if ((Find(value, "eyeShape") &&
          (!ReadInt(value, "eyeShape", eyeShape) || eyeShape < 0 ||
-          eyeShape > static_cast<int>(EyeShape::Anime))) ||
+          eyeShape > static_cast<int>(EyeShape::LedPanel))) ||
         (Find(value, "eyeMotion") &&
          (!ReadInt(value, "eyeMotion", eyeMotion) || eyeMotion < 0 ||
           eyeMotion > static_cast<int>(EyeMotion::Rinnegan))) ||
