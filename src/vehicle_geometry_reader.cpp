@@ -1597,11 +1597,17 @@ bool VehicleGeometryReader::ScanIncremental(
     }
 
     const auto failClosed = [&]() -> bool {
+        const GeometryScanStats failedStats = state.stats;
+        ResetIncrementalScanState();
+        state.vehicle = vehicle;
+        state.clump = clump;
+        state.modelId = modelId;
+        state.stats = failedStats;
         state.failed = true;
         state.complete = true;
         state.phase = IncrementalPhase::Complete;
-        g_cachedMeshes.clear();
-        g_cachedSurfacePatches.clear();
+        std::vector<AtomicMesh>().swap(g_cachedMeshes);
+        std::vector<SurfacePatch>().swap(g_cachedSurfacePatches);
         logger->Info(
             "[VLS] Native RGB geometry pipeline rejected; cache remains empty."
         );
@@ -1795,6 +1801,7 @@ bool VehicleGeometryReader::ScanIncremental(
                 ++state.stats.skippedInvalidVertexCount;
                 state.activeAtomic = false;
                 state.geometryIdentity = 0;
+                state.currentMesh = AtomicMesh{};
                 continue;
             }
             if (state.vertexCursor < state.vertexCount)
@@ -1807,6 +1814,7 @@ bool VehicleGeometryReader::ScanIncremental(
                 ++state.stats.skippedNoTriangleDataCount;
                 state.activeAtomic = false;
                 state.geometryIdentity = 0;
+                state.currentMesh = AtomicMesh{};
                 continue;
             }
 
