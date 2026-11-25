@@ -1059,7 +1059,7 @@ static void RenderEditor() {
             "Angry Panel - Green", "Angry Panel - Yellow/White",
             "Sharp Cat - Blue", "Minimal Crescent - Blue", "Anime Iris"
         };
-        int referencePreset = 0;
+        static int referencePreset = 0;
         if (ImGui::Combo("Reference Preset", &referencePreset,
                          referencePresetNames,
                          IM_ARRAYSIZE(referencePresetNames))) {
