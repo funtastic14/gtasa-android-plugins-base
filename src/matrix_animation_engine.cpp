@@ -822,16 +822,20 @@ bool MatrixAnimationEngine::EvaluatePixel(
             const float browCurve = effect.eyeBrowStyle == EyeBrowStyle::Arched
                 ? 0.20f * (1.0f - browAbsX * browAbsX) : 0.0f;
             const float browLine = effect.eyeShape == EyeShape::LedPanel
-                ? -0.52f + 0.27f * browInwardX + 0.06f * browAbsX
+                ? -0.64f + 0.27f * browInwardX + 0.06f * browAbsX
                 : -0.98f + browInwardX * browTilt - browCurve;
             const float browWidth = effect.eyeShape == EyeShape::LedPanel
                 ? 1.02f : (effect.eyeBrowStyle == EyeBrowStyle::Soft ? 0.76f : 0.90f);
             const float effectiveBrowThickness = effect.eyeShape == EyeShape::LedPanel
                 ? 0.19f : browThickness;
+            const float browTaper = effect.eyeShape == EyeShape::LedPanel
+                ? std::sqrt(std::max(0.0f, 1.0f -
+                    browAbsX * browAbsX)) : 1.0f;
             const bool browPixel = (effect.eyeShape == EyeShape::LedPanel ||
                 effect.eyeBrowStyle != EyeBrowStyle::None) &&
                 matrix.rows >= 8 && browAbsX < browWidth &&
-                std::fabs(browDy - browLine) <= effectiveBrowThickness;
+                std::fabs(browDy - browLine) <=
+                    effectiveBrowThickness * (0.18f + 0.82f * browTaper);
 
             if (browPixel) {
                 preserveEyeDetailColor = true;
