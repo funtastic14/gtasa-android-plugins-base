@@ -880,6 +880,11 @@ static bool RenderNativeLightPatch(
         const CVector center(patch.centroid.x, patch.centroid.y, patch.centroid.z);
         if (DotProduct(outward, center) < 0.0f)
             outward = outward * -1.0f;
+    } else {
+        // Some imported lamp meshes have inconsistent triangle winding,
+        // producing a near-zero averaged normal. Use the vehicle longitudinal
+        // direction as a stable outward fallback for front/rear lamp islands.
+        outward = CVector(0.0f, front ? 1.0f : -1.0f, 0.0f);
     }
 
     for (uint32_t triangleIndex : patch.triangleIndices) {
@@ -903,8 +908,7 @@ static bool RenderNativeLightPatch(
                 CVector vehicleLocal(local.x, local.y, local.z);
                 // Keep the overlay nearly coplanar with the original lamp surface.
                 // A large normal offset made the RGB layer visibly float outside it.
-                if (normalLength > 0.0001f)
-                    vehicleLocal += outward * 0.002f;
+                vehicleLocal += outward * 0.002f;
                 const CVector world = vehicleMatrix->TransformPoint(vehicleLocal);
                 const float normalizedX = (local.x - minX) / width;
                 uint8_t red = 255, green = 255, blue = 255;
