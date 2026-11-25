@@ -837,14 +837,17 @@ static std::string SurfaceRoleHint(const AtomicGeometryInfo& info, const GlassPa
     const float patchHeight = part.maxZ - part.minZ;
     const float patchDepth = part.maxY - part.minY;
     const bool nearFrontOrRearEnd = std::fabs(part.cy) >= 0.45f;
-    const bool frontRearFacing =
-        ay >= ax * 1.20f && ay >= az * 1.20f;
+    // Triangle winding on imported DFFs is not consistent: normals from
+    // adjacent faces can cancel even when the component is a real lamp lens.
+    // Do not make the normal direction a hard admission gate. The patch is
+    // still constrained to a compact, shallow island at the front/rear end,
+    // and rendering uses only its original triangles (never the body bounds).
     const bool compactLampIsland =
         patchWidth >= 0.04f && patchWidth <= 1.10f &&
         patchHeight >= 0.025f && patchHeight <= 0.70f &&
         patchDepth <= 0.30f &&
         part.area >= 0.003f && part.area <= 1.25f;
-    if (frontRearFacing && compactLampIsland && nearFrontOrRearEnd)
+    if (compactLampIsland && nearFrontOrRearEnd)
         return "LIGHTING_CANDIDATE";
 
     if (bodyFrame) return "BODY_CHASSIS";
