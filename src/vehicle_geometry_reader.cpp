@@ -158,6 +158,14 @@ struct IncrementalScanState {
     uint32_t vertexCursor = 0;
     uint32_t triangleCursor = 0;
     uintptr_t geometryIdentity = 0;
+    uintptr_t lastAtomicIdentity = 0;
+    uintptr_t lastGeometryIdentity = 0;
+    uintptr_t lastFrameIdentity = 0;
+    uint32_t lastGeometryFlags = 0;
+    uint32_t lastMorphTargetCount = 0;
+    uint32_t lastMaterialCount = 0;
+    bool lastHasMorphVertices = false;
+    bool lastHasTriangles = false;
     bool activeAtomic = false;
     bool invalidVertices = false;
     bool failed = false;
@@ -1625,7 +1633,7 @@ bool VehicleGeometryReader::ScanIncremental(
         char diagnostic[640] = {};
         std::snprintf(
             diagnostic, sizeof(diagnostic),
-            "Model ID: %d\nFailure: %s\nPhase: %u\nAtomic index: %u\nActive atomic index: %u\nAtomic count expected: %u\nAtomic count visited: %u\nGeometry count: %u\nVertex count: %u\nTriangle count: %u\nVertex cursor: %u\nTriangle cursor: %u\nGeometry identity: 0x%llx\n",
+            "Model ID: %d\nFailure: %s\nPhase: %u\nAtomic index: %u\nActive atomic index: %u\nAtomic count expected: %u\nAtomic count visited: %u\nGeometry count: %u\nVertex count: %u\nTriangle count: %u\nVertex cursor: %u\nTriangle cursor: %u\nGeometry identity: 0x%llx\nAtomic pointer: 0x%llx\nGeometry pointer: 0x%llx\nFrame pointer: 0x%llx\nGeometry flags: 0x%x\nMorph targets: %u\nMaterials: %u\nHas morph vertices: %u\nHas triangle array: %u\n",
             modelId, reason != nullptr ? reason : "unspecified",
             static_cast<unsigned int>(state.phase),
             static_cast<unsigned int>(state.atomicIndex),
@@ -1637,7 +1645,15 @@ bool VehicleGeometryReader::ScanIncremental(
             static_cast<unsigned int>(state.triangleCount),
             static_cast<unsigned int>(state.vertexCursor),
             static_cast<unsigned int>(state.triangleCursor),
-            static_cast<unsigned long long>(state.geometryIdentity)
+            static_cast<unsigned long long>(state.geometryIdentity),
+            static_cast<unsigned long long>(state.lastAtomicIdentity),
+            static_cast<unsigned long long>(state.lastGeometryIdentity),
+            static_cast<unsigned long long>(state.lastFrameIdentity),
+            static_cast<unsigned int>(state.lastGeometryFlags),
+            static_cast<unsigned int>(state.lastMorphTargetCount),
+            static_cast<unsigned int>(state.lastMaterialCount),
+            state.lastHasMorphVertices ? 1u : 0u,
+            state.lastHasTriangles ? 1u : 0u
         );
         ProfileStorage::SaveDiagnosticText(
             "native_rgb_scan_failure.txt", diagnostic
@@ -1690,10 +1706,36 @@ bool VehicleGeometryReader::ScanIncremental(
 
             RpAtomic* atomic = GetAtomicAtIndex(clump, lookupIndex);
             ++atomicProbes;
+            state.lastAtomicIdentity = reinterpret_cast<uintptr_t>(atomic);
             if (atomic == nullptr)
                 return failClosed("unspecified failure");
 
             RpGeometry* geometry = RpAtomicGetGeometry(atomic);
+            state.lastGeometryIdentity = reinterpret_cast<uintptr_t>(geometry);
+            state.lastFrameIdentity = reinterpret_cast<uintptr_t>(
+                RpAtomicGetFrame(atomic)
+            );
+            if (geometry != nullptr) {
+                state.lastGeometryFlags = RpGeometryGetFlags(geometry);
+                state.lastMorphTargetCount = geometry->numMorphTargets > 0
+                    ? static_cast<uint32_t>(geometry->numMorphTargets) : 0u;
+                state.lastMaterialCount = static_cast<uint32_t>(
+                    std::max<RwInt32>(0, RpGeometryGetNumMaterials(geometry))
+                );
+                const RpMorphTarget* diagnosticMorph =
+                    state.lastMorphTargetCount > 0 &&
+                    state.lastMorphTargetCount <= 16
+                        ? RpGeometryGetMorphTarget(geometry, 0) : nullptr;
+                state.lastHasMorphVertices = diagnosticMorph != nullptr &&
+                    RpMorphTargetGetVertices(diagnosticMorph) != nullptr;
+                state.lastHasTriangles = geometry->triangles != nullptr;
+            } else {
+                state.lastGeometryFlags = 0;
+                state.lastMorphTargetCount = 0;
+                state.lastMaterialCount = 0;
+                state.lastHasMorphVertices = false;
+                state.lastHasTriangles = false;
+            }
             if (!state.activeAtomic) {
                 ++state.stats.atomicCount;
                 state.activeAtomicIndex = state.atomicIndex;
