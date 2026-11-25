@@ -83,7 +83,6 @@ static constexpr uint32_t MAX_MATRIX_PIXELS = 4096;
 
 static CVehicle* g_geometryScanVehicle = nullptr;
 static int g_geometryScanModelId = -1;
-static uint32_t g_nextGeometryScanTimeMs = 0;
 static bool g_geometryScanSucceeded = false;
 static bool g_geometryScanAttemptComplete = false;
 static bool g_geometryScanClumpUnavailable = false;
@@ -1556,7 +1555,6 @@ static void ResetVehicleGeometryScan() {
 
     g_geometryScanVehicle = nullptr;
     g_geometryScanModelId = -1;
-    g_nextGeometryScanTimeMs = 0;
     g_geometryScanSucceeded = false;
     g_geometryScanAttemptComplete = false;
     g_geometryScanClumpUnavailable = false;
@@ -1581,7 +1579,6 @@ static void UpdateVehicleGeometryScan() {
         g_geometryScanSucceeded = false;
         g_geometryScanAttemptComplete = false;
         g_geometryScanClumpUnavailable = false;
-        g_nextGeometryScanTimeMs = 0;
     }
 
     // A clump can temporarily disappear during model streaming. Never
@@ -1594,11 +1591,6 @@ static void UpdateVehicleGeometryScan() {
             g_geometryScanClumpUnavailable = true;
         }
 
-        const uint32_t nowMs = CTimer::GetTimeMS();
-        if (static_cast<int32_t>(
-                nowMs - g_nextGeometryScanTimeMs
-            ) >= 0)
-            g_nextGeometryScanTimeMs = nowMs + 500;
         return;
     }
 
