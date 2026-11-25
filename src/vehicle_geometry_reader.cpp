@@ -1629,8 +1629,12 @@ bool VehicleGeometryReader::ScanIncremental(
     }
 
     const auto failClosed = [&](const char* reason) -> bool {
-        const GeometryScanStats failedStats = state.stats;
-        char diagnostic[640] = {};
+        GeometryScanStats failedStats = state.stats;
+        std::snprintf(
+            failedStats.failureReason, sizeof(failedStats.failureReason),
+            "%s", reason != nullptr ? reason : "unspecified failure"
+        );
+        char diagnostic[768] = {};
         std::snprintf(
             diagnostic, sizeof(diagnostic),
             "Model ID: %d\nFailure: %s\nPhase: %u\nAtomic index: %u\nActive atomic index: %u\nAtomic count expected: %u\nAtomic count visited: %u\nGeometry count: %u\nVertex count: %u\nTriangle count: %u\nVertex cursor: %u\nTriangle cursor: %u\nGeometry identity: 0x%llx\nAtomic pointer: 0x%llx\nGeometry pointer: 0x%llx\nFrame pointer: 0x%llx\nGeometry flags: 0x%x\nMorph targets: %u\nMaterials: %u\nHas morph vertices: %u\nHas triangle array: %u\n",
