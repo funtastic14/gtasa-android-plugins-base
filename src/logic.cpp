@@ -1612,6 +1612,8 @@ static void UpdateVehicleGeometryScan() {
         g_geometryScanSucceeded = false;
         g_geometryScanAttemptComplete = false;
         g_geometryScanClumpUnavailable = false;
+        g_geometryScanDiagnosticLogged = false;
+        g_nativeRgbRenderDiagnosticLogged = false;
     }
 
     // A clump can temporarily disappear during model streaming. Never
