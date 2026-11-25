@@ -668,7 +668,7 @@ bool MatrixAnimationEngine::EvaluatePixel(
                 // Reference-matched angry matrix panel: the upper lid rises
                 // toward the outer corner and drops sharply toward the nose.
                 // The lower edge is a broad crescent, tapering at both ends.
-                topLimit = -0.72f + 0.43f * inwardX + 0.10f * absX;
+                topLimit = -0.58f + 0.28f * inwardX + 0.08f * absX;
                 bottomLimit = 0.86f - 0.58f * absX;
             }
             bool shapeInside = false;
@@ -820,7 +820,7 @@ bool MatrixAnimationEngine::EvaluatePixel(
             const float browCurve = effect.eyeBrowStyle == EyeBrowStyle::Arched
                 ? 0.20f * (1.0f - browAbsX * browAbsX) : 0.0f;
             const float browLine = effect.eyeShape == EyeShape::LedPanel
-                ? -0.91f + 0.48f * browInwardX + 0.08f * browAbsX
+                ? -0.52f + 0.27f * browInwardX + 0.06f * browAbsX
                 : -0.98f + browInwardX * browTilt - browCurve;
             const float browWidth = effect.eyeShape == EyeShape::LedPanel
                 ? 1.02f : (effect.eyeBrowStyle == EyeBrowStyle::Soft ? 0.76f : 0.90f);
