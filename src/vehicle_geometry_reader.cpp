@@ -1693,12 +1693,19 @@ bool VehicleGeometryReader::ScanIncremental(
                 const uint32_t triangles = signedTriangles > 0
                     ? static_cast<uint32_t>(signedTriangles) : 0u;
 
-                const bool saneVertices =
-                    vertices > 0 && vertices <= MAX_ATOMIC_VERTEX_COUNT;
-                const bool saneTriangles =
-                    triangles > 0 && triangles <= MAX_ATOMIC_TRIANGLE_COUNT;
+                ++state.stats.geometryCount;
 
-                if (!saneVertices || !saneTriangles ||
+                // Empty helper atomics are legal in some vehicle DFFs.
+                // They contain no surface to render and must not reject the
+                // entire vehicle's Native RGB scan.
+                if (vertices == 0 || triangles == 0) {
+                    ++state.stats.missingVertexDataCount;
+                    ++state.stats.skippedNoCpuVertexCount;
+                    continue;
+                }
+
+                if (vertices > MAX_ATOMIC_VERTEX_COUNT ||
+                    triangles > MAX_ATOMIC_TRIANGLE_COUNT ||
                     state.stats.totalVertices + vertices >
                         MAX_SCAN_TOTAL_VERTEX_COUNT ||
                     state.stats.totalTriangles + triangles >
@@ -1707,7 +1714,6 @@ bool VehicleGeometryReader::ScanIncremental(
 
                 state.stats.totalVertices += vertices;
                 state.stats.totalTriangles += triangles;
-                ++state.stats.geometryCount;
                 const uint32_t currentGeometryIndex = state.geometryIndex++;
 
                 const RwUInt32 flags = RpGeometryGetFlags(geometry);
@@ -1918,10 +1924,30 @@ bool VehicleGeometryReader::ScanIncremental(
         if (state.meshIndex >= g_cachedMeshes.size()) {
             state.phase = IncrementalPhase::Complete;
             state.complete = true;
+            uint32_t lightingPatchCount = 0;
+            uint32_t frontLampPatchCount = 0;
+            uint32_t rearLampPatchCount = 0;
+            for (const SurfacePatch& patch : g_cachedSurfacePatches) {
+                if (patch.role != SurfaceRoleCandidate::Lighting)
+                    continue;
+                ++lightingPatchCount;
+                if (patch.centroid.y > 0.25f)
+                    ++frontLampPatchCount;
+                else if (patch.centroid.y < -0.25f)
+                    ++rearLampPatchCount;
+            }
             logger->Info(
-                "[VLS] Native RGB surface analysis complete: meshes=%u patches=%u",
+                "[VLS] Native RGB scan complete: atomics=%u geometry=%u meshes=%u vertices=%llu triangles=%llu skippedNoCpu=%u patches=%u lampPatches=%u front=%u rear=%u",
+                static_cast<unsigned int>(state.stats.atomicCount),
+                static_cast<unsigned int>(state.stats.geometryCount),
                 static_cast<unsigned int>(g_cachedMeshes.size()),
-                static_cast<unsigned int>(g_cachedSurfacePatches.size())
+                static_cast<unsigned long long>(state.stats.cachedVertexCount),
+                static_cast<unsigned long long>(state.stats.cachedTriangleCount),
+                static_cast<unsigned int>(state.stats.skippedNoCpuVertexCount),
+                static_cast<unsigned int>(g_cachedSurfacePatches.size()),
+                static_cast<unsigned int>(lightingPatchCount),
+                static_cast<unsigned int>(frontLampPatchCount),
+                static_cast<unsigned int>(rearLampPatchCount)
             );
             stats = state.stats;
             complete = true;
