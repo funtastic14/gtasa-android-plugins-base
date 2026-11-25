@@ -1560,8 +1560,11 @@ static void OnRenderEffects() {
                 ) == g_geometryScanClumpIdentity &&
                 (profile->nativeLights.rgbHeadlightsEnabled ||
                  profile->nativeLights.rgbTaillightsEnabled)) {
+                VLS::NativeLightRenderStats nativeStats;
                 const uint32_t renderedPatches =
-                    VLS::ProfileRenderer::RenderNativeLights(currentVehicle, *profile);
+                    VLS::ProfileRenderer::RenderNativeLights(
+                        currentVehicle, *profile, &nativeStats
+                    );
                 if (!g_nativeRgbRenderDiagnosticLogged) {
                     const auto& patches =
                         VLS::VehicleGeometryReader::GetSurfacePatches();
@@ -1576,11 +1579,22 @@ static void OnRenderEffects() {
                         else if (patch.centroid.y < -0.25f) ++rearPatches;
                     }
                     logger->Info(
-                        "VLS native RGB render: patches=%u front=%u rear=%u rendered=%u",
+                        "VLS native RGB render: patches=%u front=%u rear=%u rendered=%u sideOff=%u noMesh=%u badGeo=%u noMatrix=%u empty=%u transformFail=%u drawFail=%u verts=%u indices=%u triangles=%u alpha=%u",
                         static_cast<unsigned int>(lightingPatches),
                         static_cast<unsigned int>(frontPatches),
                         static_cast<unsigned int>(rearPatches),
-                        static_cast<unsigned int>(renderedPatches)
+                        static_cast<unsigned int>(renderedPatches),
+                        static_cast<unsigned int>(nativeStats.sideDisabled),
+                        static_cast<unsigned int>(nativeStats.missingMesh),
+                        static_cast<unsigned int>(nativeStats.invalidGeometry),
+                        static_cast<unsigned int>(nativeStats.missingVehicleMatrix),
+                        static_cast<unsigned int>(nativeStats.emptyTriangleOutput),
+                        static_cast<unsigned int>(nativeStats.transformFailed),
+                        static_cast<unsigned int>(nativeStats.drawFailed),
+                        static_cast<unsigned int>(nativeStats.submittedVertices),
+                        static_cast<unsigned int>(nativeStats.submittedIndices),
+                        static_cast<unsigned int>(nativeStats.validTriangles),
+                        static_cast<unsigned int>(nativeStats.alpha)
                     );
                     g_nativeRgbRenderDiagnosticLogged = true;
                 }

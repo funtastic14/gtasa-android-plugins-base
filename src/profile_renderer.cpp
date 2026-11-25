@@ -821,19 +821,24 @@ static bool RenderNativeLightPatch(
     const VehicleProfile& profile,
     const SurfacePatch& patch,
     const AtomicMesh& mesh,
-    uint32_t timeMs
+    uint32_t timeMs,
+    NativeLightRenderStats* stats
 ) {
     if (vehicle == nullptr || patch.role != SurfaceRoleCandidate::Lighting ||
         mesh.vertices.empty() ||
         mesh.vehicleSpaceVertices.size() != mesh.vertices.size() ||
         mesh.vertices.size() > 65535u || patch.triangleIndices.empty()) {
+        if (stats != nullptr) ++stats->invalidGeometry;
         return false;
     }
 
     const bool front = patch.centroid.y > 0.25f;
     const bool rear = patch.centroid.y < -0.25f;
+    if (front && stats != nullptr) ++stats->frontPatches;
+    if (rear && stats != nullptr) ++stats->rearPatches;
     if ((!front || !profile.nativeLights.rgbHeadlightsEnabled) &&
         (!rear || !profile.nativeLights.rgbTaillightsEnabled)) {
+        if (stats != nullptr) ++stats->sideDisabled;
         return false;
     }
 
@@ -842,8 +847,10 @@ static bool RenderNativeLightPatch(
     // RpMaterial record here silently suppresses otherwise valid lamp geometry.
 
     CMatrix* vehicleMatrix = vehicle->GetMatrix();
-    if (vehicleMatrix == nullptr)
+    if (vehicleMatrix == nullptr) {
+        if (stats != nullptr) ++stats->missingVehicleMatrix;
         return false;
+    }
 
     // The gradient must span this lamp material patch, not the whole atomic.
     const float minX = patch.minBounds.x;
@@ -869,6 +876,7 @@ static bool RenderNativeLightPatch(
         remap.resize(mesh.vertices.size(), 0xFFFFu);
 
     const uint8_t alpha = ClampColor(profile.nativeLights.rgbFlowIntensity * 210.0f);
+    if (stats != nullptr) stats->alpha = alpha;
     CVector outward(patch.normal.x, patch.normal.y, patch.normal.z);
     const float normalLength = std::sqrt(DotProduct(outward, outward));
     if (normalLength > 0.0001f) {
@@ -894,6 +902,7 @@ static bool RenderNativeLightPatch(
             continue;
         }
 
+        if (stats != nullptr) ++stats->validTriangles;
         const uint16_t sourceIndices[3] = {triangle.a, triangle.b, triangle.c};
         for (uint16_t sourceIndex : sourceIndices) {
             if (remap[sourceIndex] == 0xFFFFu) {
@@ -923,8 +932,15 @@ static bool RenderNativeLightPatch(
 
     for (uint32_t sourceIndex : touchedVertices)
         remap[sourceIndex] = 0xFFFFu;
-    if (indices.empty())
+    if (indices.empty()) {
+        if (stats != nullptr) ++stats->emptyTriangleOutput;
         return false;
+    }
+
+    if (stats != nullptr) {
+        stats->submittedVertices += static_cast<uint32_t>(vertices.size());
+        stats->submittedIndices += static_cast<uint32_t>(indices.size());
+    }
 
     RenderStateGuard stateGuard;
     // Do not sample vehiclelightson128 here: its alpha may be fully transparent
@@ -951,6 +967,7 @@ static bool RenderNativeLightPatch(
             nullptr,
             flags
         ) == nullptr) {
+        if (stats != nullptr) ++stats->transformFailed;
         return false;
     }
 
@@ -960,6 +977,10 @@ static bool RenderNativeLightPatch(
         static_cast<RwUInt32>(indices.size())
     );
     RwIm3DEnd();
+    if (stats != nullptr) {
+        if (rendered) ++stats->renderedPatches;
+        else ++stats->drawFailed;
+    }
     return rendered;
 }
 
@@ -968,7 +989,8 @@ static bool RenderNativeLightPatch(
 
 uint32_t ProfileRenderer::RenderNativeLights(
     CVehicle* vehicle,
-    const VehicleProfile& profile
+    const VehicleProfile& profile,
+    NativeLightRenderStats* stats
 ) {
     if (vehicle == nullptr || !profile.enabled ||
         (!profile.nativeLights.rgbHeadlightsEnabled &&
@@ -986,15 +1008,18 @@ uint32_t ProfileRenderer::RenderNativeLights(
     for (const SurfacePatch& patch : patches) {
         if (patch.role != SurfaceRoleCandidate::Lighting)
             continue;
+        if (stats != nullptr) ++stats->lightingPatches;
         const auto meshIt = std::find_if(
             meshes.begin(), meshes.end(),
             [&patch](const AtomicMesh& mesh) {
                 return mesh.atomicIndex == patch.atomicIndex;
             }
         );
-        if (meshIt == meshes.end())
+        if (meshIt == meshes.end()) {
+            if (stats != nullptr) ++stats->missingMesh;
             continue;
-        if (RenderNativeLightPatch(vehicle, profile, patch, *meshIt, timeMs))
+        }
+        if (RenderNativeLightPatch(vehicle, profile, patch, *meshIt, timeMs, stats))
             ++rendered;
     }
     return rendered;
