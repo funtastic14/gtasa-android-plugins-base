@@ -1997,7 +1997,10 @@ bool VehicleGeometryReader::ScanIncremental(
         AtomicMesh& mesh = g_cachedMeshes[state.meshIndex];
         RpAtomic* liveAtomic = GetAtomicAtIndex(clump, mesh.atomicIndex);
         if (liveAtomic == nullptr ||
-            RpAtomicGetFrame(liveAtomic) != mesh.frame)
+            RpAtomicGetFrame(liveAtomic) != mesh.frame ||
+            reinterpret_cast<uintptr_t>(
+                RpAtomicGetGeometry(liveAtomic)
+            ) != mesh.geometryIdentity)
             return failClosed();
         const uint32_t triangleCount =
             static_cast<uint32_t>(mesh.triangles.size());
@@ -2076,7 +2079,10 @@ bool VehicleGeometryReader::ScanIncremental(
         AtomicMesh& mesh = g_cachedMeshes[state.meshIndex];
         RpAtomic* liveAtomic = GetAtomicAtIndex(clump, mesh.atomicIndex);
         if (liveAtomic == nullptr ||
-            RpAtomicGetFrame(liveAtomic) != mesh.frame)
+            RpAtomicGetFrame(liveAtomic) != mesh.frame ||
+            reinterpret_cast<uintptr_t>(
+                RpAtomicGetGeometry(liveAtomic)
+            ) != mesh.geometryIdentity)
             return failClosed();
         const uint32_t triangleCount =
             static_cast<uint32_t>(mesh.triangles.size());
@@ -2224,7 +2230,10 @@ bool VehicleGeometryReader::ScanIncremental(
         AtomicMesh& mesh = g_cachedMeshes[state.meshIndex];
         RpAtomic* liveAtomic = GetAtomicAtIndex(clump, mesh.atomicIndex);
         if (liveAtomic == nullptr ||
-            RpAtomicGetFrame(liveAtomic) != mesh.frame)
+            RpAtomicGetFrame(liveAtomic) != mesh.frame ||
+            reinterpret_cast<uintptr_t>(
+                RpAtomicGetGeometry(liveAtomic)
+            ) != mesh.geometryIdentity)
             return failClosed();
 
         const uint32_t partCount =
