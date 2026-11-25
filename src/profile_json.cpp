@@ -1259,7 +1259,7 @@ static bool AppendMatrix(
     output += ",\"canvasOffsetRow\":";
     AppendUInt(output, matrix.canvasOffsetRow);
 
-    output += ",\"pixels\":["
+    output += ",\"pixels\":[";
 
     for (size_t i = 0; i < matrix.pixels.size(); ++i) {
         if (i > 0)
