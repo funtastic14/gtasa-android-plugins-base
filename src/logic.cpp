@@ -1688,7 +1688,7 @@ static void OnRenderEffects() {
                         if (patch.centroid.y > 0.25f) ++frontPatches;
                         else if (patch.centroid.y < -0.25f) ++rearPatches;
                     }
-                    char diagnostic[768];
+                    char diagnostic[1024];
                     const int diagnosticLength = std::snprintf(
                         diagnostic,
                         sizeof(diagnostic),
@@ -1876,23 +1876,45 @@ static void UpdateVehicleGeometryScan() {
                 "Scan success: %d\n"
                 "Failure reason: %s\n"
                 "Atomic count: %u\n"
+                "Geometry count: %u\n"
+                "CPU vertex geometries: %u\n"
+                "Native geometries: %u\n"
+                "Vertex-buffer geometries: %u\n"
+                "Missing vertex data: %u\n"
+                "Missing triangle data: %u\n"
+                "Skipped vertex limits: %u\n"
+                "Skipped invalid vertices: %u\n"
+                "Skipped without CPU vertices: %u\n"
+                "Skipped without triangle data: %u\n"
+                "Skipped without valid triangles: %u\n"
+                "Invalid triangle indices: %llu\n"
                 "Cached meshes: %u\n"
                 "Cached vertices: %llu\n"
                 "Cached triangles: %llu\n"
                 "Surface patches: %u\n"
-                "Lighting patches: %u\n"
-                "Skipped without CPU vertices: %u\n",
+                "Lighting patches: %u\n",
                 modelId,
                 succeeded ? 1 : 0,
                 stats.failureReason[0] != '\0'
                     ? stats.failureReason : "none",
                 static_cast<unsigned int>(stats.atomicCount),
+                static_cast<unsigned int>(stats.geometryCount),
+                static_cast<unsigned int>(stats.cpuVertexGeometryCount),
+                static_cast<unsigned int>(stats.nativeGeometryCount),
+                static_cast<unsigned int>(stats.vertexBufferGeometryCount),
+                static_cast<unsigned int>(stats.missingVertexDataCount),
+                static_cast<unsigned int>(stats.missingTriangleDataCount),
+                static_cast<unsigned int>(stats.skippedVertexLimitCount),
+                static_cast<unsigned int>(stats.skippedInvalidVertexCount),
+                static_cast<unsigned int>(stats.skippedNoCpuVertexCount),
+                static_cast<unsigned int>(stats.skippedNoTriangleDataCount),
+                static_cast<unsigned int>(stats.skippedNoValidTriangleCount),
+                static_cast<unsigned long long>(stats.invalidTriangleIndexCount),
                 static_cast<unsigned int>(meshes.size()),
                 static_cast<unsigned long long>(stats.cachedVertexCount),
                 static_cast<unsigned long long>(stats.cachedTriangleCount),
                 static_cast<unsigned int>(patches.size()),
-                static_cast<unsigned int>(lightingPatches),
-                static_cast<unsigned int>(stats.skippedNoCpuVertexCount)
+                static_cast<unsigned int>(lightingPatches)
             );
             if (diagnosticLength > 0 &&
                 static_cast<size_t>(diagnosticLength) < sizeof(diagnostic)) {
