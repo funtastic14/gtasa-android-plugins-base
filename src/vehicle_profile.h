@@ -267,6 +267,15 @@ struct LedMatrixConfig {
     uint16_t columns = 12;
     uint16_t rows = 1;
 
+    // Optional shared logical canvas. Multiple physical matrix regions can
+    // address one continuous coordinate space by using the same canvas size
+    // and different offsets. Disabled by default for backward compatibility.
+    bool canvasEnabled = false;
+    uint16_t canvasColumns = 12;
+    uint16_t canvasRows = 1;
+    uint16_t canvasOffsetColumn = 0;
+    uint16_t canvasOffsetRow = 0;
+
     // Setiap elemen mewakili satu LED/piksel.
     // Urutan: kiri ke kanan, kemudian baris berikutnya.
     std::vector<LedMatrixPixel> pixels;

@@ -526,13 +526,24 @@ bool MatrixAnimationEngine::EvaluatePixel(
         !std::isfinite(pixel->customAngle))
         return false;
 
+    // Map this physical region into a shared logical canvas. Adjacent or
+    // separated placements with the same canvas dimensions now sample one
+    // continuous motion field instead of restarting the shape per layer.
+    const uint16_t canvasColumns = matrix.canvasEnabled
+        ? matrix.canvasColumns : matrix.columns;
+    const uint16_t canvasRows = matrix.canvasEnabled
+        ? matrix.canvasRows : matrix.rows;
+    const uint32_t canvasColumn = matrix.canvasEnabled
+        ? static_cast<uint32_t>(matrix.canvasOffsetColumn) + column : column;
+    const uint32_t canvasRow = matrix.canvasEnabled
+        ? static_cast<uint32_t>(matrix.canvasOffsetRow) + row : row;
     const float x =
-        (static_cast<float>(column) + 0.5f) /
-        static_cast<float>(matrix.columns);
+        (static_cast<float>(canvasColumn) + 0.5f) /
+        static_cast<float>(canvasColumns);
 
     const float y =
-        (static_cast<float>(row) + 0.5f) /
-        static_cast<float>(matrix.rows);
+        (static_cast<float>(canvasRow) + 0.5f) /
+        static_cast<float>(canvasRows);
 
     const float directionPosition = GetDirectionalPosition(
         pixel->direction,
@@ -1119,7 +1130,9 @@ bool MatrixAnimationEngine::EvaluatePixel(
         const float motionY = effect.type == LedEffectType::RunningText && verticalText ? x : y;
         intensity *= EvaluateMotionIntensity(
             activePattern, motionX, motionY, phase,
-            column, row, matrix.columns, matrix.rows
+            matrix.canvasEnabled ? static_cast<uint16_t>(canvasColumn) : column,
+            matrix.canvasEnabled ? static_cast<uint16_t>(canvasRow) : row,
+            canvasColumns, canvasRows
         );
     }
 
