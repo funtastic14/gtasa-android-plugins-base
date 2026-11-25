@@ -184,7 +184,8 @@ uint8_t GetGlyphRow(
     uint16_t row,
     const std::string& fontName
 ) {
-    static FontCacheEntry cache[4];
+    // Six built-in styles plus two custom fonts fit without per-pixel cache churn.
+    static FontCacheEntry cache[8];
     static uint32_t nextSlot = 0;
     FontCacheEntry* entry = nullptr;
     for (size_t i = 0; i < 4; ++i) {
