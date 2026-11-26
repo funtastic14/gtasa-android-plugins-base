@@ -29,6 +29,44 @@ uint8_t ClampColor(float value) {
     return static_cast<uint8_t>(value);
 }
 
+const EyeTextureDesign* ResolveEyeTextureDesign(
+    const LedEffectConfig& effect,
+    uint32_t timeMs
+) {
+    const size_t count = effect.eyeTextures.size();
+    if (count == 0)
+        return nullptr;
+    size_t selected = effect.eyeTextureIndex < count
+        ? effect.eyeTextureIndex : 0;
+    const uint32_t interval = effect.eyeTextureIntervalMs < 500
+        ? 500u : effect.eyeTextureIntervalMs;
+    const uint32_t step = timeMs / interval;
+    switch (effect.eyeTexturePlayback) {
+    case EyeTexturePlaybackMode::Manual:
+        break;
+    case EyeTexturePlaybackMode::Automatic:
+        selected = step % count;
+        break;
+    case EyeTexturePlaybackMode::Sequence:
+        if (!effect.eyeTextureSequence.empty()) {
+            const size_t sequenceIndex = step % effect.eyeTextureSequence.size();
+            selected = effect.eyeTextureSequence[sequenceIndex] % count;
+        } else {
+            selected = step % count;
+        }
+        break;
+    case EyeTexturePlaybackMode::Random: {
+        uint32_t value = step ^ 0xA511E9B3u;
+        value ^= value >> 16; value *= 0x7FEB352Du;
+        value ^= value >> 15; value *= 0x846CA68Bu;
+        value ^= value >> 16;
+        selected = value % count;
+        break;
+    }
+    }
+    return &effect.eyeTextures[selected];
+}
+
 EyeMotion ResolveEyeMotion(const LedEffectConfig& effect, uint32_t timeMs) {
     if (effect.eyeMotionPlayback == MotionPlaybackMode::Manual)
         return effect.eyeMotion;
@@ -123,6 +161,8 @@ struct TextureCacheEntry {
 
 void ApplyCustomTexture(
     const LedEffectConfig& effect,
+    const std::string& textureName,
+    const EyeTextureDesign* design,
     const LedMatrixConfig& matrix,
     uint16_t column,
     uint16_t row,
@@ -132,7 +172,7 @@ void ApplyCustomTexture(
     float blinkAmount,
     MatrixPixelOutput& output
 ) {
-    if (effect.textureName.empty() || matrix.columns == 0 ||
+    if (textureName.empty() || matrix.columns == 0 ||
         matrix.rows == 0 || !output.visible)
         return;
 
@@ -143,7 +183,7 @@ void ApplyCustomTexture(
     static uint32_t nextSlot = 0;
     TextureCacheEntry* entry = nullptr;
     for (size_t i = 0; i < 2; ++i) {
-        if (cache[i].name == effect.textureName) {
+        if (cache[i].name == textureName) {
             entry = &cache[i];
             // A missing/temporarily unreadable file is not retried per pixel.
             // Retry at most once every 3 seconds so adding a texture at runtime
@@ -158,14 +198,14 @@ void ApplyCustomTexture(
     }
     if (entry == nullptr) {
         entry = &cache[nextSlot++ % 2u];
-        entry->name = effect.textureName;
+        entry->name = textureName;
         entry->valid = false;
         entry->width = entry->height = 0;
         entry->pixels.clear();
         entry->lastAttemptMs = timeMs;
 
         std::string data, token;
-        if (ProfileStorage::LoadTexturePng(effect.textureName, data) &&
+        if (ProfileStorage::LoadTexturePng(textureName, data) &&
             !data.empty() && data.size() <= static_cast<size_t>(0x7fffffff)) {
             const stbi_uc* encoded =
                 reinterpret_cast<const stbi_uc*>(data.data());
@@ -191,7 +231,7 @@ void ApplyCustomTexture(
             }
         }
         if (!entry->valid &&
-            ProfileStorage::LoadTexturePpm(effect.textureName, data)) {
+            ProfileStorage::LoadTexturePpm(textureName, data)) {
             size_t pos = 0;
             if (ReadPpmToken(data, pos, token) && token == "P3" &&
                 ReadPpmToken(data, pos, token)) {
@@ -272,42 +312,42 @@ void ApplyCustomTexture(
         // normalized regions without supplying extra animation-frame images.
         float sampleLocalU = localU;
         float sampleV = v;
-        const float irisRadiusX = effect.eyeTextureIrisRadiusX;
-        const float irisRadiusY = effect.eyeTextureIrisRadiusY;
-        const float pupilRadiusX = effect.eyeTexturePupilRadiusX;
-        const float pupilRadiusY = effect.eyeTexturePupilRadiusY;
-        const float pupilDx =
-            (localU - effect.eyeTexturePupilCenterX) / pupilRadiusX;
-        const float pupilDy =
-            (v - effect.eyeTexturePupilCenterY) / pupilRadiusY;
+        const float irisCenterX = design ? design->irisCenterX : effect.eyeTextureIrisCenterX;
+        const float irisCenterY = design ? design->irisCenterY : effect.eyeTextureIrisCenterY;
+        const float irisRadiusX = design ? design->irisRadiusX : effect.eyeTextureIrisRadiusX;
+        const float irisRadiusY = design ? design->irisRadiusY : effect.eyeTextureIrisRadiusY;
+        const float pupilCenterX = design ? design->pupilCenterX : effect.eyeTexturePupilCenterX;
+        const float pupilCenterY = design ? design->pupilCenterY : effect.eyeTexturePupilCenterY;
+        const float pupilRadiusX = design ? design->pupilRadiusX : effect.eyeTexturePupilRadiusX;
+        const float pupilRadiusY = design ? design->pupilRadiusY : effect.eyeTexturePupilRadiusY;
+        const float pupilDx = (localU - pupilCenterX) / pupilRadiusX;
+        const float pupilDy = (v - pupilCenterY) / pupilRadiusY;
         const bool insidePupil = pupilDx * pupilDx + pupilDy * pupilDy <= 1.0f;
-        const float irisDx =
-            (localU - effect.eyeTextureIrisCenterX) / irisRadiusX;
-        const float irisDy =
-            (v - effect.eyeTextureIrisCenterY) / irisRadiusY;
+        const float irisDx = (localU - irisCenterX) / irisRadiusX;
+        const float irisDy = (v - irisCenterY) / irisRadiusY;
         const bool insideIris = irisDx * irisDx + irisDy * irisDy <= 1.0f;
 
         if (insidePupil) {
             sampleLocalU -= gazeX * pupilRadiusX;
             sampleV -= gazeY * pupilRadiusY;
             sampleLocalU = std::max(
-                effect.eyeTexturePupilCenterX - pupilRadiusX,
-                std::min(effect.eyeTexturePupilCenterX + pupilRadiusX, sampleLocalU)
+                pupilCenterX - pupilRadiusX,
+                std::min(pupilCenterX + pupilRadiusX, sampleLocalU)
             );
             sampleV = std::max(
-                effect.eyeTexturePupilCenterY - pupilRadiusY,
-                std::min(effect.eyeTexturePupilCenterY + pupilRadiusY, sampleV)
+                pupilCenterY - pupilRadiusY,
+                std::min(pupilCenterY + pupilRadiusY, sampleV)
             );
         } else if (insideIris) {
             sampleLocalU -= gazeX * irisRadiusX * 0.82f;
             sampleV -= gazeY * irisRadiusY * 0.82f;
             sampleLocalU = std::max(
-                effect.eyeTextureIrisCenterX - irisRadiusX,
-                std::min(effect.eyeTextureIrisCenterX + irisRadiusX, sampleLocalU)
+                irisCenterX - irisRadiusX,
+                std::min(irisCenterX + irisRadiusX, sampleLocalU)
             );
             sampleV = std::max(
-                effect.eyeTextureIrisCenterY - irisRadiusY,
-                std::min(effect.eyeTextureIrisCenterY + irisRadiusY, sampleV)
+                irisCenterY - irisRadiusY,
+                std::min(irisCenterY + irisRadiusY, sampleV)
             );
         }
 
@@ -678,6 +718,12 @@ bool MatrixAnimationEngine::EvaluatePixel(
     float intensity = 1.0f;
     float eyeBlinkAmount = 0.0f;
     EyeMotion activeEyeMotion = effect.eyeMotion;
+    const EyeTextureDesign* activeEyeTexture =
+        effect.type == LedEffectType::StroboEyes
+            ? ResolveEyeTextureDesign(effect, timeMs) : nullptr;
+    const std::string& activeEyeTextureName = activeEyeTexture != nullptr
+        ? activeEyeTexture->textureName : effect.textureName;
+    const bool hasCustomEyeTexture = !activeEyeTextureName.empty();
 
     uint8_t red = pixel->red;
     uint8_t green = pixel->green;
@@ -782,7 +828,7 @@ bool MatrixAnimationEngine::EvaluatePixel(
             eyeBlinkAmount = blinkAmount;
 
             if (insideEye) {
-                if (blinkAmount > 0.01f && effect.textureName.empty()) {
+                if (blinkAmount > 0.01f && !hasCustomEyeTexture) {
                     // Procedural eyelid closes to a narrow slit. Custom art
                     // instead uses vertical UV compression in ApplyCustomTexture.
                     intensity = std::fabs(dy) < (0.025f + 0.08f * (1.0f - blinkAmount))
@@ -1065,7 +1111,8 @@ bool MatrixAnimationEngine::EvaluatePixel(
     if (effect.transparentMatrixBackground && intensity <= 0.055f)
         output.alpha = 0;
     output.visible = output.intensity > 0.001f && output.alpha > 0;
-    ApplyCustomTexture(effect, matrix, column, row, timeMs, speed,
+    ApplyCustomTexture(effect, activeEyeTextureName, activeEyeTexture,
+                       matrix, column, row, timeMs, speed,
                        activeEyeMotion, eyeBlinkAmount, output);
 
     return true;
