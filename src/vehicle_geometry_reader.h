@@ -23,6 +23,7 @@ struct GeometryScanStats {
     uint32_t cpuVertexGeometryCount = 0;
     uint32_t nativeGeometryCount = 0;
     uint32_t vertexBufferGeometryCount = 0;
+    uint32_t lightingMaterialCount = 0;
     uint32_t missingVertexDataCount = 0;
     uint32_t missingTriangleDataCount = 0;
 
