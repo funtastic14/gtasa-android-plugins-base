@@ -352,7 +352,6 @@ void ApplyCustomTexture(
         // receives the same gaze vector; blink compresses the source vertically.
         const bool leftEye = column < matrix.columns / 2;
         float localU = leftEye ? u * 2.0f : (u - 0.5f) * 2.0f;
-        const float t = static_cast<float>(timeMs) * speed;
         float gazeX = 0.0f;
         float gazeY = 0.0f;
         ResolveEyeGaze(effect, timeMs, speed, eyeMotion, gazeX, gazeY);
@@ -806,7 +805,6 @@ bool MatrixAnimationEngine::EvaluatePixel(
             const float dx = (static_cast<float>(column) - eyeCenterX) / radiusX;
             const float dy = (static_cast<float>(row) - eyeCenterY) / radiusY;
             const float absX = std::fabs(dx);
-            const float t = static_cast<float>(timeMs) * speed;
             const EyeMotion activeMotion = ResolveEyeMotion(effect, timeMs);
             activeEyeMotion = activeMotion;
             float gazeX = 0.0f;
