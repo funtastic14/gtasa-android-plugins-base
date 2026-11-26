@@ -23,7 +23,8 @@ static bool g_initialized = false;
 static const size_t MAX_PROFILE_SIZE = 1024 * 1024;
 static const size_t MAX_DIAGNOSTIC_SIZE = 256 * 1024;
 static const size_t MAX_FONT_SIZE = 4096;
-static const size_t MAX_TEXTURE_SIZE = 256 * 1024;
+// Encoded image ceiling; decoded RGBA is separately bounded to 1024x1024.
+static const size_t MAX_TEXTURE_SIZE = 4 * 1024 * 1024;
 
 static bool BuildProfilePath(
     int modelId,
