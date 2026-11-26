@@ -794,9 +794,58 @@ static bool ReadEffect(
             eyeShape = static_cast<int>(EyeShape::Sleepy);
     }
     effect.eyeShape = static_cast<EyeShape>(eyeShape);
-    if (!ReadOptionalUInt32(value, "eyeBlinkIntervalMs", effect.eyeBlinkIntervalMs) ||
+
+    // Eye motion schema v2 separates gaze directions from retired expression
+    // and iris-motif presets. Legacy values are migrated without reviving them.
+    int eyeMotionVersion = 1;
+    int eyeMotion = static_cast<int>(effect.eyeMotion);
+    if (Find(value, "eyeMotionVersion") &&
+        (!ReadInt(value, "eyeMotionVersion", eyeMotionVersion) ||
+         eyeMotionVersion < 1 || eyeMotionVersion > 2))
+        return false;
+    if (Find(value, "eyeMotion")) {
+        if (!ReadInt(value, "eyeMotion", eyeMotion) || eyeMotion < 0)
+            return false;
+        if (eyeMotionVersion >= 2) {
+            if (eyeMotion > static_cast<int>(EyeMotion::Wink))
+                return false;
+        } else {
+            switch (eyeMotion) {
+            case 0: case 1: case 2: case 3: case 4: break;
+            case 5: eyeMotion = static_cast<int>(EyeMotion::Scan); break;
+            case 6: eyeMotion = static_cast<int>(EyeMotion::Wink); break;
+            case 7: eyeMotion = static_cast<int>(EyeMotion::Shake); break;
+            default: eyeMotion = static_cast<int>(EyeMotion::Idle); break;
+            }
+        }
+    }
+    effect.eyeMotion = static_cast<EyeMotion>(eyeMotion);
+    int eyeMotionPlayback = static_cast<int>(effect.eyeMotionPlayback);
+    if (Find(value, "eyeMotionPlayback") &&
+        (!ReadInt(value, "eyeMotionPlayback", eyeMotionPlayback) ||
+         eyeMotionPlayback < 0 ||
+         eyeMotionPlayback > static_cast<int>(MotionPlaybackMode::Random)))
+        return false;
+    effect.eyeMotionPlayback = static_cast<MotionPlaybackMode>(eyeMotionPlayback);
+    if (!ReadOptionalUInt32(value, "eyeMotionIntervalMs", effect.eyeMotionIntervalMs) ||
+        effect.eyeMotionIntervalMs < 500 || effect.eyeMotionIntervalMs > 30000 ||
+        !ReadOptionalUInt32(value, "eyeBlinkIntervalMs", effect.eyeBlinkIntervalMs) ||
         effect.eyeBlinkIntervalMs < 500 || effect.eyeBlinkIntervalMs > 8000)
         return false;
+
+    const char* eyePaletteKeys[] = {
+        "eyeIrisRed", "eyeIrisGreen", "eyeIrisBlue",
+        "eyePupilRed", "eyePupilGreen", "eyePupilBlue"
+    };
+    uint8_t* eyePaletteValues[] = {
+        &effect.eyeIrisRed, &effect.eyeIrisGreen, &effect.eyeIrisBlue,
+        &effect.eyePupilRed, &effect.eyePupilGreen, &effect.eyePupilBlue
+    };
+    for (size_t i = 0; i < sizeof(eyePaletteKeys) / sizeof(eyePaletteKeys[0]); ++i) {
+        if (Find(value, eyePaletteKeys[i]) &&
+            !ReadUInt8(value, eyePaletteKeys[i], *eyePaletteValues[i]))
+            return false;
+    }
 
     if (!ReadInt(value, "motionPattern", motionPattern) || motionPattern < 0 || motionPattern > static_cast<int>(LedMotionPattern::TriangleOrbit)) return false;
     effect.motionPattern = static_cast<LedMotionPattern>(motionPattern);
@@ -1318,8 +1367,27 @@ static bool AppendEffect(
     output += ",\"eyeShapeVersion\":2";
     output += ",\"eyeShape\":";
     AppendInt(output, static_cast<int>(effect.eyeShape));
+    output += ",\"eyeMotionVersion\":2";
+    output += ",\"eyeMotion\":";
+    AppendInt(output, static_cast<int>(effect.eyeMotion));
+    output += ",\"eyeMotionPlayback\":";
+    AppendInt(output, static_cast<int>(effect.eyeMotionPlayback));
+    output += ",\"eyeMotionIntervalMs\":";
+    AppendUInt(output, effect.eyeMotionIntervalMs);
     output += ",\"eyeBlinkIntervalMs\":";
     AppendUInt(output, effect.eyeBlinkIntervalMs);
+    output += ",\"eyeIrisRed\":";
+    AppendUInt(output, effect.eyeIrisRed);
+    output += ",\"eyeIrisGreen\":";
+    AppendUInt(output, effect.eyeIrisGreen);
+    output += ",\"eyeIrisBlue\":";
+    AppendUInt(output, effect.eyeIrisBlue);
+    output += ",\"eyePupilRed\":";
+    AppendUInt(output, effect.eyePupilRed);
+    output += ",\"eyePupilGreen\":";
+    AppendUInt(output, effect.eyePupilGreen);
+    output += ",\"eyePupilBlue\":";
+    AppendUInt(output, effect.eyePupilBlue);
 
     output += ",\"speed\":";
     if (!AppendFloat(output, effect.speed)) return false;
