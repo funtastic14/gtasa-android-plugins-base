@@ -127,10 +127,10 @@ void ApplyCustomTexture(
         std::string data, token;
         if (ProfileStorage::LoadTexturePng(effect.textureName, data) &&
             !data.empty() && data.size() <= static_cast<size_t>(0x7fffffff)) {
-            int w = 0, h = 0, channels = 0;
+            int w = 0, h = 0;
             stbi_uc* decoded = stbi_load_from_memory(
                 reinterpret_cast<const stbi_uc*>(data.data()),
-                static_cast<int>(data.size()), &w, &h, &channels, STBI_rgb_alpha
+                static_cast<int>(data.size()), &w, &h, nullptr, STBI_rgb_alpha
             );
             if (decoded != nullptr) {
                 if (w > 0 && w <= 128 && h > 0 && h <= 128) {
@@ -590,7 +590,7 @@ bool MatrixAnimationEngine::EvaluatePixel(
             const auto blinkEnvelope = [](float elapsed, float duration) {
                 const float p = Clamp01(elapsed / duration);
                 const float triangle = 1.0f - std::fabs(2.0f * p - 1.0f);
-                return triangle * triangle * (3.0f - 2.0f * p);
+                return triangle * triangle * (3.0f - 2.0f * triangle);
             };
             float blinkAmount = 0.0f;
             if (blinkPhase < 150.0f)
