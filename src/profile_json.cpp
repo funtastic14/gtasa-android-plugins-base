@@ -767,6 +767,8 @@ static bool ReadEffect(
     // Version 2 stores only Original, Round and Sleepy. Older profiles
     // used a much larger enum; map the two retained legacy shapes and safely
     // fall back to Original for removed procedural shapes.
+    // Version 2 stores only Original, Round and Sleepy. Legacy enum
+    // values 3 and 6 map to Round and Sleepy; removed shapes fall back safely.
     int eyeShape = static_cast<int>(effect.eyeShape);
     int eyeShapeVersion = 1;
     if (Find(value, "eyeShapeVersion") &&
@@ -786,26 +788,9 @@ static bool ReadEffect(
         }
     }
     effect.eyeShape = static_cast<EyeShape>(eyeShape);
-
-    int eyeMotion = static_cast<int>(effect.eyeMotion);
-    int eyeMotionPlayback = static_cast<int>(effect.eyeMotionPlayback);
-    if ((Find(value, "eyeMotion") &&
-         (!ReadInt(value, "eyeMotion", eyeMotion) ||
-          eyeMotion < 0 || eyeMotion > 11)) ||
-        (Find(value, "eyeMotionPlayback") &&
-         (!ReadInt(value, "eyeMotionPlayback", eyeMotionPlayback) ||
-          eyeMotionPlayback < 0 ||
-          eyeMotionPlayback > static_cast<int>(MotionPlaybackMode::Random))) ||
-        !ReadOptionalUInt32(value, "eyeMotionIntervalMs", effect.eyeMotionIntervalMs) ||
-        !ReadOptionalUInt32(value, "eyeBlinkIntervalMs", effect.eyeBlinkIntervalMs) ||
-        effect.eyeMotionIntervalMs < 500 || effect.eyeMotionIntervalMs > 30000 ||
+    if (!ReadOptionalUInt32(value, "eyeBlinkIntervalMs", effect.eyeBlinkIntervalMs) ||
         effect.eyeBlinkIntervalMs < 500 || effect.eyeBlinkIntervalMs > 8000)
         return false;
-    // Legacy motif-only motions (Sharingan/Mangekyou/Rinnegan) are retired.
-    if (eyeMotion > static_cast<int>(EyeMotion::RapidBlink))
-        eyeMotion = static_cast<int>(EyeMotion::Idle);
-    effect.eyeMotion = static_cast<EyeMotion>(eyeMotion);
-    effect.eyeMotionPlayback = static_cast<MotionPlaybackMode>(eyeMotionPlayback);
 
     if (!ReadInt(value, "motionPattern", motionPattern) || motionPattern < 0 || motionPattern > static_cast<int>(LedMotionPattern::TriangleOrbit)) return false;
     effect.motionPattern = static_cast<LedMotionPattern>(motionPattern);
@@ -1327,14 +1312,8 @@ static bool AppendEffect(
     output += ",\"eyeShapeVersion\":2";
     output += ",\"eyeShape\":";
     AppendInt(output, static_cast<int>(effect.eyeShape));
-    output += ",\"eyeMotion\":";
-    AppendInt(output, static_cast<int>(effect.eyeMotion));
     output += ",\"eyeBlinkIntervalMs\":";
     AppendUInt(output, effect.eyeBlinkIntervalMs);
-    output += ",\"eyeMotionPlayback\":";
-    AppendInt(output, static_cast<int>(effect.eyeMotionPlayback));
-    output += ",\"eyeMotionIntervalMs\":";
-    AppendUInt(output, effect.eyeMotionIntervalMs);
 
     output += ",\"speed\":";
     if (!AppendFloat(output, effect.speed)) return false;
