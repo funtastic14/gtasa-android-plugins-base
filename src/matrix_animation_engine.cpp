@@ -368,35 +368,42 @@ void ApplyCustomTexture(
         const float pupilCenterY = design ? design->pupilCenterY : effect.eyeTexturePupilCenterY;
         const float pupilRadiusX = design ? design->pupilRadiusX : effect.eyeTexturePupilRadiusX;
         const float pupilRadiusY = design ? design->pupilRadiusY : effect.eyeTexturePupilRadiusY;
-        const float pupilDx = (localU - pupilCenterX) / pupilRadiusX;
-        const float pupilDy = (v - pupilCenterY) / pupilRadiusY;
-        const bool insidePupil = pupilDx * pupilDx + pupilDy * pupilDy <= 1.0f;
-        const float irisDx = (localU - irisCenterX) / irisRadiusX;
-        const float irisDy = (v - irisCenterY) / irisRadiusY;
-        const bool insideIris = irisDx * irisDx + irisDy * irisDy <= 1.0f;
+        if (design != nullptr && !design->mappingConfigured) {
+            // Without semantic UV metadata, deform the complete eye artwork
+            // conservatively instead of guessing where iris/pupil boundaries are.
+            sampleLocalU = Clamp01(localU - gazeX * 0.16f);
+            sampleV = Clamp01(v - gazeY * 0.16f);
+        } else {
+            const float pupilDx = (localU - pupilCenterX) / pupilRadiusX;
+            const float pupilDy = (v - pupilCenterY) / pupilRadiusY;
+            const bool insidePupil = pupilDx * pupilDx + pupilDy * pupilDy <= 1.0f;
+            const float irisDx = (localU - irisCenterX) / irisRadiusX;
+            const float irisDy = (v - irisCenterY) / irisRadiusY;
+            const bool insideIris = irisDx * irisDx + irisDy * irisDy <= 1.0f;
 
-        if (insidePupil) {
-            sampleLocalU -= gazeX * pupilRadiusX;
-            sampleV -= gazeY * pupilRadiusY;
-            sampleLocalU = std::max(
-                pupilCenterX - pupilRadiusX,
-                std::min(pupilCenterX + pupilRadiusX, sampleLocalU)
-            );
-            sampleV = std::max(
-                pupilCenterY - pupilRadiusY,
-                std::min(pupilCenterY + pupilRadiusY, sampleV)
-            );
-        } else if (insideIris) {
-            sampleLocalU -= gazeX * irisRadiusX * 0.82f;
-            sampleV -= gazeY * irisRadiusY * 0.82f;
-            sampleLocalU = std::max(
-                irisCenterX - irisRadiusX,
-                std::min(irisCenterX + irisRadiusX, sampleLocalU)
-            );
-            sampleV = std::max(
-                irisCenterY - irisRadiusY,
-                std::min(irisCenterY + irisRadiusY, sampleV)
-            );
+            if (insidePupil) {
+                sampleLocalU -= gazeX * pupilRadiusX;
+                sampleV -= gazeY * pupilRadiusY;
+                sampleLocalU = std::max(
+                    pupilCenterX - pupilRadiusX,
+                    std::min(pupilCenterX + pupilRadiusX, sampleLocalU)
+                );
+                sampleV = std::max(
+                    pupilCenterY - pupilRadiusY,
+                    std::min(pupilCenterY + pupilRadiusY, sampleV)
+                );
+            } else if (insideIris) {
+                sampleLocalU -= gazeX * irisRadiusX * 0.82f;
+                sampleV -= gazeY * irisRadiusY * 0.82f;
+                sampleLocalU = std::max(
+                    irisCenterX - irisRadiusX,
+                    std::min(irisCenterX + irisRadiusX, sampleLocalU)
+                );
+                sampleV = std::max(
+                    irisCenterY - irisRadiusY,
+                    std::min(irisCenterY + irisRadiusY, sampleV)
+                );
+            }
         }
 
         localU = Clamp01(sampleLocalU);
