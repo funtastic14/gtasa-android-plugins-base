@@ -1131,7 +1131,7 @@ static void RenderEditor() {
             }
             ImGui::TextWrapped("Procedural mode: the eye engine draws the iris and pupil and applies gaze movement. The three palettes remain independent.");
         } else {
-            ImGui::TextWrapped("Custom mode preserves the PNG/PPM artwork and alpha. Full gaze deformation of a flattened custom image is the next implementation stage; no separate direction or blink frames are required.");
+            ImGui::TextWrapped("Custom mode preserves PNG/PPM colors and alpha. VLS remaps each eye half for gaze movement and compresses the source vertically for blink. A flattened image still needs optional region metadata before iris and pupil can move independently.");
         }
         ImGui::TextWrapped("Use PNG RGBA or P3 PPM in VehicleLEDSystem/textures/ (maximum 128x128). Expression presets have been removed; gaze and blink remain.");
     } else if (effect.type == VLS::LedEffectType::RunningText) {
