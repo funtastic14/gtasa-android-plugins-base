@@ -135,19 +135,20 @@ void ApplyCustomTexture(
         matrix.rows == 0 || !output.visible)
         return;
 
-    // Four small fixed cache slots allow simultaneous effects to retain
-    // different textures without allocating memory during pixel rendering.
-    static TextureCacheEntry cache[4];
+    // Two bounded decoded-image slots cap resident RGBA texture memory at
+    // 8 MiB (1024x1024x4 bytes per image). Image decoding/allocation happens
+    // only when a texture is first encountered, never in the sampling loop.
+    static TextureCacheEntry cache[2];
     static uint32_t nextSlot = 0;
     TextureCacheEntry* entry = nullptr;
-    for (size_t i = 0; i < 4; ++i) {
+    for (size_t i = 0; i < 2; ++i) {
         if (cache[i].name == effect.textureName) {
             entry = &cache[i];
             break;
         }
     }
     if (entry == nullptr) {
-        entry = &cache[nextSlot++ % 4u];
+        entry = &cache[nextSlot++ % 2u];
         entry->name = effect.textureName;
         entry->valid = false;
         entry->width = entry->height = 0;
