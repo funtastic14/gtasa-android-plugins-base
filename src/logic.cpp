@@ -1250,16 +1250,20 @@ static void RenderEditor() {
                     }
                 }
             }
-            VLS::EyeTextureDesign& selected = effect.eyeTextures[selectedDesign];
-            if (ImGui::CollapsingHeader("Selected Design UV Mapping")) {
-                changed |= ImGui::SliderFloat("Design Iris Center X", &selected.irisCenterX, 0.0f, 1.0f);
-                changed |= ImGui::SliderFloat("Design Iris Center Y", &selected.irisCenterY, 0.0f, 1.0f);
-                changed |= ImGui::SliderFloat("Design Iris Radius X", &selected.irisRadiusX, 0.02f, 0.50f);
-                changed |= ImGui::SliderFloat("Design Iris Radius Y", &selected.irisRadiusY, 0.02f, 0.50f);
-                changed |= ImGui::SliderFloat("Design Pupil Center X", &selected.pupilCenterX, 0.0f, 1.0f);
-                changed |= ImGui::SliderFloat("Design Pupil Center Y", &selected.pupilCenterY, 0.0f, 1.0f);
-                changed |= ImGui::SliderFloat("Design Pupil Radius X", &selected.pupilRadiusX, 0.01f, 0.30f);
-                changed |= ImGui::SliderFloat("Design Pupil Radius Y", &selected.pupilRadiusY, 0.01f, 0.30f);
+            if (!effect.eyeTextures.empty()) {
+                selectedDesign = std::min(selectedDesign,
+                    static_cast<int>(effect.eyeTextures.size() - 1));
+                VLS::EyeTextureDesign& selected = effect.eyeTextures[selectedDesign];
+                if (ImGui::CollapsingHeader("Selected Design UV Mapping")) {
+                    changed |= ImGui::SliderFloat("Design Iris Center X", &selected.irisCenterX, 0.0f, 1.0f);
+                    changed |= ImGui::SliderFloat("Design Iris Center Y", &selected.irisCenterY, 0.0f, 1.0f);
+                    changed |= ImGui::SliderFloat("Design Iris Radius X", &selected.irisRadiusX, 0.02f, 0.50f);
+                    changed |= ImGui::SliderFloat("Design Iris Radius Y", &selected.irisRadiusY, 0.02f, 0.50f);
+                    changed |= ImGui::SliderFloat("Design Pupil Center X", &selected.pupilCenterX, 0.0f, 1.0f);
+                    changed |= ImGui::SliderFloat("Design Pupil Center Y", &selected.pupilCenterY, 0.0f, 1.0f);
+                    changed |= ImGui::SliderFloat("Design Pupil Radius X", &selected.pupilRadiusX, 0.01f, 0.30f);
+                    changed |= ImGui::SliderFloat("Design Pupil Radius Y", &selected.pupilRadiusY, 0.01f, 0.30f);
+                }
             }
         }
 
@@ -1299,7 +1303,7 @@ static void RenderEditor() {
                 changed |= ImGui::SliderFloat("Pupil Radius Y", &effect.eyeTexturePupilRadiusY, 0.01f, 0.30f);
             }
         }
-        ImGui::TextWrapped("Use a two-eye PNG with the left and right eye in separate horizontal halves, or P3 PPM, in VehicleLEDSystem/textures/ (maximum 128x128). Expression presets are removed; gaze and blink remain.");
+        ImGui::TextWrapped("Use a two-eye PNG with the left and right eye in separate horizontal halves, or P3 PPM, in VehicleLEDSystem/textures/ (maximum 1024x1024). Expression presets are removed; gaze and blink remain.");
     } else if (effect.type == VLS::LedEffectType::RunningText) {
         ImGui::TextWrapped("Text scrolling, transitions and text patterns use dedicated text controls, separate from general LED motion patterns.");
     }
