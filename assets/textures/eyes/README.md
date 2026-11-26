@@ -10,7 +10,7 @@ Strobo Eyes supports both Procedural Eye and Custom Eye. With no texture selecte
 - Copy the file to the device as `VehicleLEDSystem/textures/eyes.png`.
 - In the Strobo Eyes controls, enter `eyes` in **Custom Eye Texture (PNG/PPM)** (without the extension).
 
-The PNG loader preserves alpha and scales the complete two-eye image across the matrix. The current mapper treats the left and right halves as separate eye regions, applies bounded gaze UV offsets, and compresses the source vertically for blink. Bilinear sampling reduces stepping during movement. Runtime image dimensions are limited to 128x128 to keep memory use bounded on Android devices. For a flattened image without segmentation metadata, the whole eye artwork moves together; iris and pupil cannot yet be transformed independently.
+The PNG loader preserves alpha and scales the complete two-eye image across the matrix. The mapper treats the left and right halves as separate eye regions and uses bilinear UV sampling for gaze and blink. In the editor, open **Custom Eye Mapping** to set normalized iris and pupil centers/radii; VLS remaps those regions while keeping the surrounding eye artwork in place. The mapping values are saved in the vehicle profile, so no sidecar file or extra animation frames are required. Runtime image dimensions are limited to 128x128 to keep memory use bounded on Android devices. The default mapping is centered; adjust it if the iris/pupil in your artwork is offset.
 
 ## Layered and frame examples
 
