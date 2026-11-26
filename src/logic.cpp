@@ -1065,46 +1065,23 @@ static void RenderEditor() {
             changed = true;
         }
 
-        ImGui::InputText("Custom Eye Texture (PPM)", g_runningTextureBuffer,
-                         sizeof(g_runningTextureBuffer));
-        if (ImGui::IsItemDeactivatedAfterEdit()) {
+        if (g_runningTextureBufferEffect != &effect) {
+            std::memset(g_runningTextureBuffer, 0, sizeof(g_runningTextureBuffer));
+            std::strncpy(g_runningTextureBuffer, effect.textureName.c_str(),
+                         sizeof(g_runningTextureBuffer) - 1);
+            g_runningTextureBufferEffect = &effect;
+        }
+        if (ImGui::InputText("Custom Eye Texture (PPM)", g_runningTextureBuffer,
+                             sizeof(g_runningTextureBuffer))) {
             effect.textureName = g_runningTextureBuffer;
             changed = true;
         }
         ImGui::TextWrapped(
             "Custom eye artwork is sampled from the selected texture. "
-            "The shape option only masks the texture; no procedural iris, "
-            "expression, eyebrow, or motif is generated."
+            "The selected shape only masks the artwork; no procedural iris, "
+            "expression, eyebrow, or visual motif is generated. "
+            "Use a P3 PPM texture in VehicleLEDSystem/textures/."
         );
-
-        static const char* playbackNames[] = {
-            "Manual", "Automatic", "Sequence", "Random"
-        };
-        static const char* eyeMotionNames[] = {
-            "Idle", "Look Left", "Look Right", "Look Up", "Look Down",
-            "Scan", "Wink", "Shake", "Rapid Blink"
-        };
-        int eyeMotion = static_cast<int>(effect.eyeMotion);
-        if (ImGui::Combo("Eye Motion", &eyeMotion, eyeMotionNames,
-                         IM_ARRAYSIZE(eyeMotionNames))) {
-            effect.eyeMotion = static_cast<VLS::EyeMotion>(eyeMotion);
-            changed = true;
-        }
-        int eyeMotionPlayback = static_cast<int>(effect.eyeMotionPlayback);
-        if (ImGui::Combo("Eye Motion Playback", &eyeMotionPlayback,
-                         playbackNames, IM_ARRAYSIZE(playbackNames))) {
-            effect.eyeMotionPlayback =
-                static_cast<VLS::MotionPlaybackMode>(eyeMotionPlayback);
-            changed = true;
-        }
-        if (effect.eyeMotionPlayback != VLS::MotionPlaybackMode::Manual) {
-            int interval = static_cast<int>(effect.eyeMotionIntervalMs);
-            if (ImGui::SliderInt("Eye Motion Interval (ms)", &interval,
-                                 500, 15000)) {
-                effect.eyeMotionIntervalMs = static_cast<uint32_t>(interval);
-                changed = true;
-            }
-        }
         int blinkInterval = static_cast<int>(effect.eyeBlinkIntervalMs);
         if (ImGui::SliderInt("Blink Interval (ms)", &blinkInterval, 500, 8000)) {
             effect.eyeBlinkIntervalMs = static_cast<uint32_t>(blinkInterval);
