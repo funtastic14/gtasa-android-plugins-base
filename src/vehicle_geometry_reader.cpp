@@ -859,27 +859,27 @@ static std::string SurfaceRoleHint(const AtomicGeometryInfo& info, const GlassPa
     const float patchWidth = part.maxX - part.minX;
     const float patchHeight = part.maxZ - part.minZ;
     const float patchDepth = part.maxY - part.minY;
-    const bool nearFrontOrRearEnd = std::fabs(part.cy) >= 0.45f;
+    const bool nearFrontOrRearEnd = std::fabs(part.cy) >= 0.38f;
     // Triangle winding on imported DFFs is not consistent: normals from
     // adjacent faces can cancel even when the component is a real lamp lens.
     // Do not make the normal direction a hard admission gate. The patch is
     // still constrained to a compact, shallow island at the front/rear end,
     // and rendering uses only its original triangles (never the body bounds).
     const bool compactLampIsland =
-        patchWidth >= 0.04f && patchWidth <= 1.10f &&
-        patchHeight >= 0.025f && patchHeight <= 0.70f &&
-        patchDepth <= 0.30f &&
-        part.area >= 0.003f && part.area <= 1.25f;
+        patchWidth >= 0.04f && patchWidth <= 1.25f &&
+        patchHeight >= 0.025f && patchHeight <= 0.80f &&
+        patchDepth <= 0.36f &&
+        part.area >= 0.003f && part.area <= 1.60f;
     // Never promote a generic compact body surface to Native RGB.
     // Converted DFFs in this project use the exact GTA lamp atlas names;
     // otherwise require an explicitly lamp-named frame plus the same tight
     // geometry bounds. This blocks unrelated body panels sharing an atomic.
     const bool compactBodyLampIsland =
-        patchWidth >= 0.04f && patchWidth <= 0.82f &&
-        patchHeight >= 0.025f && patchHeight <= 0.48f &&
-        patchDepth <= 0.16f &&
-        part.area >= 0.003f && part.area <= 0.42f &&
-        part.triangles <= 256u;
+        patchWidth >= 0.04f && patchWidth <= 1.00f &&
+        patchHeight >= 0.025f && patchHeight <= 0.60f &&
+        patchDepth <= 0.22f &&
+        part.area >= 0.003f && part.area <= 0.70f &&
+        part.triangles <= 384u;
     const bool eligibleLampIsland = bodyFrame
         ? (nativeLampTexture && compactBodyLampIsland)
         : (compactLampIsland && (nativeLampTexture || namedLampFrame));
