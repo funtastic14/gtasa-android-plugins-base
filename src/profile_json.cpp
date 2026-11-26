@@ -846,6 +846,31 @@ static bool ReadEffect(
             !ReadUInt8(value, eyePaletteKeys[i], *eyePaletteValues[i]))
             return false;
     }
+    if (!ReadOptionalFloat(value, "eyeTextureIrisCenterX", effect.eyeTextureIrisCenterX) ||
+        !ReadOptionalFloat(value, "eyeTextureIrisCenterY", effect.eyeTextureIrisCenterY) ||
+        !ReadOptionalFloat(value, "eyeTextureIrisRadiusX", effect.eyeTextureIrisRadiusX) ||
+        !ReadOptionalFloat(value, "eyeTextureIrisRadiusY", effect.eyeTextureIrisRadiusY) ||
+        !ReadOptionalFloat(value, "eyeTexturePupilCenterX", effect.eyeTexturePupilCenterX) ||
+        !ReadOptionalFloat(value, "eyeTexturePupilCenterY", effect.eyeTexturePupilCenterY) ||
+        !ReadOptionalFloat(value, "eyeTexturePupilRadiusX", effect.eyeTexturePupilRadiusX) ||
+        !ReadOptionalFloat(value, "eyeTexturePupilRadiusY", effect.eyeTexturePupilRadiusY) ||
+        !std::isfinite(effect.eyeTextureIrisCenterX) ||
+        !std::isfinite(effect.eyeTextureIrisCenterY) ||
+        !std::isfinite(effect.eyeTextureIrisRadiusX) ||
+        !std::isfinite(effect.eyeTextureIrisRadiusY) ||
+        !std::isfinite(effect.eyeTexturePupilCenterX) ||
+        !std::isfinite(effect.eyeTexturePupilCenterY) ||
+        !std::isfinite(effect.eyeTexturePupilRadiusX) ||
+        !std::isfinite(effect.eyeTexturePupilRadiusY) ||
+        effect.eyeTextureIrisCenterX < 0.0f || effect.eyeTextureIrisCenterX > 1.0f ||
+        effect.eyeTextureIrisCenterY < 0.0f || effect.eyeTextureIrisCenterY > 1.0f ||
+        effect.eyeTextureIrisRadiusX < 0.02f || effect.eyeTextureIrisRadiusX > 0.50f ||
+        effect.eyeTextureIrisRadiusY < 0.02f || effect.eyeTextureIrisRadiusY > 0.50f ||
+        effect.eyeTexturePupilCenterX < 0.0f || effect.eyeTexturePupilCenterX > 1.0f ||
+        effect.eyeTexturePupilCenterY < 0.0f || effect.eyeTexturePupilCenterY > 1.0f ||
+        effect.eyeTexturePupilRadiusX < 0.01f || effect.eyeTexturePupilRadiusX > 0.30f ||
+        effect.eyeTexturePupilRadiusY < 0.01f || effect.eyeTexturePupilRadiusY > 0.30f)
+        return false;
 
     if (!ReadInt(value, "motionPattern", motionPattern) || motionPattern < 0 || motionPattern > static_cast<int>(LedMotionPattern::TriangleOrbit)) return false;
     effect.motionPattern = static_cast<LedMotionPattern>(motionPattern);
@@ -1388,6 +1413,22 @@ static bool AppendEffect(
     AppendUInt(output, effect.eyePupilGreen);
     output += ",\"eyePupilBlue\":";
     AppendUInt(output, effect.eyePupilBlue);
+    output += ",\"eyeTextureIrisCenterX\":";
+    if (!AppendFloat(output, effect.eyeTextureIrisCenterX)) return false;
+    output += ",\"eyeTextureIrisCenterY\":";
+    if (!AppendFloat(output, effect.eyeTextureIrisCenterY)) return false;
+    output += ",\"eyeTextureIrisRadiusX\":";
+    if (!AppendFloat(output, effect.eyeTextureIrisRadiusX)) return false;
+    output += ",\"eyeTextureIrisRadiusY\":";
+    if (!AppendFloat(output, effect.eyeTextureIrisRadiusY)) return false;
+    output += ",\"eyeTexturePupilCenterX\":";
+    if (!AppendFloat(output, effect.eyeTexturePupilCenterX)) return false;
+    output += ",\"eyeTexturePupilCenterY\":";
+    if (!AppendFloat(output, effect.eyeTexturePupilCenterY)) return false;
+    output += ",\"eyeTexturePupilRadiusX\":";
+    if (!AppendFloat(output, effect.eyeTexturePupilRadiusX)) return false;
+    output += ",\"eyeTexturePupilRadiusY\":";
+    if (!AppendFloat(output, effect.eyeTexturePupilRadiusY)) return false;
 
     output += ",\"speed\":";
     if (!AppendFloat(output, effect.speed)) return false;
