@@ -435,23 +435,36 @@ static bool DrawSpacedFloatControl(
     return changed;
 }
 
-static void DrawRunningTextKeyboard(VLS::LedEffectConfig& effect, bool& changed) {
-    if (!g_runningTextKeyboardOpen)
+static bool g_touchKeyboardUppercase = false;
+
+static void DrawTouchKeyboard(
+    char* buffer,
+    size_t capacity,
+    std::string& destination,
+    bool& changed,
+    bool allowSpace
+) {
+    if (!buffer || capacity == 0)
         return;
 
     ImGui::Separator();
-    ImGui::TextWrapped("VLS Touch Keyboard - QWERTY letters, numbers, spaces and editing.");
-    const char* rows[] = {"QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM", "1234567890"};
+    ImGui::TextWrapped("VLS Virtual Keyboard - tap keys to enter text.");
+    const char* rows[] = {"qwertyuiop", "asdfghjkl", "zxcvbnm", "1234567890"};
     const float keyWidth = 32.0f;
     for (const char* row : rows) {
         for (const char* key = row; *key; ++key) {
-            char label[2] = {*key, '\0'};
+            char label[2] = {
+                static_cast<char>(g_touchKeyboardUppercase
+                    ? (*key >= 'a' && *key <= 'z' ? *key - 'a' + 'A' : *key)
+                    : *key),
+                '\\0'
+            };
             if (ImGui::Button(label, ImVec2(keyWidth, 38.0f))) {
-                const size_t len = std::strlen(g_runningTextBuffer);
-                if (len + 1 < sizeof(g_runningTextBuffer)) {
-                    g_runningTextBuffer[len] = *key;
-                    g_runningTextBuffer[len + 1] = '\0';
-                    effect.text = g_runningTextBuffer;
+                const size_t len = std::strlen(buffer);
+                if (len + 1 < capacity) {
+                    buffer[len] = label[0];
+                    buffer[len + 1] = '\\0';
+                    destination = buffer;
                     changed = true;
                 }
             }
@@ -459,35 +472,41 @@ static void DrawRunningTextKeyboard(VLS::LedEffectConfig& effect, bool& changed)
         }
     }
 
-    if (ImGui::Button("SPACE", ImVec2(88.0f, 38.0f))) {
-        const size_t len = std::strlen(g_runningTextBuffer);
-        if (len + 1 < sizeof(g_runningTextBuffer)) {
-            g_runningTextBuffer[len] = ' ';
-            g_runningTextBuffer[len + 1] = '\0';
-            effect.text = g_runningTextBuffer;
-            changed = true;
+    if (ImGui::Button(g_touchKeyboardUppercase ? "ABC" : "abc", ImVec2(62.0f, 38.0f)))
+        g_touchKeyboardUppercase = !g_touchKeyboardUppercase;
+    if (allowSpace) {
+        ImGui::SameLine();
+        if (ImGui::Button("SPACE", ImVec2(88.0f, 38.0f))) {
+            const size_t len = std::strlen(buffer);
+            if (len + 1 < capacity) {
+                buffer[len] = ' ';
+                buffer[len + 1] = '\\0';
+                destination = buffer;
+                changed = true;
+            }
         }
     }
     ImGui::SameLine();
     if (ImGui::Button("BACKSPACE", ImVec2(104.0f, 38.0f))) {
-        size_t len = std::strlen(g_runningTextBuffer);
+        size_t len = std::strlen(buffer);
         if (len > 0) {
-            g_runningTextBuffer[len - 1] = '\0';
-            effect.text = g_runningTextBuffer;
+            buffer[len - 1] = '\\0';
+            destination = buffer;
             changed = true;
         }
     }
     ImGui::SameLine();
     if (ImGui::Button("CLEAR", ImVec2(70.0f, 38.0f))) {
-        g_runningTextBuffer[0] = '\0';
-        effect.text.clear();
+        buffer[0] = '\\0';
+        destination.clear();
         changed = true;
     }
     ImGui::SameLine();
-    if (ImGui::Button("DONE", ImVec2(62.0f, 38.0f)))
+    if (ImGui::Button("DONE", ImVec2(62.0f, 38.0f))) {
         g_runningTextKeyboardOpen = false;
+        g_touchKeyboardUppercase = false;
+    }
 }
-
 static void RenderEditor() {
 
     ImGui::SetNextWindowPos(
@@ -891,9 +910,10 @@ static void RenderEditor() {
             g_runningTextBufferEffect = &effect;
         }
         ImGui::TextWrapped("Current message: %s", g_runningTextBuffer[0] ? g_runningTextBuffer : "(empty)");
-        if (ImGui::Button(g_runningTextKeyboardOpen ? "Hide Touch Keyboard" : "Open Touch Keyboard", ImVec2(230.0f, 44.0f)))
+        if (ImGui::Button(g_runningTextKeyboardOpen ? "Hide Virtual Keyboard" : "Open Virtual Keyboard", ImVec2(230.0f, 44.0f)))
             g_runningTextKeyboardOpen = !g_runningTextKeyboardOpen;
-        DrawRunningTextKeyboard(effect, changed);
+        if (g_runningTextKeyboardOpen)
+            DrawTouchKeyboard(g_runningTextBuffer, sizeof(g_runningTextBuffer), effect.text, changed, true);
         changed |= ImGui::SliderFloat("Text Spacing", &effect.textSpacing, 0.25f, 3.0f);
         changed |= ImGui::SliderFloat("Font Size", &effect.textScale, 0.35f, 2.0f);
         ImGui::TextWrapped("For clear small text, keep Font Size around 0.65 or higher. Very small glyphs merge because each LED is one physical pixel; increase Matrix Columns for finer detail.");
@@ -1110,6 +1130,13 @@ static void RenderEditor() {
             effect.textureName = g_eyeTextureBuffer;
             changed = true;
         }
+        if (ImGui::Button(g_runningTextKeyboardOpen ? "Hide Virtual Keyboard##Eye" : "Open Virtual Keyboard##Eye",
+                          ImVec2(230.0f, 44.0f))) {
+            g_runningTextKeyboardOpen = !g_runningTextKeyboardOpen;
+            g_touchKeyboardUppercase = false;
+        }
+        if (g_runningTextKeyboardOpen)
+            DrawTouchKeyboard(g_eyeTextureBuffer, sizeof(g_eyeTextureBuffer), effect.textureName, changed, false);
         if (effect.textureName.empty()) {
             float irisColor[3] = {
                 effect.eyeIrisRed / 255.0f, effect.eyeIrisGreen / 255.0f,
