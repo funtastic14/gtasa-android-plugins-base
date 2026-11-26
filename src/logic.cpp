@@ -784,7 +784,7 @@ static void RenderEditor() {
         ImGui::TextWrapped("Custom Motion Sequence will be added in a later stage. The selected LED effect remains fixed.");
     }
     } else if (effect.type == VLS::LedEffectType::StroboEyes) {
-        ImGui::TextWrapped("Strobo Eyes uses its dedicated pupil movement, expression playback, eye visuals, and eyebrow controls.");
+        ImGui::TextWrapped("Strobo Eyes uses one texture-based eye artwork with three selectable geometric masks.");
     } else {
         ImGui::TextWrapped("Running Text uses its dedicated direction, bounce, font, and texture controls.");
     }
