@@ -1131,9 +1131,20 @@ static void RenderEditor() {
             }
             ImGui::TextWrapped("Procedural mode: the eye engine draws the iris and pupil and applies gaze movement. The three palettes remain independent.");
         } else {
-            ImGui::TextWrapped("Custom mode preserves PNG/PPM colors and alpha. VLS remaps each eye half for gaze movement and compresses the source vertically for blink. A flattened image still needs optional region metadata before iris and pupil can move independently.");
+            ImGui::TextWrapped("Custom mode preserves PNG/PPM colors and alpha. VLS moves the iris/pupil sampling regions inside the stationary eye artwork and compresses the source vertically for blink. Mapping values are saved with this vehicle profile.");
+            if (ImGui::CollapsingHeader("Custom Eye Mapping")) {
+                ImGui::TextWrapped("Adjust these normalized regions to match the iris and pupil positions in each half of your two-eye PNG.");
+                changed |= ImGui::SliderFloat("Iris Center X", &effect.eyeTextureIrisCenterX, 0.0f, 1.0f);
+                changed |= ImGui::SliderFloat("Iris Center Y", &effect.eyeTextureIrisCenterY, 0.0f, 1.0f);
+                changed |= ImGui::SliderFloat("Iris Radius X", &effect.eyeTextureIrisRadiusX, 0.02f, 0.50f);
+                changed |= ImGui::SliderFloat("Iris Radius Y", &effect.eyeTextureIrisRadiusY, 0.02f, 0.50f);
+                changed |= ImGui::SliderFloat("Pupil Center X", &effect.eyeTexturePupilCenterX, 0.0f, 1.0f);
+                changed |= ImGui::SliderFloat("Pupil Center Y", &effect.eyeTexturePupilCenterY, 0.0f, 1.0f);
+                changed |= ImGui::SliderFloat("Pupil Radius X", &effect.eyeTexturePupilRadiusX, 0.01f, 0.30f);
+                changed |= ImGui::SliderFloat("Pupil Radius Y", &effect.eyeTexturePupilRadiusY, 0.01f, 0.30f);
+            }
         }
-        ImGui::TextWrapped("Use PNG RGBA or P3 PPM in VehicleLEDSystem/textures/ (maximum 128x128). Expression presets have been removed; gaze and blink remain.");
+        ImGui::TextWrapped("Use a two-eye PNG with the left and right eye in separate horizontal halves, or P3 PPM, in VehicleLEDSystem/textures/ (maximum 128x128). Expression presets are removed; gaze and blink remain.");
     } else if (effect.type == VLS::LedEffectType::RunningText) {
         ImGui::TextWrapped("Text scrolling, transitions and text patterns use dedicated text controls, separate from general LED motion patterns.");
     }
