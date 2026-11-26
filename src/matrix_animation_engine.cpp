@@ -873,16 +873,18 @@ bool MatrixAnimationEngine::EvaluatePixel(
             }
 
             if (activeMotion == EyeMotion::Wink) {
-                const uint32_t winkPhase = timeMs % 4800u;
+                // Wink follows the same speed-scaled animation clock as gaze
+                // and regular blinking, while keeping a stable 4.8s cycle.
+                const float winkPhase = std::fmod(
+                    static_cast<float>(timeMs) * speed, 4800.0f
+                );
                 float winkAmount = 0.0f;
-                if (leftEye && winkPhase < 420u) {
-                    winkAmount = blinkEnvelope(
-                        static_cast<float>(winkPhase), 420.0f
-                    );
+                if (leftEye && winkPhase < 420.0f) {
+                    winkAmount = blinkEnvelope(winkPhase, 420.0f);
                 } else if (!leftEye &&
-                           winkPhase >= 2400u && winkPhase < 2820u) {
+                           winkPhase >= 2400.0f && winkPhase < 2820.0f) {
                     winkAmount = blinkEnvelope(
-                        static_cast<float>(winkPhase - 2400u), 420.0f
+                        winkPhase - 2400.0f, 420.0f
                     );
                 }
                 // Fade each wink smoothly instead of snapping the lid shut.
