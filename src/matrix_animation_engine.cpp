@@ -22,10 +22,6 @@ float Clamp01(float value) {
     return value;
 }
 
-float Fract(float value) {
-    return value - std::floor(value);
-}
-
 uint8_t ClampColor(float value) {
     if (value < 0.0f) value = 0.0f;
     if (value > 255.0f) value = 255.0f;
