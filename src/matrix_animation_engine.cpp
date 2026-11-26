@@ -833,7 +833,7 @@ bool MatrixAnimationEngine::EvaluatePixel(
                     // instead uses vertical UV compression in ApplyCustomTexture.
                     intensity = std::fabs(dy) < (0.025f + 0.08f * (1.0f - blinkAmount))
                         ? 1.0f : 0.0f;
-                } else if (effect.textureName.empty()) {
+                } else if (!hasCustomEyeTexture) {
                     const float pupilX = dx - gazeX;
                     const float pupilY = dy - gazeY;
                     const float pupilDistance = pupilX * pupilX + pupilY * pupilY;
