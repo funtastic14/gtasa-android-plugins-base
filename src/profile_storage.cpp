@@ -342,8 +342,8 @@ bool LoadTexturePng(const std::string& textureName, std::string& png) {
     const size_t size = aml->FileSize(path);
     if (size == 0 || size > MAX_TEXTURE_SIZE)
         return false;
-    std::vector<char> buffer(size);
-    const int read = aml->ReadFileToBuffer(path, buffer.data(), size);
+    std::vector<char> buffer(size + 1, 0);
+    const int read = aml->ReadFileToBuffer(path, buffer.data(), size + 1);
     if (read <= 0 || static_cast<size_t>(read) > size)
         return false;
     png.assign(buffer.data(), static_cast<size_t>(read));
