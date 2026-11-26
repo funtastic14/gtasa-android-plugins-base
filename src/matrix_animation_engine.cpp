@@ -635,8 +635,8 @@ bool MatrixAnimationEngine::EvaluatePixel(
     }
 
     case LedEffectType::StroboEyes: {
-        // Eye artwork comes exclusively from the selected texture. This
-        // renderer supplies only a geometric mask and a simple blink shutter.
+        // Procedural mode builds the eye from the selected shape and palettes.
+        // Custom mode uses the same mask plus a bounded UV gaze/blink transform.
         if (matrix.rows >= 7 && matrix.columns >= 14) {
             const bool leftEye = column < matrix.columns / 2;
             const float eyeCenterX = leftEye
@@ -753,8 +753,8 @@ bool MatrixAnimationEngine::EvaluatePixel(
                     }
                     intensity = 1.0f;
                 } else {
-                    // Custom image UV deformation is handled by the upcoming
-                    // metadata-aware texture mapper; this stage preserves source art.
+                    // Custom artwork keeps its authored colors; its UV transform
+                    // is applied after the procedural mask and blink state are resolved.
                     intensity = 1.0f;
                 }
             } else {
