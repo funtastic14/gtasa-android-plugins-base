@@ -1053,150 +1053,63 @@ static void RenderEditor() {
         ImGui::TextWrapped("Geometry Motion: Rotating Square and Triangle Orbit trace geometric outlines; Curved Sweep bends its travelling front; Square / Circle Expand and Collapse move frames between center and edges; Triangle Converge sends three luminous points to meet at center.");
     } else if (effect.type == VLS::LedEffectType::StroboEyes) {
         ImGui::Separator();
-        ImGui::Text("STROBO EYES - Dedicated Eye Engine");
-        static const char* referencePresetNames[] = {
-            "Custom", "Angry Panel - White", "Angry Panel - Blue",
-            "Angry Panel - Green", "Angry Panel - Yellow/White",
-            "Sharp Cat - Blue", "Minimal Crescent - Blue", "Anime Iris"
-        };
-        static int referencePreset = 0;
-        if (ImGui::Combo("Reference Preset", &referencePreset,
-                         referencePresetNames,
-                         IM_ARRAYSIZE(referencePresetNames))) {
-            if (referencePreset >= 1 && referencePreset <= 4) {
-                effect.eyeShape = VLS::EyeShape::LedPanel;
-                effect.eyeExpression = VLS::EyeExpression::Angry;
-                effect.eyeExpressionPlayback = VLS::MotionPlaybackMode::Manual;
-                effect.eyeBrowStyle = VLS::EyeBrowStyle::Fierce;
-                effect.eyeBrowRed = referencePreset == 4 ? 255 : 255;
-                effect.eyeBrowGreen = referencePreset == 4 ? 225 : 92;
-                effect.eyeBrowBlue = referencePreset == 4 ? 95 : 32;
-                effect.eyeIrisRed = referencePreset == 4 ? 255 : 255;
-                effect.eyeIrisGreen = referencePreset == 4 ? 205 : 34;
-                effect.eyeIrisBlue = referencePreset == 4 ? 135 : 28;
-                effect.eyePupilRed = 3;
-                effect.eyePupilGreen = 5;
-                effect.eyePupilBlue = 8;
-                if (referencePreset == 1 || referencePreset == 4) {
-                    effect.secondaryRed = 235;
-                    effect.secondaryGreen = 245;
-                    effect.secondaryBlue = 255;
-                } else if (referencePreset == 2) {
-                    effect.secondaryRed = 35;
-                    effect.secondaryGreen = 165;
-                    effect.secondaryBlue = 255;
-                } else {
-                    effect.secondaryRed = 35;
-                    effect.secondaryGreen = 255;
-                    effect.secondaryBlue = 70;
-                }
-            } else if (referencePreset == 5) {
-                effect.eyeShape = VLS::EyeShape::Cat;
-                effect.eyeExpression = VLS::EyeExpression::Evil;
-                effect.eyeBrowStyle = VLS::EyeBrowStyle::Sharp;
-                effect.eyeBrowRed = 255; effect.eyeBrowGreen = 112; effect.eyeBrowBlue = 45;
-                effect.eyeIrisRed = 255; effect.eyeIrisGreen = 45; effect.eyeIrisBlue = 35;
-                effect.secondaryRed = 45; effect.secondaryGreen = 155; effect.secondaryBlue = 255;
-            } else if (referencePreset == 6) {
-                effect.eyeShape = VLS::EyeShape::Narrow;
-                effect.eyeExpression = VLS::EyeExpression::Neutral;
-                effect.eyeBrowStyle = VLS::EyeBrowStyle::None;
-                effect.eyeIrisRed = 20; effect.eyeIrisGreen = 155; effect.eyeIrisBlue = 255;
-                effect.secondaryRed = 35; effect.secondaryGreen = 165; effect.secondaryBlue = 255;
-            } else if (referencePreset == 7) {
-                effect.eyeShape = VLS::EyeShape::Anime;
-                effect.eyeExpression = VLS::EyeExpression::Neutral;
-                effect.eyeBrowStyle = VLS::EyeBrowStyle::Sharp;
-            }
-            if (referencePreset != 0)
-                effect.eyeMotion = VLS::EyeMotion::Idle;
-            changed = true;
-        }
-        ImGui::TextWrapped("Reference presets set geometry and LED zone palettes together. Choose Custom to edit individual controls afterward.");
+        ImGui::Text("STROBO EYES - Texture-Based Renderer");
+
         static const char* eyeShapeNames[] = {
-            "Classic", "Narrow", "Wide", "Round", "Cat Eye", "Square", "Sleep",
-            "Almond", "Diamond", "Hexagon", "Anime", "LED Panel"
+            "Original / Default / Normal", "Round", "Sleepy"
         };
         int eyeShape = static_cast<int>(effect.eyeShape);
-        if (ImGui::Combo("Eye Shape", &eyeShape, eyeShapeNames, IM_ARRAYSIZE(eyeShapeNames))) {
-            effect.eyeShape = static_cast<VLS::EyeShape>(eyeShape); changed = true;
-        }
-        static const char* eyeExpressionNames[] = {
-            "Neutral", "Happy", "Angry", "Sad", "Surprised", "Sleepy", "Love", "Evil"
-        };
-        int eyeExpression = static_cast<int>(effect.eyeExpression);
-        if (ImGui::Combo("Eye Expression", &eyeExpression,
-                         eyeExpressionNames, IM_ARRAYSIZE(eyeExpressionNames))) {
-            effect.eyeExpression = static_cast<VLS::EyeExpression>(eyeExpression);
+        if (ImGui::Combo("Eye Shape", &eyeShape,
+                         eyeShapeNames, IM_ARRAYSIZE(eyeShapeNames))) {
+            effect.eyeShape = static_cast<VLS::EyeShape>(eyeShape);
             changed = true;
         }
-        static const char* expressionPlaybackNames[] = {
+
+        ImGui::InputText("Custom Eye Texture (PPM)", g_runningTextureBuffer,
+                         sizeof(g_runningTextureBuffer));
+        if (ImGui::IsItemDeactivatedAfterEdit()) {
+            effect.textureName = g_runningTextureBuffer;
+            changed = true;
+        }
+        ImGui::TextWrapped(
+            "Custom eye artwork is sampled from the selected texture. "
+            "The shape option only masks the texture; no procedural iris, "
+            "expression, eyebrow, or motif is generated."
+        );
+
+        static const char* playbackNames[] = {
             "Manual", "Automatic", "Sequence", "Random"
         };
-        int eyeExpressionPlayback = static_cast<int>(effect.eyeExpressionPlayback);
-        if (ImGui::Combo("Expression Playback", &eyeExpressionPlayback,
-                         expressionPlaybackNames,
-                         IM_ARRAYSIZE(expressionPlaybackNames))) {
-            effect.eyeExpressionPlayback =
-                static_cast<VLS::MotionPlaybackMode>(eyeExpressionPlayback);
+        static const char* eyeMotionNames[] = {
+            "Idle", "Look Left", "Look Right", "Look Up", "Look Down",
+            "Scan", "Wink", "Shake", "Rapid Blink"
+        };
+        int eyeMotion = static_cast<int>(effect.eyeMotion);
+        if (ImGui::Combo("Eye Motion", &eyeMotion, eyeMotionNames,
+                         IM_ARRAYSIZE(eyeMotionNames))) {
+            effect.eyeMotion = static_cast<VLS::EyeMotion>(eyeMotion);
             changed = true;
         }
-        static const char* playbackNames[] = {"Manual", "Automatic", "Sequence", "Random"};
-        static const char* eyeMotionNames[] = {"Idle", "Look Left", "Look Right", "Look Up", "Look Down", "Scan", "Wink", "Shake", "Rapid Blink", "Sharingan", "Mangekyou", "Rinnegan"};
-        int eyeMotion = static_cast<int>(effect.eyeMotion);
-        if (ImGui::Combo("Eye Motion", &eyeMotion, eyeMotionNames, 12)) {
-            effect.eyeMotion = static_cast<VLS::EyeMotion>(eyeMotion); changed = true;
-        }
         int eyeMotionPlayback = static_cast<int>(effect.eyeMotionPlayback);
-        if (ImGui::Combo("Pupil Motion Playback", &eyeMotionPlayback, playbackNames, 4)) {
-            effect.eyeMotionPlayback = static_cast<VLS::MotionPlaybackMode>(eyeMotionPlayback); changed = true;
+        if (ImGui::Combo("Eye Motion Playback", &eyeMotionPlayback,
+                         playbackNames, IM_ARRAYSIZE(playbackNames))) {
+            effect.eyeMotionPlayback =
+                static_cast<VLS::MotionPlaybackMode>(eyeMotionPlayback);
+            changed = true;
         }
         if (effect.eyeMotionPlayback != VLS::MotionPlaybackMode::Manual) {
             int interval = static_cast<int>(effect.eyeMotionIntervalMs);
-            if (ImGui::SliderInt("Pupil Motion Interval (ms)", &interval, 500, 15000)) {
-                effect.eyeMotionIntervalMs = static_cast<uint32_t>(interval); changed = true;
+            if (ImGui::SliderInt("Eye Motion Interval (ms)", &interval,
+                                 500, 15000)) {
+                effect.eyeMotionIntervalMs = static_cast<uint32_t>(interval);
+                changed = true;
             }
         }
         int blinkInterval = static_cast<int>(effect.eyeBlinkIntervalMs);
         if (ImGui::SliderInt("Blink Interval (ms)", &blinkInterval, 500, 8000)) {
-            effect.eyeBlinkIntervalMs = static_cast<uint32_t>(blinkInterval); changed = true;
-        }
-        float irisColor[3] = {effect.eyeIrisRed / 255.0f, effect.eyeIrisGreen / 255.0f, effect.eyeIrisBlue / 255.0f};
-        if (ImGui::ColorEdit3("Iris Color", irisColor)) {
-            effect.eyeIrisRed = static_cast<uint8_t>(irisColor[0] * 255.0f);
-            effect.eyeIrisGreen = static_cast<uint8_t>(irisColor[1] * 255.0f);
-            effect.eyeIrisBlue = static_cast<uint8_t>(irisColor[2] * 255.0f); changed = true;
-        }
-        float panelColor[3] = {effect.secondaryRed / 255.0f, effect.secondaryGreen / 255.0f, effect.secondaryBlue / 255.0f};
-        if (ImGui::ColorEdit3("Lower LED Crescent", panelColor)) {
-            effect.secondaryRed = static_cast<uint8_t>(panelColor[0] * 255.0f);
-            effect.secondaryGreen = static_cast<uint8_t>(panelColor[1] * 255.0f);
-            effect.secondaryBlue = static_cast<uint8_t>(panelColor[2] * 255.0f);
+            effect.eyeBlinkIntervalMs = static_cast<uint32_t>(blinkInterval);
             changed = true;
         }
-        float pupilColor[3] = {effect.eyePupilRed / 255.0f, effect.eyePupilGreen / 255.0f, effect.eyePupilBlue / 255.0f};
-        if (ImGui::ColorEdit3("Pupil Color", pupilColor)) {
-            effect.eyePupilRed = static_cast<uint8_t>(pupilColor[0] * 255.0f);
-            effect.eyePupilGreen = static_cast<uint8_t>(pupilColor[1] * 255.0f);
-            effect.eyePupilBlue = static_cast<uint8_t>(pupilColor[2] * 255.0f); changed = true;
-        }
-        static const char* eyeBrowNames[] = {
-            "Off", "Natural", "Sharp", "Thick", "Arched", "Fierce", "Soft"
-        };
-        int eyeBrow = static_cast<int>(effect.eyeBrowStyle);
-        if (ImGui::Combo("Eyebrows", &eyeBrow, eyeBrowNames, IM_ARRAYSIZE(eyeBrowNames))) {
-            effect.eyeBrowStyle = static_cast<VLS::EyeBrowStyle>(eyeBrow); changed = true;
-        }
-        if (effect.eyeBrowStyle != VLS::EyeBrowStyle::None) {
-            float browColor[3] = {effect.eyeBrowRed / 255.0f, effect.eyeBrowGreen / 255.0f, effect.eyeBrowBlue / 255.0f};
-            if (ImGui::ColorEdit3("Eyebrow Color", browColor)) {
-                effect.eyeBrowRed = static_cast<uint8_t>(browColor[0] * 255.0f);
-                effect.eyeBrowGreen = static_cast<uint8_t>(browColor[1] * 255.0f);
-                effect.eyeBrowBlue = static_cast<uint8_t>(browColor[2] * 255.0f); changed = true;
-            }
-            if (ImGui::SliderFloat("Eyebrow Tilt", &effect.eyeBrowTilt, -1.0f, 1.0f)) changed = true;
-        }
-        ImGui::TextWrapped("Eye Visual selects a persistent iris motif. Selecting a motif disables Automatic Eye Transformation so the chosen Sharingan, Mangekyou, or Rinnegan remains active. Blink can briefly close the eye; expressions and gaze no longer replace the iris design.");
     } else if (effect.type == VLS::LedEffectType::RunningText) {
         ImGui::TextWrapped("Text scrolling, transitions and text patterns use dedicated text controls, separate from general LED motion patterns.");
     }
