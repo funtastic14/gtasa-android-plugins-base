@@ -325,6 +325,31 @@ bool LoadTexturePpm(const std::string& textureName, std::string& ppm) {
     return true;
 }
 
+bool LoadTexturePng(const std::string& textureName, std::string& png) {
+    png.clear();
+    if (!g_initialized || aml == nullptr || textureName.empty() || textureName.size() > 32)
+        return false;
+    for (char c : textureName) {
+        const bool valid = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+                           (c >= '0' && c <= '9') || c == '_' || c == '-';
+        if (!valid) return false;
+    }
+    char path[512];
+    const int length = std::snprintf(path, sizeof(path), "%s/%s.png",
+        g_texturesDirectory.c_str(), textureName.c_str());
+    if (length <= 0 || static_cast<size_t>(length) >= sizeof(path) || !aml->FileExists(path))
+        return false;
+    const size_t size = aml->FileSize(path);
+    if (size == 0 || size > MAX_TEXTURE_SIZE)
+        return false;
+    std::vector<char> buffer(size);
+    const int read = aml->ReadFileToBuffer(path, buffer.data(), size);
+    if (read <= 0 || static_cast<size_t>(read) > size)
+        return false;
+    png.assign(buffer.data(), static_cast<size_t>(read));
+    return true;
+}
+
 bool SaveDiagnosticText(
     const std::string& fileName,
     const std::string& text
