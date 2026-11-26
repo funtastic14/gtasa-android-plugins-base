@@ -40,10 +40,13 @@ static const uint32_t MAX_FRAME_DEPTH = 128;
 // These are hard safety ceilings, not targets; incremental scanning will
 // further reduce the amount of work performed in any single game frame.
 static const uint32_t MAX_SCAN_ATOMIC_COUNT = 128;
-static const uint32_t MAX_ATOMIC_VERTEX_COUNT = 8192;
-static const uint32_t MAX_ATOMIC_TRIANGLE_COUNT = 12000;
-static const uint64_t MAX_SCAN_TOTAL_VERTEX_COUNT = 100000;
-static const uint64_t MAX_SCAN_TOTAL_TRIANGLE_COUNT = 150000;
+// RenderWare triangle indices are 16-bit in this reader. Keep the per-mesh
+// ceiling aligned with that representation; incremental cursors bound work
+// per frame, so small DFF meshes are not rejected by arbitrary 8k/12k caps.
+static const uint32_t MAX_ATOMIC_VERTEX_COUNT = 65535;
+static const uint32_t MAX_ATOMIC_TRIANGLE_COUNT = 65535;
+static const uint64_t MAX_SCAN_TOTAL_VERTEX_COUNT = 250000;
+static const uint64_t MAX_SCAN_TOTAL_TRIANGLE_COUNT = 250000;
 static const uint32_t MAX_SCAN_MATERIAL_COUNT = 128;
 
 struct GlassPart {
@@ -229,6 +232,16 @@ static std::string ReadTextureName(const char* name) {
     while (length < 32 && name[length] != '\0')
         ++length;
     return std::string(name, length);
+}
+
+static bool IsNativeLightingTexture(const std::string& name) {
+    std::string normalized = name;
+    std::transform(normalized.begin(), normalized.end(), normalized.begin(),
+        [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    return normalized.find("vehiclelight") != std::string::npos ||
+           normalized.find("headlight") != std::string::npos ||
+           normalized.find("taillight") != std::string::npos ||
+           normalized.find("indicator") != std::string::npos;
 }
 
 static bool IsFiniteVertex(const RwV3d& vertex) {
@@ -1765,32 +1778,68 @@ bool VehicleGeometryReader::ScanIncremental(
 
                 ++state.stats.geometryCount;
 
+                // Discover material identity before testing CPU geometry
+                // availability. Native/native-instance RenderWare geometry can
+                // expose its materials even when its morph vertices are not
+                // CPU-readable; losing this metadata made lamp candidates
+                // disappear silently in the incremental path.
+                std::vector<MeshMaterialInfo> discoveredMaterials;
+                const RwInt32 materialCount =
+                    RpGeometryGetNumMaterials(geometry);
+                if (materialCount > 0 &&
+                    materialCount <= static_cast<RwInt32>(MAX_SCAN_MATERIAL_COUNT) &&
+                    geometry->matList.materials != nullptr) {
+                    discoveredMaterials.reserve(static_cast<size_t>(materialCount));
+                    for (RwInt32 i = 0; i < materialCount; ++i) {
+                        MeshMaterialInfo materialInfo;
+                        materialInfo.index = static_cast<int16_t>(i);
+                        RpMaterial* material = geometry->matList.materials[i];
+                        RwTexture* texture = material != nullptr
+                            ? RpMaterialGetTexture(material) : nullptr;
+                        if (texture != nullptr) {
+                            materialInfo.textureName =
+                                ReadTextureName(RwTextureGetName(texture));
+                            materialInfo.maskName =
+                                ReadTextureName(RwTextureGetMaskName(texture));
+                            materialInfo.raster = RwTextureGetRaster(texture);
+                        }
+                        if (IsNativeLightingTexture(materialInfo.textureName) ||
+                            IsNativeLightingTexture(materialInfo.maskName))
+                            ++state.stats.lightingMaterialCount;
+                        discoveredMaterials.push_back(std::move(materialInfo));
+                    }
+                }
+
+                const RwUInt32 flags = RpGeometryGetFlags(geometry);
+                const bool nativeGeometry =
+                    (flags & (rpGEOMETRYNATIVE |
+                              rpGEOMETRYNATIVEINSTANCE)) != 0;
+                if (nativeGeometry)
+                    ++state.stats.nativeGeometryCount;
+
                 // Empty helper atomics are legal in some vehicle DFFs.
-                // They contain no surface to render and must not reject the
-                // entire vehicle's Native RGB scan.
                 if (vertices == 0 || triangles == 0) {
                     ++state.stats.missingVertexDataCount;
                     ++state.stats.skippedNoCpuVertexCount;
                     continue;
                 }
 
+                // These are per-mesh representation/safety ceilings, not a
+                // reason to discard every other mesh on the vehicle. Reject
+                // only this geometry and continue scanning later atomics.
                 if (vertices > MAX_ATOMIC_VERTEX_COUNT ||
                     triangles > MAX_ATOMIC_TRIANGLE_COUNT ||
                     state.stats.totalVertices + vertices >
                         MAX_SCAN_TOTAL_VERTEX_COUNT ||
                     state.stats.totalTriangles + triangles >
-                        MAX_SCAN_TOTAL_TRIANGLE_COUNT)
-                    return failClosed("geometry exceeds configured vertex/triangle safety limits");
+                        MAX_SCAN_TOTAL_TRIANGLE_COUNT) {
+                    ++state.stats.skippedVertexLimitCount;
+                    continue;
+                }
 
-                state.stats.totalVertices += vertices;
-                state.stats.totalTriangles += triangles;
-                const uint32_t currentGeometryIndex = state.geometryIndex++;
-
-                const RwUInt32 flags = RpGeometryGetFlags(geometry);
                 const bool cpuVertices =
+                    !nativeGeometry &&
                     (flags & rpGEOMETRYPOSITIONS) != 0 &&
-                    (flags & (rpGEOMETRYNATIVE |
-                              rpGEOMETRYNATIVEINSTANCE)) == 0 &&
                     geometry->numMorphTargets > 0 &&
                     geometry->numMorphTargets <= 16 &&
                     geometry->morphTarget != nullptr &&
@@ -1809,6 +1858,10 @@ bool VehicleGeometryReader::ScanIncremental(
                     continue;
                 }
 
+                state.stats.totalVertices += vertices;
+                state.stats.totalTriangles += triangles;
+                const uint32_t currentGeometryIndex = state.geometryIndex++;
+
                 state.geometryIdentity =
                     reinterpret_cast<uintptr_t>(geometry);
                 state.vertexCount = vertices;
@@ -1826,34 +1879,7 @@ bool VehicleGeometryReader::ScanIncremental(
                     geometry->numTexCoordSets > 0 &&
                     geometry->numTexCoordSets <= rwMAXTEXTURECOORDS &&
                     geometry->texCoords[0] != nullptr;
-
-                const RwInt32 materialCount =
-                    RpGeometryGetNumMaterials(geometry);
-                if (materialCount > 0 &&
-                    materialCount <= static_cast<RwInt32>(MAX_SCAN_MATERIAL_COUNT) &&
-                    geometry->matList.materials != nullptr) {
-                    state.currentMesh.materials.reserve(
-                        static_cast<size_t>(materialCount)
-                    );
-                    for (RwInt32 i = 0; i < materialCount; ++i) {
-                        MeshMaterialInfo materialInfo;
-                        materialInfo.index = static_cast<int16_t>(i);
-                        RpMaterial* material = geometry->matList.materials[i];
-                        RwTexture* texture = material != nullptr
-                            ? RpMaterialGetTexture(material) : nullptr;
-                        if (texture != nullptr) {
-                            materialInfo.textureName =
-                                ReadTextureName(RwTextureGetName(texture));
-                            materialInfo.maskName =
-                                ReadTextureName(RwTextureGetMaskName(texture));
-                            materialInfo.raster = RwTextureGetRaster(texture);
-                        }
-                        state.currentMesh.materials.push_back(
-                            std::move(materialInfo)
-                        );
-                    }
-                }
-
+                state.currentMesh.materials = std::move(discoveredMaterials);
                 state.currentMesh.vertices.resize(vertices);
                 state.currentMesh.triangles.reserve(triangles);
                 state.activeAtomic = true;
