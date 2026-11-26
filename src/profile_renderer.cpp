@@ -103,8 +103,8 @@ static void HSVtoRGB(
     uint8_t& green,
     uint8_t& blue
 ) {
-    while (hue < 0.0f) hue += 360.0f;
-    while (hue >= 360.0f) hue -= 360.0f;
+    hue = std::fmod(hue, 360.0f);
+    if (hue < 0.0f) hue += 360.0f;
 
     const float c = 1.0f;
     const float x = c * (
@@ -847,7 +847,7 @@ static uint32_t RenderNativeLightsBatched(
     RwRenderStateSet(rwRENDERSTATETEXTURERASTER, nullptr);
     RwRenderStateSet(rwRENDERSTATEVERTEXALPHAENABLE, reinterpret_cast<void*>(1));
     RwRenderStateSet(rwRENDERSTATESRCBLEND, reinterpret_cast<void*>(rwBLENDSRCALPHA));
-    RwRenderStateSet(rwRENDERSTATEDESTBLEND, reinterpret_cast<void*>(rwBLENDINVSRCALPHA));
+    RwRenderStateSet(rwRENDERSTATEDESTBLEND, reinterpret_cast<void*>(rwBLENDONE));
     // Respect the vehicle depth buffer: the RGB overlay must not shine
     // through body panels. Keep depth writes disabled for transparency.
     RwRenderStateSet(rwRENDERSTATEZTESTENABLE, reinterpret_cast<void*>(1));
@@ -856,10 +856,14 @@ static uint32_t RenderNativeLightsBatched(
 
     uint32_t renderedPatches = 0;
     uint32_t batchPatchCount = 0;
-    const uint8_t alpha = ClampColor(profile.nativeLights.rgbFlowIntensity * 210.0f);
+    // Native RGB is an emissive additive overlay. Keep alpha below full
+    // saturation so the underlying GTA lamp ON/OFF texture remains visible.
+    const uint8_t alpha = ClampColor(profile.nativeLights.rgbFlowIntensity * 145.0f);
     if (stats != nullptr) stats->alpha = alpha;
-    const float flowOffset = static_cast<float>(timeMs) *
-        profile.nativeLights.rgbFlowSpeed * 0.045f;
+    const float flowOffset = std::fmod(
+        static_cast<float>(timeMs) * profile.nativeLights.rgbFlowSpeed * 0.09f,
+        360.0f
+    );
 
     const auto flushBatch = [&]() {
         if (indices.empty())
@@ -967,11 +971,11 @@ static uint32_t RenderNativeLightsBatched(
                 vehicleLocal += outward * NATIVE_RGB_SURFACE_OFFSET;
                 const CVector world = vehicleMatrix->TransformPoint(vehicleLocal);
 
-                // Two full spectral cycles across each lamp island create
-                // distinct RGB bands; the temporal offset moves the spectrum.
+                // One complete, fully saturated spectrum spans the lamp;
+                // the time phase moves it continuously along the surface.
                 const float normalizedX = (local.x - minX) / width;
                 uint8_t red = 255, green = 255, blue = 255;
-                HSVtoRGB(normalizedX * 720.0f + flowOffset, red, green, blue);
+                HSVtoRGB(normalizedX * 360.0f + flowOffset, red, green, blue);
 
                 RwIm3DVertex vertex;
                 SetVertex(vertex, world, red, green, blue, alpha);
