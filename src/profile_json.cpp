@@ -784,6 +784,15 @@ static bool ReadEffect(
                                  static_cast<int>(EyeShape::Original));
         }
     }
+    // Preserve the old dedicated Sleepy expression as the new Sleepy
+    // shape only when no explicit shape was saved.
+    if (!Find(value, "eyeShape") && Find(value, "eyeExpression")) {
+        int legacyExpression = 0;
+        if (!ReadInt(value, "eyeExpression", legacyExpression))
+            return false;
+        if (legacyExpression == 5)
+            eyeShape = static_cast<int>(EyeShape::Sleepy);
+    }
     effect.eyeShape = static_cast<EyeShape>(eyeShape);
     if (!ReadOptionalUInt32(value, "eyeBlinkIntervalMs", effect.eyeBlinkIntervalMs) ||
         effect.eyeBlinkIntervalMs < 500 || effect.eyeBlinkIntervalMs > 8000)
