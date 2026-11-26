@@ -153,6 +153,27 @@ enum class MotionPlaybackMode : uint8_t {
     Random
 };
 
+// Texture-set playback is independent from gaze/blink motion playback.
+enum class EyeTexturePlaybackMode : uint8_t {
+    Manual,
+    Automatic,
+    Sequence,
+    Random
+};
+
+struct EyeTextureDesign {
+    std::string name;
+    std::string textureName;
+    float irisCenterX = 0.50f;
+    float irisCenterY = 0.50f;
+    float irisRadiusX = 0.25f;
+    float irisRadiusY = 0.30f;
+    float pupilCenterX = 0.50f;
+    float pupilCenterY = 0.50f;
+    float pupilRadiusX = 0.10f;
+    float pupilRadiusY = 0.14f;
+};
+
 // Immutable per-frame snapshot shared by strip and matrix renderers.
 // Pattern selection and base animation phase are resolved once, not per pixel.
 struct MotionFrameState {
@@ -281,6 +302,14 @@ struct LedEffectConfig {
     MotionPlaybackMode eyeMotionPlayback = MotionPlaybackMode::Manual;
     uint32_t eyeMotionIntervalMs = 3000;
     uint32_t eyeBlinkIntervalMs = 3200;
+
+    // Multiple authored eye artworks. This controller changes designs only;
+    // gaze, blink and other eye motion remain on their own timeline.
+    std::vector<EyeTextureDesign> eyeTextures;
+    EyeTexturePlaybackMode eyeTexturePlayback = EyeTexturePlaybackMode::Manual;
+    uint8_t eyeTextureIndex = 0;
+    uint32_t eyeTextureIntervalMs = 5000;
+    std::vector<uint8_t> eyeTextureSequence;
     uint8_t eyeIrisRed = 20;
     uint8_t eyeIrisGreen = 155;
     uint8_t eyeIrisBlue = 255;
