@@ -49,7 +49,9 @@ static char g_runningTextBuffer[129] = {};
 static char g_runningFontBuffer[33] = {};
 static char g_runningTextureBuffer[33] = {};
 static char g_eyeTextureBuffer[33] = {};
+static char g_eyeDesignTextureBuffer[33] = {};
 static const VLS::LedEffectConfig* g_eyeTextureBufferEffect = nullptr;
+static const VLS::LedEffectConfig* g_eyeDesignBufferEffect = nullptr;
 static const VLS::LedEffectConfig* g_runningTextBufferEffect = nullptr;
 static const VLS::LedEffectConfig* g_runningFontBufferEffect = nullptr;
 static const VLS::LedEffectConfig* g_runningTextureBufferEffect = nullptr;
@@ -1145,7 +1147,123 @@ static void RenderEditor() {
         }
         if (g_runningTextKeyboardOpen)
             DrawTouchKeyboard(g_eyeTextureBuffer, sizeof(g_eyeTextureBuffer), effect.textureName, changed);
-        if (effect.textureName.empty()) {
+
+        // Multi-design texture set: separate from the eye movement controller above.
+        ImGui::Separator();
+        ImGui::Text("CUSTOM EYE DESIGN SET");
+        if (g_eyeDesignBufferEffect != &effect) {
+            std::memset(g_eyeDesignTextureBuffer, 0, sizeof(g_eyeDesignTextureBuffer));
+            g_eyeDesignBufferEffect = &effect;
+        }
+        if (ImGui::InputText("New Design Texture ID", g_eyeDesignTextureBuffer,
+                             sizeof(g_eyeDesignTextureBuffer))) {
+            // Texture IDs are basenames; the engine appends .png or .ppm.
+        }
+        if (ImGui::Button(g_runningTextKeyboardOpen
+                ? "Hide Design Keyboard##EyeSet" : "Open Design Keyboard##EyeSet",
+                ImVec2(230.0f, 44.0f))) {
+            g_runningTextKeyboardOpen = !g_runningTextKeyboardOpen;
+            g_touchKeyboardUppercase = false;
+        }
+        if (g_runningTextKeyboardOpen) {
+            std::string designTextureInput(g_eyeDesignTextureBuffer);
+            DrawTouchKeyboard(g_eyeDesignTextureBuffer,
+                              sizeof(g_eyeDesignTextureBuffer),
+                              designTextureInput, changed);
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Add Design") &&
+            g_eyeDesignTextureBuffer[0] != '\0' &&
+            effect.eyeTextures.size() < 32) {
+            VLS::EyeTextureDesign design;
+            design.name = g_eyeDesignTextureBuffer;
+            design.textureName = g_eyeDesignTextureBuffer;
+            effect.eyeTextures.push_back(design);
+            effect.eyeTextureIndex = static_cast<uint8_t>(effect.eyeTextures.size() - 1);
+            changed = true;
+        }
+        if (effect.eyeTextures.empty()) {
+            ImGui::TextWrapped("No design registered. Add IDs such as custom_eye1, custom_eye2; place matching PNG/PPM files in VehicleLEDSystem/textures.");
+        } else {
+            static const char* texturePlaybackNames[] = {
+                "Manual", "Automatic", "Sequence", "Random"
+            };
+            int texturePlayback = static_cast<int>(effect.eyeTexturePlayback);
+            if (ImGui::Combo("Design Playback", &texturePlayback,
+                             texturePlaybackNames, IM_ARRAYSIZE(texturePlaybackNames))) {
+                effect.eyeTexturePlayback =
+                    static_cast<VLS::EyeTexturePlaybackMode>(texturePlayback);
+                changed = true;
+            }
+            int textureInterval = static_cast<int>(effect.eyeTextureIntervalMs);
+            if (ImGui::SliderInt("Design Change Interval (ms)",
+                                 &textureInterval, 500, 30000)) {
+                effect.eyeTextureIntervalMs = static_cast<uint32_t>(textureInterval);
+                changed = true;
+            }
+            std::vector<std::string> designLabels;
+            std::vector<const char*> designLabelPointers;
+            designLabels.reserve(effect.eyeTextures.size());
+            designLabelPointers.reserve(effect.eyeTextures.size());
+            for (const VLS::EyeTextureDesign& design : effect.eyeTextures) {
+                designLabels.push_back(design.name + " (" + design.textureName + ")");
+            }
+            for (const std::string& label : designLabels)
+                designLabelPointers.push_back(label.c_str());
+            int selectedDesign = effect.eyeTextureIndex < effect.eyeTextures.size()
+                ? effect.eyeTextureIndex : 0;
+            if (ImGui::Combo("Selected Design / Manual Index", &selectedDesign,
+                             designLabelPointers.data(),
+                             static_cast<int>(designLabelPointers.size()))) {
+                effect.eyeTextureIndex = static_cast<uint8_t>(selectedDesign);
+                changed = true;
+            }
+            if (ImGui::Button("Remove Selected Design")) {
+                effect.eyeTextures.erase(effect.eyeTextures.begin() + selectedDesign);
+                if (effect.eyeTextures.empty()) {
+                    effect.eyeTextureIndex = 0;
+                    effect.eyeTextureSequence.clear();
+                } else if (effect.eyeTextureIndex >= effect.eyeTextures.size()) {
+                    effect.eyeTextureIndex = static_cast<uint8_t>(effect.eyeTextures.size() - 1);
+                }
+                changed = true;
+            }
+            if (effect.eyeTexturePlayback == VLS::EyeTexturePlaybackMode::Sequence) {
+                ImGui::TextWrapped("Sequence follows the saved index list. With an empty list it cycles through designs in registration order.");
+                if (ImGui::Button("Append Selected to Sequence") &&
+                    effect.eyeTextureSequence.size() < 32) {
+                    effect.eyeTextureSequence.push_back(static_cast<uint8_t>(selectedDesign));
+                    changed = true;
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("Remove Last Sequence Step") &&
+                    !effect.eyeTextureSequence.empty()) {
+                    effect.eyeTextureSequence.pop_back();
+                    changed = true;
+                }
+                if (!effect.eyeTextureSequence.empty()) {
+                    ImGui::Text("Sequence:");
+                    for (size_t i = 0; i < effect.eyeTextureSequence.size(); ++i) {
+                        ImGui::SameLine();
+                        ImGui::Text("%u", static_cast<unsigned int>(
+                            effect.eyeTextureSequence[i] + 1));
+                    }
+                }
+            }
+            VLS::EyeTextureDesign& selected = effect.eyeTextures[selectedDesign];
+            if (ImGui::CollapsingHeader("Selected Design UV Mapping")) {
+                changed |= ImGui::SliderFloat("Design Iris Center X", &selected.irisCenterX, 0.0f, 1.0f);
+                changed |= ImGui::SliderFloat("Design Iris Center Y", &selected.irisCenterY, 0.0f, 1.0f);
+                changed |= ImGui::SliderFloat("Design Iris Radius X", &selected.irisRadiusX, 0.02f, 0.50f);
+                changed |= ImGui::SliderFloat("Design Iris Radius Y", &selected.irisRadiusY, 0.02f, 0.50f);
+                changed |= ImGui::SliderFloat("Design Pupil Center X", &selected.pupilCenterX, 0.0f, 1.0f);
+                changed |= ImGui::SliderFloat("Design Pupil Center Y", &selected.pupilCenterY, 0.0f, 1.0f);
+                changed |= ImGui::SliderFloat("Design Pupil Radius X", &selected.pupilRadiusX, 0.01f, 0.30f);
+                changed |= ImGui::SliderFloat("Design Pupil Radius Y", &selected.pupilRadiusY, 0.01f, 0.30f);
+            }
+        }
+
+        if (effect.textureName.empty() && effect.eyeTextures.empty()) {
             float irisColor[3] = {
                 effect.eyeIrisRed / 255.0f, effect.eyeIrisGreen / 255.0f,
                 effect.eyeIrisBlue / 255.0f
@@ -1305,7 +1423,7 @@ static void RenderEditor() {
     }
 
     if (effect.type != VLS::LedEffectType::StroboEyes ||
-        effect.textureName.empty()) {
+        (effect.textureName.empty() && effect.eyeTextures.empty())) {
         float effectColor[3] = {
             effect.red / 255.0f,
             effect.green / 255.0f,
