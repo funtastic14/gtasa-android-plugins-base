@@ -117,6 +117,7 @@ struct TextureCacheEntry {
     std::vector<uint8_t> pixels;
     uint16_t width = 0;
     uint16_t height = 0;
+    uint32_t lastAttemptMs = 0;
     bool valid = false;
 };
 
@@ -144,7 +145,15 @@ void ApplyCustomTexture(
     for (size_t i = 0; i < 2; ++i) {
         if (cache[i].name == effect.textureName) {
             entry = &cache[i];
-            break;
+            // A missing/temporarily unreadable file is not retried per pixel.
+            // Retry at most once every 3 seconds so adding a texture at runtime
+            // can recover without causing repeated filesystem reads.
+            if (!entry->valid && timeMs - entry->lastAttemptMs >= 3000u) {
+                entry->name.clear();
+                entry = nullptr;
+            } else {
+                break;
+            }
         }
     }
     if (entry == nullptr) {
@@ -153,6 +162,7 @@ void ApplyCustomTexture(
         entry->valid = false;
         entry->width = entry->height = 0;
         entry->pixels.clear();
+        entry->lastAttemptMs = timeMs;
 
         std::string data, token;
         if (ProfileStorage::LoadTexturePng(effect.textureName, data) &&
