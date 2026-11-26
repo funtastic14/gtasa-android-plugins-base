@@ -49,9 +49,7 @@ static char g_runningTextBuffer[129] = {};
 static char g_runningFontBuffer[33] = {};
 static char g_runningTextureBuffer[33] = {};
 static char g_eyeTextureBuffer[33] = {};
-static char g_eyeDesignTextureBuffer[33] = {};
 static const VLS::LedEffectConfig* g_eyeTextureBufferEffect = nullptr;
-static const VLS::LedEffectConfig* g_eyeDesignBufferEffect = nullptr;
 static const VLS::LedEffectConfig* g_runningTextBufferEffect = nullptr;
 static const VLS::LedEffectConfig* g_runningFontBufferEffect = nullptr;
 static const VLS::LedEffectConfig* g_runningTextureBufferEffect = nullptr;
@@ -1148,39 +1146,24 @@ static void RenderEditor() {
         if (g_runningTextKeyboardOpen)
             DrawTouchKeyboard(g_eyeTextureBuffer, sizeof(g_eyeTextureBuffer), effect.textureName, changed);
 
-        // Multi-design texture set: separate from the eye movement controller above.
+        // Multi-design texture set: independent from the gaze/blink controller.
         ImGui::Separator();
         ImGui::Text("CUSTOM EYE DESIGN SET");
-        if (g_eyeDesignBufferEffect != &effect) {
-            std::memset(g_eyeDesignTextureBuffer, 0, sizeof(g_eyeDesignTextureBuffer));
-            g_eyeDesignBufferEffect = &effect;
-        }
-        if (ImGui::InputText("New Design Texture ID", g_eyeDesignTextureBuffer,
-                             sizeof(g_eyeDesignTextureBuffer))) {
-            // Texture IDs are basenames; the engine appends .png or .ppm.
-        }
-        if (ImGui::Button(g_runningTextKeyboardOpen
-                ? "Hide Design Keyboard##EyeSet" : "Open Design Keyboard##EyeSet",
-                ImVec2(230.0f, 44.0f))) {
-            g_runningTextKeyboardOpen = !g_runningTextKeyboardOpen;
-            g_touchKeyboardUppercase = false;
-        }
-        if (g_runningTextKeyboardOpen) {
-            std::string designTextureInput(g_eyeDesignTextureBuffer);
-            DrawTouchKeyboard(g_eyeDesignTextureBuffer,
-                              sizeof(g_eyeDesignTextureBuffer),
-                              designTextureInput, changed);
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Add Design") &&
-            g_eyeDesignTextureBuffer[0] != '\0' &&
-            effect.eyeTextures.size() < 32) {
-            VLS::EyeTextureDesign design;
-            design.name = g_eyeDesignTextureBuffer;
-            design.textureName = g_eyeDesignTextureBuffer;
-            effect.eyeTextures.push_back(design);
-            effect.eyeTextureIndex = static_cast<uint8_t>(effect.eyeTextures.size() - 1);
-            changed = true;
+        ImGui::TextWrapped("Enter a texture ID in the Custom Eye Texture field above, then register it here. Example: custom_eye1, custom_eye2. The existing virtual keyboard works for this field.");
+        if (ImGui::Button("Register Current Texture as Design") &&
+            !effect.textureName.empty() && effect.eyeTextures.size() < 32) {
+            bool alreadyRegistered = false;
+            for (const VLS::EyeTextureDesign& item : effect.eyeTextures)
+                if (item.textureName == effect.textureName)
+                    alreadyRegistered = true;
+            if (!alreadyRegistered) {
+                VLS::EyeTextureDesign design;
+                design.name = effect.textureName;
+                design.textureName = effect.textureName;
+                effect.eyeTextures.push_back(design);
+                effect.eyeTextureIndex = static_cast<uint8_t>(effect.eyeTextures.size() - 1);
+                changed = true;
+            }
         }
         if (effect.eyeTextures.empty()) {
             ImGui::TextWrapped("No design registered. Add IDs such as custom_eye1, custom_eye2; place matching PNG/PPM files in VehicleLEDSystem/textures.");
