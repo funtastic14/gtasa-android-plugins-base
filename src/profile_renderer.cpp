@@ -816,174 +816,184 @@ static bool RenderEffect(
 }
 
 
-static bool RenderNativeLightPatch(
+static uint32_t RenderNativeLightsBatched(
     CVehicle* vehicle,
     const VehicleProfile& profile,
-    const SurfacePatch& patch,
-    const AtomicMesh& mesh,
+    const std::vector<AtomicMesh>& meshes,
+    const std::vector<SurfacePatch>& patches,
     uint32_t timeMs,
     NativeLightRenderStats* stats
 ) {
-    if (vehicle == nullptr || patch.role != SurfaceRoleCandidate::Lighting ||
-        mesh.vertices.empty() ||
-        mesh.vehicleSpaceVertices.size() != mesh.vertices.size() ||
-        mesh.vertices.size() > 65535u || patch.triangleIndices.empty()) {
-        if (stats != nullptr) ++stats->invalidGeometry;
-        return false;
-    }
-
-    const bool front = patch.centroid.y > 0.25f;
-    const bool rear = patch.centroid.y < -0.25f;
-    if (front && stats != nullptr) ++stats->frontPatches;
-    if (rear && stats != nullptr) ++stats->rearPatches;
-    if ((!front || !profile.nativeLights.rgbHeadlightsEnabled) &&
-        (!rear || !profile.nativeLights.rgbTaillightsEnabled)) {
-        if (stats != nullptr) ++stats->sideDisabled;
-        return false;
-    }
-
-    // The patch already carries the source material index and its triangles.
-    // Material metadata is optional in some imported DFFs; requiring a copied
-    // RpMaterial record here silently suppresses otherwise valid lamp geometry.
+    if (vehicle == nullptr || meshes.empty() || patches.empty())
+        return 0;
 
     CMatrix* vehicleMatrix = vehicle->GetMatrix();
     if (vehicleMatrix == nullptr) {
         if (stats != nullptr) ++stats->missingVehicleMatrix;
-        return false;
+        return 0;
     }
 
-    // The gradient must span this lamp material patch, not the whole atomic.
-    const float minX = patch.minBounds.x;
-    const float maxX = patch.maxBounds.x;
-    const float width = std::max(0.001f, maxX - minX);
-    const float flowOffset = static_cast<float>(timeMs) *
-        profile.nativeLights.rgbFlowSpeed * 0.045f;
-
-    // A lamp patch usually uses only a small fraction of its parent atomic.
-    // Transform only vertices referenced by this patch; transforming the whole
-    // vehicle mesh for every patch on every frame caused severe mobile FPS loss.
+    // One reusable batch replaces a separate RenderWare transform/draw call
+    // for every lamp island. Keep each batch below the 16-bit index ceiling.
     static std::vector<RwIm3DVertex> vertices;
     static std::vector<RwImVertexIndex> indices;
-    static std::vector<uint16_t> remap;
-    static std::vector<uint32_t> touchedVertices;
+    constexpr size_t MAX_BATCH_VERTICES = 60000u;
+    if (vertices.capacity() < 24000u) vertices.reserve(24000u);
+    if (indices.capacity() < 24000u) indices.reserve(24000u);
     vertices.clear();
     indices.clear();
-    touchedVertices.clear();
-    const size_t requestedIndices = patch.triangleIndices.size() * 3u;
-    if (indices.capacity() < requestedIndices)
-        indices.reserve(requestedIndices);
-    if (remap.size() < mesh.vertices.size())
-        remap.resize(mesh.vertices.size(), 0xFFFFu);
-
-    const uint8_t alpha = ClampColor(profile.nativeLights.rgbFlowIntensity * 210.0f);
-    if (stats != nullptr) stats->alpha = alpha;
-    CVector outward(patch.normal.x, patch.normal.y, patch.normal.z);
-    const float normalLength = std::sqrt(DotProduct(outward, outward));
-    if (normalLength > 0.0001f) {
-        outward = outward * (1.0f / normalLength);
-        const CVector center(patch.centroid.x, patch.centroid.y, patch.centroid.z);
-        if (DotProduct(outward, center) < 0.0f)
-            outward = outward * -1.0f;
-    } else {
-        // Some imported lamp meshes have inconsistent triangle winding,
-        // producing a near-zero averaged normal. Use the vehicle longitudinal
-        // direction as a stable outward fallback for front/rear lamp islands.
-        outward = CVector(0.0f, front ? 1.0f : -1.0f, 0.0f);
-    }
-
-    for (uint32_t triangleIndex : patch.triangleIndices) {
-        if (triangleIndex >= mesh.triangles.size())
-            continue;
-        const GeometryTriangle& triangle = mesh.triangles[triangleIndex];
-        if (triangle.materialIndex != patch.materialIndex ||
-            triangle.a >= mesh.vertices.size() ||
-            triangle.b >= mesh.vertices.size() ||
-            triangle.c >= mesh.vertices.size()) {
-            continue;
-        }
-
-        if (stats != nullptr) ++stats->validTriangles;
-        const uint16_t sourceIndices[3] = {triangle.a, triangle.b, triangle.c};
-        for (uint16_t sourceIndex : sourceIndices) {
-            if (remap[sourceIndex] == 0xFFFFu) {
-                if (vertices.size() >= 65535u)
-                    continue;
-                const GeometryVertex& source = mesh.vertices[sourceIndex];
-                const GeometryVertex& local = mesh.vehicleSpaceVertices[sourceIndex];
-                CVector vehicleLocal(local.x, local.y, local.z);
-                // Keep the overlay nearly coplanar with the original lamp surface.
-                // A large normal offset made the RGB layer visibly float outside it.
-                vehicleLocal += outward * NATIVE_RGB_SURFACE_OFFSET;
-                const CVector world = vehicleMatrix->TransformPoint(vehicleLocal);
-                const float normalizedX = (local.x - minX) / width;
-                uint8_t red = 255, green = 255, blue = 255;
-                HSVtoRGB(normalizedX * 360.0f + flowOffset, red, green, blue);
-                RwIm3DVertex vertex;
-                SetVertex(vertex, world, red, green, blue, alpha);
-                vertex.u = source.u;
-                vertex.v = source.v;
-                remap[sourceIndex] = static_cast<uint16_t>(vertices.size());
-                touchedVertices.push_back(sourceIndex);
-                vertices.push_back(vertex);
-            }
-            indices.push_back(static_cast<RwImVertexIndex>(remap[sourceIndex]));
-        }
-    }
-
-    for (uint32_t sourceIndex : touchedVertices)
-        remap[sourceIndex] = 0xFFFFu;
-    if (indices.empty()) {
-        if (stats != nullptr) ++stats->emptyTriangleOutput;
-        return false;
-    }
-
-    if (stats != nullptr) {
-        stats->submittedVertices += static_cast<uint32_t>(vertices.size());
-        stats->submittedIndices += static_cast<uint32_t>(indices.size());
-    }
 
     RenderStateGuard stateGuard;
-    // Do not sample vehiclelightson128 here: its alpha may be fully transparent
-    // or vehicle-specific, hiding the entire RGB overlay. The classified lamp
-    // geometry itself is the rendering mask.
     RwRenderStateSet(rwRENDERSTATETEXTURERASTER, nullptr);
     RwRenderStateSet(rwRENDERSTATEVERTEXALPHAENABLE, reinterpret_cast<void*>(1));
     RwRenderStateSet(rwRENDERSTATESRCBLEND, reinterpret_cast<void*>(rwBLENDSRCALPHA));
     RwRenderStateSet(rwRENDERSTATEDESTBLEND, reinterpret_cast<void*>(rwBLENDINVSRCALPHA));
-    // Native RGB is deliberately allowed to pass through glass/alpha layers.
-    // The overlay is already restricted to classified lamp triangles, so do
-    // not let a transparent windshield/window depth value suppress the lamp.
-    // Keep depth writes disabled and disable face culling as imported DFF
-    // triangle winding is inconsistent across vehicle mods.
-    RwRenderStateSet(rwRENDERSTATEZTESTENABLE, reinterpret_cast<void*>(0));
+    // Respect the vehicle depth buffer: the RGB overlay must not shine
+    // through body panels. Keep depth writes disabled for transparency.
+    RwRenderStateSet(rwRENDERSTATEZTESTENABLE, reinterpret_cast<void*>(1));
     RwRenderStateSet(rwRENDERSTATEZWRITEENABLE, reinterpret_cast<void*>(0));
     RwRenderStateSet(rwRENDERSTATECULLMODE, reinterpret_cast<void*>(rwCULLMODECULLNONE));
 
-    const RwUInt32 flags =
-        rwIM3D_VERTEXXYZ | rwIM3D_VERTEXRGBA;
-    if (RwIm3DTransform(
-            vertices.data(),
-            static_cast<RwUInt32>(vertices.size()),
-            nullptr,
-            flags
-        ) == nullptr) {
-        if (stats != nullptr) ++stats->transformFailed;
-        return false;
+    uint32_t renderedPatches = 0;
+    uint32_t batchPatchCount = 0;
+    const uint8_t alpha = ClampColor(profile.nativeLights.rgbFlowIntensity * 210.0f);
+    if (stats != nullptr) stats->alpha = alpha;
+    const float flowOffset = static_cast<float>(timeMs) *
+        profile.nativeLights.rgbFlowSpeed * 0.045f;
+
+    const auto flushBatch = [&]() {
+        if (indices.empty())
+            return;
+
+        const RwUInt32 flags = rwIM3D_VERTEXXYZ | rwIM3D_VERTEXRGBA;
+        if (RwIm3DTransform(
+                vertices.data(),
+                static_cast<RwUInt32>(vertices.size()),
+                nullptr,
+                flags
+            ) == nullptr) {
+            if (stats != nullptr) ++stats->transformFailed;
+        } else {
+            const bool ok = RwIm3DRenderIndexedPrimitive(
+                rwPRIMTYPETRILIST,
+                indices.data(),
+                static_cast<RwUInt32>(indices.size())
+            );
+            RwIm3DEnd();
+            if (ok) {
+                renderedPatches += batchPatchCount;
+            } else if (stats != nullptr) {
+                ++stats->drawFailed;
+            }
+        }
+        vertices.clear();
+        indices.clear();
+        batchPatchCount = 0;
+    };
+
+    for (const SurfacePatch& patch : patches) {
+        if (patch.role != SurfaceRoleCandidate::Lighting)
+            continue;
+        if (stats != nullptr) ++stats->lightingPatches;
+
+        const bool front = patch.centroid.y > 0.25f;
+        const bool rear = patch.centroid.y < -0.25f;
+        if (front && stats != nullptr) ++stats->frontPatches;
+        if (rear && stats != nullptr) ++stats->rearPatches;
+        if ((!front || !profile.nativeLights.rgbHeadlightsEnabled) &&
+            (!rear || !profile.nativeLights.rgbTaillightsEnabled)) {
+            if (stats != nullptr) ++stats->sideDisabled;
+            continue;
+        }
+
+        const auto meshIt = std::find_if(
+            meshes.begin(), meshes.end(),
+            [&patch](const AtomicMesh& mesh) {
+                return mesh.atomicIndex == patch.atomicIndex;
+            }
+        );
+        if (meshIt == meshes.end()) {
+            if (stats != nullptr) ++stats->missingMesh;
+            continue;
+        }
+        const AtomicMesh& mesh = *meshIt;
+        if (mesh.vertices.empty() ||
+            mesh.vehicleSpaceVertices.size() != mesh.vertices.size() ||
+            mesh.vertices.size() > 65535u ||
+            patch.triangleIndices.empty()) {
+            if (stats != nullptr) ++stats->invalidGeometry;
+            continue;
+        }
+
+        const float minX = patch.minBounds.x;
+        const float width = std::max(0.001f, patch.maxBounds.x - minX);
+        CVector outward(patch.normal.x, patch.normal.y, patch.normal.z);
+        const float normalLength = std::sqrt(DotProduct(outward, outward));
+        if (normalLength > 0.0001f) {
+            outward = outward * (1.0f / normalLength);
+            const CVector center(patch.centroid.x, patch.centroid.y, patch.centroid.z);
+            if (DotProduct(outward, center) < 0.0f)
+                outward = outward * -1.0f;
+        } else {
+            outward = CVector(0.0f, front ? 1.0f : -1.0f, 0.0f);
+        }
+
+        bool patchAdded = false;
+        for (uint32_t triangleIndex : patch.triangleIndices) {
+            if (triangleIndex >= mesh.triangles.size())
+                continue;
+            const GeometryTriangle& triangle = mesh.triangles[triangleIndex];
+            if (triangle.materialIndex != patch.materialIndex ||
+                triangle.a >= mesh.vertices.size() ||
+                triangle.b >= mesh.vertices.size() ||
+                triangle.c >= mesh.vertices.size())
+                continue;
+
+            if (stats != nullptr) ++stats->validTriangles;
+            if (vertices.size() + 3u > MAX_BATCH_VERTICES)
+                flushBatch();
+
+            const uint16_t sourceIndices[3] = {
+                triangle.a, triangle.b, triangle.c
+            };
+            for (uint16_t sourceIndex : sourceIndices) {
+                const GeometryVertex& source = mesh.vertices[sourceIndex];
+                const GeometryVertex& local = mesh.vehicleSpaceVertices[sourceIndex];
+                CVector vehicleLocal(local.x, local.y, local.z);
+                vehicleLocal += outward * NATIVE_RGB_SURFACE_OFFSET;
+                const CVector world = vehicleMatrix->TransformPoint(vehicleLocal);
+
+                // Two full spectral cycles across each lamp island create
+                // distinct RGB bands; the temporal offset moves the spectrum.
+                const float normalizedX = (local.x - minX) / width;
+                uint8_t red = 255, green = 255, blue = 255;
+                HSVtoRGB(normalizedX * 720.0f + flowOffset, red, green, blue);
+
+                RwIm3DVertex vertex;
+                SetVertex(vertex, world, red, green, blue, alpha);
+                vertex.u = source.u;
+                vertex.v = source.v;
+                const RwImVertexIndex next =
+                    static_cast<RwImVertexIndex>(vertices.size());
+                vertices.push_back(vertex);
+                indices.push_back(next);
+            }
+            patchAdded = true;
+        }
+        if (patchAdded)
+            ++batchPatchCount;
+        if (stats != nullptr) {
+            stats->submittedVertices += static_cast<uint32_t>(
+                patchAdded ? patch.triangleIndices.size() * 3u : 0u
+            );
+        }
     }
 
-    const bool rendered = RwIm3DRenderIndexedPrimitive(
-        rwPRIMTYPETRILIST,
-        indices.data(),
-        static_cast<RwUInt32>(indices.size())
-    );
-    RwIm3DEnd();
-    if (stats != nullptr) {
-        if (rendered) ++stats->renderedPatches;
-        else ++stats->drawFailed;
-    }
-    return rendered;
+    flushBatch();
+    if (stats != nullptr)
+        stats->renderedPatches += renderedPatches;
+    return renderedPatches;
 }
-
 } // namespace
 
 
@@ -1004,25 +1014,9 @@ uint32_t ProfileRenderer::RenderNativeLights(
         return 0;
 
     const uint32_t timeMs = static_cast<uint32_t>(CTimer::GetTimeInMS());
-    uint32_t rendered = 0;
-    for (const SurfacePatch& patch : patches) {
-        if (patch.role != SurfaceRoleCandidate::Lighting)
-            continue;
-        if (stats != nullptr) ++stats->lightingPatches;
-        const auto meshIt = std::find_if(
-            meshes.begin(), meshes.end(),
-            [&patch](const AtomicMesh& mesh) {
-                return mesh.atomicIndex == patch.atomicIndex;
-            }
-        );
-        if (meshIt == meshes.end()) {
-            if (stats != nullptr) ++stats->missingMesh;
-            continue;
-        }
-        if (RenderNativeLightPatch(vehicle, profile, patch, *meshIt, timeMs, stats))
-            ++rendered;
-    }
-    return rendered;
+    return RenderNativeLightsBatched(
+        vehicle, profile, meshes, patches, timeMs, stats
+    );
 }
 
 uint32_t ProfileRenderer::RenderVehicleProfile(
