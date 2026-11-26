@@ -919,6 +919,20 @@ static bool ReadEffect(
                 !ReadOptionalFloat(item, "pupilRadiusX", design.pupilRadiusX) ||
                 !ReadOptionalFloat(item, "pupilRadiusY", design.pupilRadiusY))
                 return false;
+            if (Find(item, "mappingConfigured") != nullptr) {
+                if (!ReadBool(item, "mappingConfigured", design.mappingConfigured))
+                    return false;
+            } else {
+                design.mappingConfigured =
+                    Find(item, "irisCenterX") != nullptr ||
+                    Find(item, "irisCenterY") != nullptr ||
+                    Find(item, "irisRadiusX") != nullptr ||
+                    Find(item, "irisRadiusY") != nullptr ||
+                    Find(item, "pupilCenterX") != nullptr ||
+                    Find(item, "pupilCenterY") != nullptr ||
+                    Find(item, "pupilRadiusX") != nullptr ||
+                    Find(item, "pupilRadiusY") != nullptr;
+            }
             const float values[] = {
                 design.irisCenterX, design.irisCenterY,
                 design.irisRadiusX, design.irisRadiusY,
@@ -1501,6 +1515,8 @@ static bool AppendEffect(
         if (!AppendJsonString(output, design.name)) return false;
         output += ",\"textureName\":";
         if (!AppendJsonString(output, design.textureName)) return false;
+        output += ",\"mappingConfigured\":";
+        output += design.mappingConfigured ? "true" : "false";
         output += ",\"irisCenterX\":";
         if (!AppendFloat(output, design.irisCenterX)) return false;
         output += ",\"irisCenterY\":";
