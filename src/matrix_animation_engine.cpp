@@ -249,10 +249,55 @@ void ApplyCustomTexture(
         case EyeMotion::Wink:
         default: break;
         }
-        localU = Clamp01(localU - gazeX * 0.16f);
+        // Use profile metadata to move the iris and pupil inside the
+        // stationary sclera. If the art is flattened, the user can tune these
+        // normalized regions without supplying extra animation-frame images.
+        float sampleLocalU = localU;
+        float sampleV = v;
+        const float irisRadiusX = effect.eyeTextureIrisRadiusX;
+        const float irisRadiusY = effect.eyeTextureIrisRadiusY;
+        const float pupilRadiusX = effect.eyeTexturePupilRadiusX;
+        const float pupilRadiusY = effect.eyeTexturePupilRadiusY;
+        const float pupilDx =
+            (localU - effect.eyeTexturePupilCenterX) / pupilRadiusX;
+        const float pupilDy =
+            (v - effect.eyeTexturePupilCenterY) / pupilRadiusY;
+        const bool insidePupil = pupilDx * pupilDx + pupilDy * pupilDy <= 1.0f;
+        const float irisDx =
+            (localU - effect.eyeTextureIrisCenterX) / irisRadiusX;
+        const float irisDy =
+            (v - effect.eyeTextureIrisCenterY) / irisRadiusY;
+        const bool insideIris = irisDx * irisDx + irisDy * irisDy <= 1.0f;
+
+        if (insidePupil) {
+            sampleLocalU -= gazeX * pupilRadiusX;
+            sampleV -= gazeY * pupilRadiusY;
+            sampleLocalU = std::max(
+                effect.eyeTexturePupilCenterX - pupilRadiusX,
+                std::min(effect.eyeTexturePupilCenterX + pupilRadiusX, sampleLocalU)
+            );
+            sampleV = std::max(
+                effect.eyeTexturePupilCenterY - pupilRadiusY,
+                std::min(effect.eyeTexturePupilCenterY + pupilRadiusY, sampleV)
+            );
+        } else if (insideIris) {
+            sampleLocalU -= gazeX * irisRadiusX * 0.82f;
+            sampleV -= gazeY * irisRadiusY * 0.82f;
+            sampleLocalU = std::max(
+                effect.eyeTextureIrisCenterX - irisRadiusX,
+                std::min(effect.eyeTextureIrisCenterX + irisRadiusX, sampleLocalU)
+            );
+            sampleV = std::max(
+                effect.eyeTextureIrisCenterY - irisRadiusY,
+                std::min(effect.eyeTextureIrisCenterY + irisRadiusY, sampleV)
+            );
+        }
+
+        localU = Clamp01(sampleLocalU);
         u = leftEye ? localU * 0.5f : 0.5f + localU * 0.5f;
-        v = 0.5f + (v - 0.5f) * (1.0f - Clamp01(blinkAmount) * 0.92f);
-        v = Clamp01(v - gazeY * 0.12f);
+        v = 0.5f + (sampleV - 0.5f) *
+            (1.0f - Clamp01(blinkAmount) * 0.92f);
+        v = Clamp01(v);
     }
 
     // Bilinear filtering prevents visible stepping as the static artwork moves.
