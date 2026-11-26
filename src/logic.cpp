@@ -1218,9 +1218,11 @@ static void RenderEditor() {
                 } else if (effect.eyeTextureIndex >= effect.eyeTextures.size()) {
                     effect.eyeTextureIndex = static_cast<uint8_t>(effect.eyeTextures.size() - 1);
                 }
+                selectedDesign = effect.eyeTextureIndex;
                 changed = true;
             }
-            if (effect.eyeTexturePlayback == VLS::EyeTexturePlaybackMode::Sequence) {
+            if (!effect.eyeTextures.empty() &&
+                effect.eyeTexturePlayback == VLS::EyeTexturePlaybackMode::Sequence) {
                 ImGui::TextWrapped("Sequence follows the saved index list. With an empty list it cycles through designs in registration order.");
                 if (ImGui::Button("Append Selected to Sequence") &&
                     effect.eyeTextureSequence.size() < 32) {
