@@ -164,6 +164,7 @@ enum class EyeTexturePlaybackMode : uint8_t {
 struct EyeTextureDesign {
     std::string name;
     std::string textureName;
+    bool mappingConfigured = false;
     float irisCenterX = 0.50f;
     float irisCenterY = 0.50f;
     float irisRadiusX = 0.25f;
