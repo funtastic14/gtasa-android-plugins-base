@@ -1,9 +1,9 @@
 # VLS Matrix Textures
 
-Custom matrix textures use ASCII PPM P3 files (RGB, no alpha), maximum dimensions 128x128.
+Custom matrix textures support transparent RGBA PNG files and ASCII PPM P3 files, with maximum dimensions of 128x128.
 
-Install as `VehicleLEDSystem/textures/<texture-name>.ppm`, then select Running Text and enter the filename without extension in **Texture Name**. Names may contain letters, digits, underscore, and hyphen, up to 32 characters.
+Install as `VehicleLEDSystem/textures/<texture-name>.png` or `.ppm`, then enter the filename without extension in the effect's texture field. Names may contain letters, digits, underscore and hyphen, up to 32 characters.
 
-The texture is scaled to the LED matrix and colors only pixels that are already lit by the selected text motion/font. It does not change text geometry or movement. The renderer caches the decoded bitmap; it does not read files per pixel.
+PNG is loaded first and preserves its alpha channel. PPM P3 is supported as an opaque RGB fallback. The renderer scales the bitmap to the LED matrix and samples it only for pixels already enabled by the selected effect. Decoded images are cached; files are not read during per-pixel rendering.
 
-`demo.ppm` is an included 24x7 rainbow sample.
+The included `demo.ppm` remains a 24x7 rainbow sample. Strobo Eyes can use a complete two-eye transparent PNG as its artwork; see `eyes/README.md`.
