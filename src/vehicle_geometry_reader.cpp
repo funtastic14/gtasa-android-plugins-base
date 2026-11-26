@@ -812,14 +812,20 @@ static std::string SurfaceRoleHint(const AtomicGeometryInfo& info, const GlassPa
         contains(frameName, "lamp") || contains(frameName, "light") ||
         contains(frameName, "headlight") || contains(frameName, "taillight") ||
         contains(frameName, "indicator") || contains(frameName, "signal");
-    // These are the exact lamp texture names used by converted/modded DFFs.
-    // A texture match alone is not enough: some body materials reuse the
-    // same atlas, so require a compact front/rear surface island as well.
+    // GTA vehicle mods commonly append vehicle/model identifiers to the
+    // standard lamp atlas name (for example vehiclelights128_solair or
+    // vehiclelights128_greenwoo). Accept only the known atlas base followed
+    // by end-of-name or an underscore; do not match arbitrary body textures.
+    const auto isLampAtlasVariant = [](const std::string& name) {
+        return name == "vehiclelights128" ||
+               name.compare(0, 16, "vehiclelights128") == 0 &&
+                   (name.size() == 16u || name[16] == '_') ||
+               name == "vehiclelightson128" ||
+               name.compare(0, 19, "vehiclelightson128") == 0 &&
+                   (name.size() == 19u || name[19] == '_');
+    };
     const bool nativeLampTexture =
-        textureName == "vehiclelights128" ||
-        textureName == "vehiclelightson128" ||
-        maskName == "vehiclelights128" ||
-        maskName == "vehiclelightson128";
+        isLampAtlasVariant(textureName) || isLampAtlasVariant(maskName);
     const float ax = std::fabs(part.nx);
     const float ay = std::fabs(part.ny);
     const float az = std::fabs(part.nz);
