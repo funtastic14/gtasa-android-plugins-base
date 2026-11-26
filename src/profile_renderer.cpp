@@ -856,7 +856,10 @@ static uint32_t RenderNativeLightsBatched(
     RwRenderStateSet(rwRENDERSTATETEXTURERASTER, nullptr);
     RwRenderStateSet(rwRENDERSTATEVERTEXALPHAENABLE, reinterpret_cast<void*>(1));
     RwRenderStateSet(rwRENDERSTATESRCBLEND, reinterpret_cast<void*>(rwBLENDSRCALPHA));
-    RwRenderStateSet(rwRENDERSTATEDESTBLEND, reinterpret_cast<void*>(rwBLENDONE));
+    // Use color-preserving alpha blending instead of additive blending.
+    // Additive blending combines the bright native lamp texture with RGB
+    // and washes saturated hues toward white (opal/pearl appearance).
+    RwRenderStateSet(rwRENDERSTATEDESTBLEND, reinterpret_cast<void*>(rwBLENDINVSRCALPHA));
     // Respect the vehicle depth buffer: the RGB overlay must not shine
     // through body panels. Keep depth writes disabled for transparency.
     RwRenderStateSet(rwRENDERSTATEZTESTENABLE, reinterpret_cast<void*>(1));
@@ -865,9 +868,10 @@ static uint32_t RenderNativeLightsBatched(
 
     uint32_t renderedPatches = 0;
     uint32_t batchPatchCount = 0;
-    // Native RGB is an emissive additive overlay. Keep alpha below full
-    // saturation so the underlying GTA lamp ON/OFF texture remains visible.
-    const uint8_t alpha = ClampColor(profile.nativeLights.rgbFlowIntensity * 145.0f);
+    // Keep a small contribution from the original GTA lamp texture while
+    // prioritizing the saturated RGB hue. Alpha blending avoids the white
+    // color buildup caused by additive blending over bright lamp textures.
+    const uint8_t alpha = ClampColor(profile.nativeLights.rgbFlowIntensity * 220.0f);
     if (stats != nullptr) stats->alpha = alpha;
     const float flowOffset = std::fmod(
         static_cast<float>(timeMs) * profile.nativeLights.rgbFlowSpeed * 0.09f,
