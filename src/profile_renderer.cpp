@@ -948,9 +948,9 @@ static uint32_t RenderNativeLightsBatched(
 
         bool patchAdded = false;
         for (uint32_t triangleIndex : patch.triangleIndices) {
-            if (triangleIndex >= mesh.triangles.size())
+            if (triangleIndex >= mesh->triangles.size())
                 continue;
-            const GeometryTriangle& triangle = mesh.triangles[triangleIndex];
+            const GeometryTriangle& triangle = mesh->triangles[triangleIndex];
             if (triangle.materialIndex != patch.materialIndex ||
                 triangle.a >= mesh.vertices.size() ||
                 triangle.b >= mesh.vertices.size() ||
