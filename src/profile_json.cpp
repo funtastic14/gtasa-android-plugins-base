@@ -872,6 +872,92 @@ static bool ReadEffect(
         effect.eyeTexturePupilRadiusY < 0.01f || effect.eyeTexturePupilRadiusY > 0.30f)
         return false;
 
+    // Texture selection is a separate controller from eye gaze playback.
+    int texturePlayback = static_cast<int>(effect.eyeTexturePlayback);
+    if (Find(value, "eyeTexturePlayback") &&
+        (!ReadInt(value, "eyeTexturePlayback", texturePlayback) ||
+         texturePlayback < 0 ||
+         texturePlayback > static_cast<int>(EyeTexturePlaybackMode::Random)))
+        return false;
+    effect.eyeTexturePlayback = static_cast<EyeTexturePlaybackMode>(texturePlayback);
+    if (!ReadOptionalUInt32(value, "eyeTextureIntervalMs", effect.eyeTextureIntervalMs) ||
+        effect.eyeTextureIntervalMs < 500 || effect.eyeTextureIntervalMs > 60000)
+        return false;
+    int textureIndex = static_cast<int>(effect.eyeTextureIndex);
+    if (Find(value, "eyeTextureIndex") &&
+        (!ReadInt(value, "eyeTextureIndex", textureIndex) ||
+         textureIndex < 0 || textureIndex > 31))
+        return false;
+    effect.eyeTextureIndex = static_cast<uint8_t>(textureIndex);
+
+    const JsonValue* eyeTexturesValue = Find(value, "eyeTextures");
+    if (eyeTexturesValue != nullptr) {
+        if (eyeTexturesValue->type != JsonValue::Array ||
+            eyeTexturesValue->array.size() > 32)
+            return false;
+        effect.eyeTextures.clear();
+        for (const JsonValue& item : eyeTexturesValue->array) {
+            if (item.type != JsonValue::Object)
+                return false;
+            EyeTextureDesign design;
+            if (!ReadString(item, "textureName", design.textureName) ||
+                design.textureName.empty() || design.textureName.size() > 32)
+                return false;
+            if (Find(item, "name")) {
+                if (!ReadString(item, "name", design.name) ||
+                    design.name.empty() || design.name.size() > 32)
+                    return false;
+            } else {
+                design.name = design.textureName;
+            }
+            if (!ReadOptionalFloat(item, "irisCenterX", design.irisCenterX) ||
+                !ReadOptionalFloat(item, "irisCenterY", design.irisCenterY) ||
+                !ReadOptionalFloat(item, "irisRadiusX", design.irisRadiusX) ||
+                !ReadOptionalFloat(item, "irisRadiusY", design.irisRadiusY) ||
+                !ReadOptionalFloat(item, "pupilCenterX", design.pupilCenterX) ||
+                !ReadOptionalFloat(item, "pupilCenterY", design.pupilCenterY) ||
+                !ReadOptionalFloat(item, "pupilRadiusX", design.pupilRadiusX) ||
+                !ReadOptionalFloat(item, "pupilRadiusY", design.pupilRadiusY))
+                return false;
+            const float values[] = {
+                design.irisCenterX, design.irisCenterY,
+                design.irisRadiusX, design.irisRadiusY,
+                design.pupilCenterX, design.pupilCenterY,
+                design.pupilRadiusX, design.pupilRadiusY
+            };
+            for (size_t i = 0; i < sizeof(values) / sizeof(values[0]); ++i)
+                if (!std::isfinite(values[i])) return false;
+            if (design.irisCenterX < 0.0f || design.irisCenterX > 1.0f ||
+                design.irisCenterY < 0.0f || design.irisCenterY > 1.0f ||
+                design.irisRadiusX < 0.02f || design.irisRadiusX > 0.50f ||
+                design.irisRadiusY < 0.02f || design.irisRadiusY > 0.50f ||
+                design.pupilCenterX < 0.0f || design.pupilCenterX > 1.0f ||
+                design.pupilCenterY < 0.0f || design.pupilCenterY > 1.0f ||
+                design.pupilRadiusX < 0.01f || design.pupilRadiusX > 0.30f ||
+                design.pupilRadiusY < 0.01f || design.pupilRadiusY > 0.30f)
+                return false;
+            effect.eyeTextures.push_back(design);
+        }
+        if (!effect.eyeTextures.empty() &&
+            effect.eyeTextureIndex >= effect.eyeTextures.size())
+            effect.eyeTextureIndex = 0;
+    }
+
+    const JsonValue* textureSequenceValue = Find(value, "eyeTextureSequence");
+    if (textureSequenceValue != nullptr) {
+        if (textureSequenceValue->type != JsonValue::Array ||
+            textureSequenceValue->array.size() > 32)
+            return false;
+        effect.eyeTextureSequence.clear();
+        for (const JsonValue& step : textureSequenceValue->array) {
+            if (step.type != JsonValue::Number ||
+                step.number < 0.0 || step.number > 31.0 ||
+                std::floor(step.number) != step.number)
+                return false;
+            effect.eyeTextureSequence.push_back(static_cast<uint8_t>(step.number));
+        }
+    }
+
     if (!ReadInt(value, "motionPattern", motionPattern) || motionPattern < 0 || motionPattern > static_cast<int>(LedMotionPattern::TriangleOrbit)) return false;
     effect.motionPattern = static_cast<LedMotionPattern>(motionPattern);
     // Migrate profiles saved by the earlier modifier-based UI. A legacy
@@ -1401,6 +1487,44 @@ static bool AppendEffect(
     AppendUInt(output, effect.eyeMotionIntervalMs);
     output += ",\"eyeBlinkIntervalMs\":";
     AppendUInt(output, effect.eyeBlinkIntervalMs);
+    output += ",\"eyeTexturePlayback\":";
+    AppendInt(output, static_cast<int>(effect.eyeTexturePlayback));
+    output += ",\"eyeTextureIndex\":";
+    AppendUInt(output, effect.eyeTextureIndex);
+    output += ",\"eyeTextureIntervalMs\":";
+    AppendUInt(output, effect.eyeTextureIntervalMs);
+    output += ",\"eyeTextures\":[";
+    for (size_t i = 0; i < effect.eyeTextures.size(); ++i) {
+        if (i) output += ",";
+        const EyeTextureDesign& design = effect.eyeTextures[i];
+        output += "{\"name\":";
+        if (!AppendJsonString(output, design.name)) return false;
+        output += ",\"textureName\":";
+        if (!AppendJsonString(output, design.textureName)) return false;
+        output += ",\"irisCenterX\":";
+        if (!AppendFloat(output, design.irisCenterX)) return false;
+        output += ",\"irisCenterY\":";
+        if (!AppendFloat(output, design.irisCenterY)) return false;
+        output += ",\"irisRadiusX\":";
+        if (!AppendFloat(output, design.irisRadiusX)) return false;
+        output += ",\"irisRadiusY\":";
+        if (!AppendFloat(output, design.irisRadiusY)) return false;
+        output += ",\"pupilCenterX\":";
+        if (!AppendFloat(output, design.pupilCenterX)) return false;
+        output += ",\"pupilCenterY\":";
+        if (!AppendFloat(output, design.pupilCenterY)) return false;
+        output += ",\"pupilRadiusX\":";
+        if (!AppendFloat(output, design.pupilRadiusX)) return false;
+        output += ",\"pupilRadiusY\":";
+        if (!AppendFloat(output, design.pupilRadiusY)) return false;
+        output += "}";
+    }
+    output += "],\"eyeTextureSequence\":[";
+    for (size_t i = 0; i < effect.eyeTextureSequence.size(); ++i) {
+        if (i) output += ",";
+        AppendUInt(output, effect.eyeTextureSequence[i]);
+    }
+    output += "]";
     output += ",\"eyeIrisRed\":";
     AppendUInt(output, effect.eyeIrisRed);
     output += ",\"eyeIrisGreen\":";
