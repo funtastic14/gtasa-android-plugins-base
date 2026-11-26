@@ -60,18 +60,6 @@ enum class EyeShape : uint8_t {
     Sleepy
 };
 
-enum class EyeMotion : uint8_t {
-    Idle,
-    LookLeft,
-    LookRight,
-    LookUp,
-    LookDown,
-    Scan,
-    Wink,
-    Shake,
-    RapidBlink
-};
-
 // Motion is independent from color style and effect family.
 enum class LedMotionPattern : uint8_t {
     LeftToRight,
@@ -272,12 +260,9 @@ struct LedEffectConfig {
 
     // Strobo Eyes uses one of three masks over user-supplied eye artwork.
     EyeShape eyeShape = EyeShape::Original;
-    EyeMotion eyeMotion = EyeMotion::Idle;
     uint32_t eyeBlinkIntervalMs = 3200;
 
     // Dedicated playback controls; these do not affect general LED motion.
-    MotionPlaybackMode eyeMotionPlayback = MotionPlaybackMode::Manual;
-    uint32_t eyeMotionIntervalMs = 3000;
 
     // Teks untuk efek RunningText pada LED Matrix.
     std::string text;
