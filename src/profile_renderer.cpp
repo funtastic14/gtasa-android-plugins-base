@@ -833,6 +833,15 @@ static uint32_t RenderNativeLightsBatched(
         return 0;
     }
 
+    // Atomic indices are bounded by the geometry scanner (0..127). Build a
+    // fixed lookup table once per render call instead of linearly searching
+    // the mesh vector for every lamp patch.
+    const AtomicMesh* meshByAtomic[128] = {};
+    for (const AtomicMesh& mesh : meshes) {
+        if (mesh.atomicIndex < 128u)
+            meshByAtomic[mesh.atomicIndex] = &mesh;
+    }
+
     // One reusable batch replaces a separate RenderWare transform/draw call
     // for every lamp island. Keep each batch below the 16-bit index ceiling.
     static std::vector<RwIm3DVertex> vertices;
@@ -910,20 +919,15 @@ static uint32_t RenderNativeLightsBatched(
             continue;
         }
 
-        const auto meshIt = std::find_if(
-            meshes.begin(), meshes.end(),
-            [&patch](const AtomicMesh& mesh) {
-                return mesh.atomicIndex == patch.atomicIndex;
-            }
-        );
-        if (meshIt == meshes.end()) {
+        const AtomicMesh* mesh = patch.atomicIndex < 128u
+            ? meshByAtomic[patch.atomicIndex] : nullptr;
+        if (mesh == nullptr) {
             if (stats != nullptr) ++stats->missingMesh;
             continue;
         }
-        const AtomicMesh& mesh = *meshIt;
-        if (mesh.vertices.empty() ||
-            mesh.vehicleSpaceVertices.size() != mesh.vertices.size() ||
-            mesh.vertices.size() > 65535u ||
+        if (mesh->vertices.empty() ||
+            mesh->vehicleSpaceVertices.size() != mesh->vertices.size() ||
+            mesh->vertices.size() > 65535u ||
             patch.triangleIndices.empty()) {
             if (stats != nullptr) ++stats->invalidGeometry;
             continue;
@@ -965,8 +969,8 @@ static uint32_t RenderNativeLightsBatched(
                 triangle.a, triangle.b, triangle.c
             };
             for (uint16_t sourceIndex : sourceIndices) {
-                const GeometryVertex& source = mesh.vertices[sourceIndex];
-                const GeometryVertex& local = mesh.vehicleSpaceVertices[sourceIndex];
+                const GeometryVertex& source = mesh->vertices[sourceIndex];
+                const GeometryVertex& local = mesh->vehicleSpaceVertices[sourceIndex];
                 CVector vehicleLocal(local.x, local.y, local.z);
                 vehicleLocal += outward * NATIVE_RGB_SURFACE_OFFSET;
                 const CVector world = vehicleMatrix->TransformPoint(vehicleLocal);
