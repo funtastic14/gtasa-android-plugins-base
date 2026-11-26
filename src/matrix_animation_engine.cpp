@@ -124,6 +124,10 @@ void ApplyCustomTexture(
     const LedMatrixConfig& matrix,
     uint16_t column,
     uint16_t row,
+    uint32_t timeMs,
+    float speed,
+    EyeMotion eyeMotion,
+    float blinkAmount,
     MatrixPixelOutput& output
 ) {
     if (effect.textureName.empty() || matrix.columns == 0 ||
@@ -215,17 +219,67 @@ void ApplyCustomTexture(
 
     if (!entry->valid)
         return;
-    const uint16_t tx = static_cast<uint16_t>(
-        (static_cast<uint32_t>(column) * entry->width) / matrix.columns);
-    const uint16_t ty = static_cast<uint16_t>(
-        (static_cast<uint32_t>(row) * entry->height) / matrix.rows);
-    const size_t index =
-        (static_cast<size_t>(ty) * entry->width + tx) * 4;
-    output.red = entry->pixels[index];
-    output.green = entry->pixels[index + 1];
-    output.blue = entry->pixels[index + 2];
+    float u = (static_cast<float>(column) + 0.5f) /
+        static_cast<float>(matrix.columns);
+    float v = (static_cast<float>(row) + 0.5f) /
+        static_cast<float>(matrix.rows);
+    if (effect.type == LedEffectType::StroboEyes) {
+        // The texture canvas is split into left/right eye regions. Each half
+        // receives the same gaze vector; blink compresses the source vertically.
+        const bool leftEye = column < matrix.columns / 2;
+        float localU = leftEye ? u * 2.0f : (u - 0.5f) * 2.0f;
+        const float t = static_cast<float>(timeMs) * speed;
+        float gazeX = std::sin(t / 900.0f) * 0.055f;
+        float gazeY = std::sin(t / 1250.0f) * 0.035f;
+        switch (eyeMotion) {
+        case EyeMotion::LookLeft: gazeX = -0.30f; gazeY = 0.0f; break;
+        case EyeMotion::LookRight: gazeX = 0.30f; gazeY = 0.0f; break;
+        case EyeMotion::LookUp: gazeX = 0.0f; gazeY = -0.28f; break;
+        case EyeMotion::LookDown: gazeX = 0.0f; gazeY = 0.28f; break;
+        case EyeMotion::LookUpLeft: gazeX = -0.24f; gazeY = -0.22f; break;
+        case EyeMotion::LookUpRight: gazeX = 0.24f; gazeY = -0.22f; break;
+        case EyeMotion::LookDownLeft: gazeX = -0.24f; gazeY = 0.22f; break;
+        case EyeMotion::LookDownRight: gazeX = 0.24f; gazeY = 0.22f; break;
+        case EyeMotion::Scan: gazeX = std::sin(t / 430.0f) * 0.31f; gazeY = 0.0f; break;
+        case EyeMotion::Shake:
+            gazeX = std::sin(t / 90.0f) * 0.25f;
+            gazeY = std::sin(t / 130.0f) * 0.08f;
+            break;
+        case EyeMotion::Idle:
+        case EyeMotion::Wink:
+        default: break;
+        }
+        localU = Clamp01(localU - gazeX * 0.16f);
+        u = leftEye ? localU * 0.5f : 0.5f + localU * 0.5f;
+        v = 0.5f + (v - 0.5f) * (1.0f - Clamp01(blinkAmount) * 0.92f);
+        v = Clamp01(v - gazeY * 0.12f);
+    }
+
+    // Bilinear filtering prevents visible stepping as the static artwork moves.
+    const float fx = Clamp01(u) * static_cast<float>(entry->width - 1u);
+    const float fy = Clamp01(v) * static_cast<float>(entry->height - 1u);
+    const uint16_t x0 = static_cast<uint16_t>(fx);
+    const uint16_t y0 = static_cast<uint16_t>(fy);
+    const uint16_t x1 = static_cast<uint16_t>(x0 + (x0 + 1u < entry->width ? 1u : 0u));
+    const uint16_t y1 = static_cast<uint16_t>(y0 + (y0 + 1u < entry->height ? 1u : 0u));
+    const float tx = fx - static_cast<float>(x0);
+    const float ty = fy - static_cast<float>(y0);
+    const size_t i00 = (static_cast<size_t>(y0) * entry->width + x0) * 4u;
+    const size_t i10 = (static_cast<size_t>(y0) * entry->width + x1) * 4u;
+    const size_t i01 = (static_cast<size_t>(y1) * entry->width + x0) * 4u;
+    const size_t i11 = (static_cast<size_t>(y1) * entry->width + x1) * 4u;
+    const auto sample = [&](size_t channel) {
+        const float top = entry->pixels[i00 + channel] * (1.0f - tx) +
+            entry->pixels[i10 + channel] * tx;
+        const float bottom = entry->pixels[i01 + channel] * (1.0f - tx) +
+            entry->pixels[i11 + channel] * tx;
+        return ClampColor(top * (1.0f - ty) + bottom * ty);
+    };
+    output.red = sample(0);
+    output.green = sample(1);
+    output.blue = sample(2);
     output.alpha = static_cast<uint8_t>(
-        (static_cast<uint16_t>(output.alpha) * entry->pixels[index + 3]) / 255u
+        (static_cast<uint16_t>(output.alpha) * sample(3)) / 255u
     );
     output.visible = output.visible && output.alpha > 0;
 }
@@ -559,6 +613,8 @@ bool MatrixAnimationEngine::EvaluatePixel(
     // Motion is evaluated once below from the selected LedMotionPattern.
     // Do not retain the legacy per-effect directional sweep here.
     float intensity = 1.0f;
+    float eyeBlinkAmount = 0.0f;
+    EyeMotion activeEyeMotion = effect.eyeMotion;
 
     uint8_t red = pixel->red;
     uint8_t green = pixel->green;
@@ -594,6 +650,7 @@ bool MatrixAnimationEngine::EvaluatePixel(
             const float absX = std::fabs(dx);
             const float t = static_cast<float>(timeMs) * speed;
             const EyeMotion activeMotion = ResolveEyeMotion(effect, timeMs);
+            activeEyeMotion = activeMotion;
             float gazeX = std::sin(t / 900.0f) * 0.055f;
             float gazeY = std::sin(t / 1250.0f) * 0.035f;
             switch (activeMotion) {
@@ -659,6 +716,7 @@ bool MatrixAnimationEngine::EvaluatePixel(
                 if (winkThisEye)
                     blinkAmount = 1.0f;
             }
+            eyeBlinkAmount = blinkAmount;
 
             if (insideEye) {
                 if (blinkAmount > 0.01f) {
@@ -671,10 +729,12 @@ bool MatrixAnimationEngine::EvaluatePixel(
                     const float pupilY = dy - gazeY;
                     const float pupilDistance = pupilX * pupilX + pupilY * pupilY;
                     if (pupilDistance < 0.115f * 0.115f) {
+                        preserveEyeDetailColor = true;
                         red = effect.eyePupilRed;
                         green = effect.eyePupilGreen;
                         blue = effect.eyePupilBlue;
                     } else if (pupilDistance < 0.34f * 0.34f) {
+                        preserveEyeDetailColor = true;
                         red = effect.eyeIrisRed;
                         green = effect.eyeIrisGreen;
                         blue = effect.eyeIrisBlue;
@@ -709,9 +769,11 @@ bool MatrixAnimationEngine::EvaluatePixel(
             );
             intensity = blinkPhase < 140.0f ? 0.0f : 1.0f;
         }
-        red = effect.red;
-        green = effect.green;
-        blue = effect.blue;
+        if (!preserveEyeDetailColor) {
+            red = effect.red;
+            green = effect.green;
+            blue = effect.blue;
+        }
         break;
     }
 
@@ -940,7 +1002,8 @@ bool MatrixAnimationEngine::EvaluatePixel(
     if (effect.transparentMatrixBackground && intensity <= 0.055f)
         output.alpha = 0;
     output.visible = output.intensity > 0.001f && output.alpha > 0;
-    ApplyCustomTexture(effect, matrix, column, row, output);
+    ApplyCustomTexture(effect, matrix, column, row, timeMs, speed,
+                       activeEyeMotion, eyeBlinkAmount, output);
 
     return true;
 }
