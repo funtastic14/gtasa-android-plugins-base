@@ -60,6 +60,23 @@ enum class EyeShape : uint8_t {
     Sleepy
 };
 
+// Gaze motion is independent from the eye silhouette and blink timing.
+// Expression presets and decorative iris motifs are intentionally excluded.
+enum class EyeMotion : uint8_t {
+    Idle,
+    LookLeft,
+    LookRight,
+    LookUp,
+    LookDown,
+    LookUpLeft,
+    LookUpRight,
+    LookDownLeft,
+    LookDownRight,
+    Scan,
+    Shake,
+    Wink
+};
+
 // Motion is independent from color style and effect family.
 enum class LedMotionPattern : uint8_t {
     LeftToRight,
@@ -258,9 +275,18 @@ struct LedEffectConfig {
     LedColorDirection colorDirection = LedColorDirection::LeftToRight;
     float colorSpread = 1.0f;
 
-    // Strobo Eyes uses one of three masks over user-supplied eye artwork.
+    // Strobo Eyes: three silhouettes, independent gaze motion and palettes.
     EyeShape eyeShape = EyeShape::Original;
+    EyeMotion eyeMotion = EyeMotion::Idle;
+    MotionPlaybackMode eyeMotionPlayback = MotionPlaybackMode::Manual;
+    uint32_t eyeMotionIntervalMs = 3000;
     uint32_t eyeBlinkIntervalMs = 3200;
+    uint8_t eyeIrisRed = 20;
+    uint8_t eyeIrisGreen = 155;
+    uint8_t eyeIrisBlue = 255;
+    uint8_t eyePupilRed = 5;
+    uint8_t eyePupilGreen = 8;
+    uint8_t eyePupilBlue = 18;
 
     // Dedicated playback controls; these do not affect general LED motion.
 
