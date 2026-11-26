@@ -26,6 +26,60 @@ A conventional flattened PNG does not contain semantic labels for sclera, iris, 
 
 The mapping profile may be embedded in profile JSON or stored as a small sidecar metadata file. It must not require multiple animation-frame PNGs.
 
+## Multiple custom eye designs
+
+A Strobo Eyes effect may register up to 32 independent artwork entries in
+`eyeTextures`. Each entry has its own `name`, `textureName`, and normalized
+iris/pupil mapping metadata. Texture files remain in the VLS textures directory
+and use safe basename-only identifiers (for example `custom_eye1.png`,
+`custom_eye2.png`).
+
+Texture-set playback is controlled independently from gaze motion:
+
+- `Manual`: hold `eyeTextureIndex`.
+- `Automatic`: cycle through registered designs in list order.
+- `Sequence`: follow `eyeTextureSequence` (design indices); if omitted,
+  use list order.
+- `Random`: choose a deterministic pseudo-random design for each interval.
+
+`eyeTextureIntervalMs` controls how long a selected design is held. Changing
+the selected artwork must not reset the gaze, blink, wink, or other motion
+timeline. The legacy `textureName` and effect-level UV mapping remain valid
+as a backward-compatible single-texture fallback.
+
+Example profile fragment:
+
+```json
+{
+  "eyeTexturePlayback": 2,
+  "eyeTextureIndex": 0,
+  "eyeTextureIntervalMs": 5000,
+  "eyeTextures": [
+    {
+      "name": "Custom Eye 1",
+      "textureName": "custom_eye1",
+      "irisCenterX": 0.50,
+      "irisCenterY": 0.50,
+      "irisRadiusX": 0.25,
+      "irisRadiusY": 0.30,
+      "pupilCenterX": 0.50,
+      "pupilCenterY": 0.50,
+      "pupilRadiusX": 0.10,
+      "pupilRadiusY": 0.14
+    },
+    {
+      "name": "Custom Eye 2",
+      "textureName": "custom_eye2"
+    }
+  ],
+  "eyeTextureSequence": [0, 1, 0]
+}
+```
+
+Playback enum values are Manual=0, Automatic=1, Sequence=2, Random=3.
+The list is bounded to 32 designs and the decoded texture cache remains bounded
+to two 1024x1024 RGBA images.
+
 ## Animation requirements
 
 - Gaze: left, right, up, down, and four diagonals, with bounded displacement and smooth interpolation.
