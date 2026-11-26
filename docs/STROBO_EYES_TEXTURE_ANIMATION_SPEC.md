@@ -77,6 +77,12 @@ Example profile fragment:
 ```
 
 Playback enum values are Manual=0, Automatic=1, Sequence=2, Random=3.
+Newly registered designs default to `mappingConfigured=false`: until the user
+calibrates UV regions, the renderer applies bounded whole-art deformation and
+does not guess iris/pupil boundaries. Moving any per-design UV slider marks
+that design's mapping as configured and enables independent iris/pupil
+sampling. This flag is persisted so a save/reload does not silently change the
+mapping strategy.
 The list is bounded to 32 designs and the decoded texture cache remains bounded
 to two 1024x1024 RGBA images.
 
