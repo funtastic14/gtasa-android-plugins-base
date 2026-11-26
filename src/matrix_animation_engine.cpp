@@ -67,12 +67,12 @@ const EyeTextureDesign* ResolveEyeTextureDesign(
     return &effect.eyeTextures[selected];
 }
 
-EyeMotion ResolveEyeMotion(const LedEffectConfig& effect, uint32_t timeMs) {
+EyeMotion ResolveEyeMotionAtStep(
+    const LedEffectConfig& effect,
+    uint32_t step
+) {
     if (effect.eyeMotionPlayback == MotionPlaybackMode::Manual)
         return effect.eyeMotion;
-    const uint32_t interval = effect.eyeMotionIntervalMs < 500
-        ? 500u : effect.eyeMotionIntervalMs;
-    const uint32_t step = timeMs / interval;
     static const EyeMotion order[] = {
         EyeMotion::Idle, EyeMotion::LookLeft, EyeMotion::LookRight,
         EyeMotion::LookUp, EyeMotion::LookDown, EyeMotion::LookUpLeft,
@@ -86,12 +86,78 @@ EyeMotion ResolveEyeMotion(const LedEffectConfig& effect, uint32_t timeMs) {
     if (effect.eyeMotionPlayback == MotionPlaybackMode::Automatic)
         return order[step % count];
     if (effect.eyeMotionPlayback == MotionPlaybackMode::Sequential)
-        return static_cast<EyeMotion>(step % count);
+        return order[step % count];
     uint32_t value = step ^ 0x9E3779B9u;
     value ^= value >> 16; value *= 0x7FEB352Du;
     value ^= value >> 15; value *= 0x846CA68Bu;
     value ^= value >> 16;
-    return static_cast<EyeMotion>(value % count);
+    return order[value % count];
+}
+
+EyeMotion ResolveEyeMotion(const LedEffectConfig& effect, uint32_t timeMs) {
+    const uint32_t interval = effect.eyeMotionIntervalMs < 500
+        ? 500u : effect.eyeMotionIntervalMs;
+    return ResolveEyeMotionAtStep(effect, timeMs / interval);
+}
+
+void GetEyeGazeForMotion(
+    EyeMotion motion,
+    float time,
+    float& gazeX,
+    float& gazeY
+) {
+    gazeX = std::sin(time / 900.0f) * 0.055f;
+    gazeY = std::sin(time / 1250.0f) * 0.035f;
+    switch (motion) {
+    case EyeMotion::LookLeft: gazeX = -0.30f; gazeY = 0.0f; break;
+    case EyeMotion::LookRight: gazeX = 0.30f; gazeY = 0.0f; break;
+    case EyeMotion::LookUp: gazeX = 0.0f; gazeY = -0.28f; break;
+    case EyeMotion::LookDown: gazeX = 0.0f; gazeY = 0.28f; break;
+    case EyeMotion::LookUpLeft: gazeX = -0.24f; gazeY = -0.22f; break;
+    case EyeMotion::LookUpRight: gazeX = 0.24f; gazeY = -0.22f; break;
+    case EyeMotion::LookDownLeft: gazeX = -0.24f; gazeY = 0.22f; break;
+    case EyeMotion::LookDownRight: gazeX = 0.24f; gazeY = 0.22f; break;
+    case EyeMotion::Scan: gazeX = std::sin(time / 430.0f) * 0.31f; gazeY = 0.0f; break;
+    case EyeMotion::Shake:
+        gazeX = std::sin(time / 90.0f) * 0.25f;
+        gazeY = std::sin(time / 130.0f) * 0.08f;
+        break;
+    case EyeMotion::Idle:
+    case EyeMotion::Wink:
+    default: break;
+    }
+}
+
+void ResolveEyeGaze(
+    const LedEffectConfig& effect,
+    uint32_t timeMs,
+    float speed,
+    EyeMotion activeMotion,
+    float& gazeX,
+    float& gazeY
+) {
+    const float time = static_cast<float>(timeMs) * speed;
+    GetEyeGazeForMotion(activeMotion, time, gazeX, gazeY);
+    if (effect.eyeMotionPlayback == MotionPlaybackMode::Manual)
+        return;
+
+    const uint32_t interval = effect.eyeMotionIntervalMs < 500
+        ? 500u : effect.eyeMotionIntervalMs;
+    const uint32_t phase = timeMs % interval;
+    const uint32_t transitionMs = 240u;
+    if (phase >= transitionMs)
+        return;
+
+    const uint32_t step = timeMs / interval;
+    if (step == 0)
+        return;
+    const EyeMotion previousMotion = ResolveEyeMotionAtStep(effect, step - 1u);
+    float previousX = 0.0f, previousY = 0.0f;
+    GetEyeGazeForMotion(previousMotion, time, previousX, previousY);
+    const float p = Clamp01(static_cast<float>(phase) / transitionMs);
+    const float eased = p * p * (3.0f - 2.0f * p);
+    gazeX = previousX + (gazeX - previousX) * eased;
+    gazeY = previousY + (gazeY - previousY) * eased;
 }
 
 void HSVtoRGB(
@@ -287,26 +353,9 @@ void ApplyCustomTexture(
         const bool leftEye = column < matrix.columns / 2;
         float localU = leftEye ? u * 2.0f : (u - 0.5f) * 2.0f;
         const float t = static_cast<float>(timeMs) * speed;
-        float gazeX = std::sin(t / 900.0f) * 0.055f;
-        float gazeY = std::sin(t / 1250.0f) * 0.035f;
-        switch (eyeMotion) {
-        case EyeMotion::LookLeft: gazeX = -0.30f; gazeY = 0.0f; break;
-        case EyeMotion::LookRight: gazeX = 0.30f; gazeY = 0.0f; break;
-        case EyeMotion::LookUp: gazeX = 0.0f; gazeY = -0.28f; break;
-        case EyeMotion::LookDown: gazeX = 0.0f; gazeY = 0.28f; break;
-        case EyeMotion::LookUpLeft: gazeX = -0.24f; gazeY = -0.22f; break;
-        case EyeMotion::LookUpRight: gazeX = 0.24f; gazeY = -0.22f; break;
-        case EyeMotion::LookDownLeft: gazeX = -0.24f; gazeY = 0.22f; break;
-        case EyeMotion::LookDownRight: gazeX = 0.24f; gazeY = 0.22f; break;
-        case EyeMotion::Scan: gazeX = std::sin(t / 430.0f) * 0.31f; gazeY = 0.0f; break;
-        case EyeMotion::Shake:
-            gazeX = std::sin(t / 90.0f) * 0.25f;
-            gazeY = std::sin(t / 130.0f) * 0.08f;
-            break;
-        case EyeMotion::Idle:
-        case EyeMotion::Wink:
-        default: break;
-        }
+        float gazeX = 0.0f;
+        float gazeY = 0.0f;
+        ResolveEyeGaze(effect, timeMs, speed, eyeMotion, gazeX, gazeY);
         // Use profile metadata to move the iris and pupil inside the
         // stationary sclera. If the art is flattened, the user can tune these
         // normalized regions without supplying extra animation-frame images.
@@ -760,23 +809,9 @@ bool MatrixAnimationEngine::EvaluatePixel(
             const float t = static_cast<float>(timeMs) * speed;
             const EyeMotion activeMotion = ResolveEyeMotion(effect, timeMs);
             activeEyeMotion = activeMotion;
-            float gazeX = std::sin(t / 900.0f) * 0.055f;
-            float gazeY = std::sin(t / 1250.0f) * 0.035f;
-            switch (activeMotion) {
-            case EyeMotion::LookLeft: gazeX = -0.30f; gazeY = 0.0f; break;
-            case EyeMotion::LookRight: gazeX = 0.30f; gazeY = 0.0f; break;
-            case EyeMotion::LookUp: gazeX = 0.0f; gazeY = -0.28f; break;
-            case EyeMotion::LookDown: gazeX = 0.0f; gazeY = 0.28f; break;
-            case EyeMotion::LookUpLeft: gazeX = -0.24f; gazeY = -0.22f; break;
-            case EyeMotion::LookUpRight: gazeX = 0.24f; gazeY = -0.22f; break;
-            case EyeMotion::LookDownLeft: gazeX = -0.24f; gazeY = 0.22f; break;
-            case EyeMotion::LookDownRight: gazeX = 0.24f; gazeY = 0.22f; break;
-            case EyeMotion::Scan: gazeX = std::sin(t / 430.0f) * 0.31f; gazeY = 0.0f; break;
-            case EyeMotion::Shake: gazeX = std::sin(t / 90.0f) * 0.25f; gazeY = std::sin(t / 130.0f) * 0.08f; break;
-            case EyeMotion::Idle:
-            case EyeMotion::Wink:
-            default: break;
-            }
+            float gazeX = 0.0f;
+            float gazeY = 0.0f;
+            ResolveEyeGaze(effect, timeMs, speed, activeMotion, gazeX, gazeY);
 
             bool insideEye = false;
             switch (effect.eyeShape) {
