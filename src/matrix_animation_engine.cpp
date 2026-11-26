@@ -7,6 +7,7 @@
 #include <cctype>
 #include <cstddef>
 #include <cstdlib>
+#include <cstring>
 
 namespace VLS {
 
