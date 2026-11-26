@@ -874,8 +874,16 @@ static std::string SurfaceRoleHint(const AtomicGeometryInfo& info, const GlassPa
     // Converted DFFs in this project use the exact GTA lamp atlas names;
     // otherwise require an explicitly lamp-named frame plus the same tight
     // geometry bounds. This blocks unrelated body panels sharing an atomic.
-    if (compactLampIsland && nearFrontOrRearEnd &&
-        (nativeLampTexture || namedLampFrame))
+    const bool compactBodyLampIsland =
+        patchWidth >= 0.04f && patchWidth <= 0.82f &&
+        patchHeight >= 0.025f && patchHeight <= 0.48f &&
+        patchDepth <= 0.16f &&
+        part.area >= 0.003f && part.area <= 0.42f &&
+        part.triangles <= 256u;
+    const bool eligibleLampIsland = bodyFrame
+        ? (nativeLampTexture && compactBodyLampIsland)
+        : (compactLampIsland && (nativeLampTexture || namedLampFrame));
+    if (eligibleLampIsland && nearFrontOrRearEnd)
         return "LIGHTING_CANDIDATE";
 
     if (bodyFrame) return "BODY_CHASSIS";
