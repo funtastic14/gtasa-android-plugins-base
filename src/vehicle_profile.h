@@ -288,6 +288,17 @@ struct LedEffectConfig {
     uint8_t eyePupilGreen = 8;
     uint8_t eyePupilBlue = 18;
 
+    // Normalized per-eye UV regions used to animate a flattened custom PNG.
+    // These values are profile metadata, not additional animation images.
+    float eyeTextureIrisCenterX = 0.50f;
+    float eyeTextureIrisCenterY = 0.50f;
+    float eyeTextureIrisRadiusX = 0.25f;
+    float eyeTextureIrisRadiusY = 0.30f;
+    float eyeTexturePupilCenterX = 0.50f;
+    float eyeTexturePupilCenterY = 0.50f;
+    float eyeTexturePupilRadiusX = 0.10f;
+    float eyeTexturePupilRadiusY = 0.14f;
+
     // Dedicated playback controls; these do not affect general LED motion.
 
     // Teks untuk efek RunningText pada LED Matrix.
