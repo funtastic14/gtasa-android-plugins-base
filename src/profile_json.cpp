@@ -764,9 +764,6 @@ static bool ReadEffect(
     if (!ReadOptionalFloat(value, "colorSpread", effect.colorSpread) ||
         !std::isfinite(effect.colorSpread) || effect.colorSpread < 0.1f || effect.colorSpread > 8.0f)
         return false;
-    // Version 2 stores only Original, Round and Sleepy. Older profiles
-    // used a much larger enum; map the two retained legacy shapes and safely
-    // fall back to Original for removed procedural shapes.
     // Version 2 stores only Original, Round and Sleepy. Legacy enum
     // values 3 and 6 map to Round and Sleepy; removed shapes fall back safely.
     int eyeShape = static_cast<int>(effect.eyeShape);
