@@ -821,8 +821,8 @@ static std::string SurfaceRoleHint(const AtomicGeometryInfo& info, const GlassPa
                name.compare(0, 16, "vehiclelights128") == 0 &&
                    (name.size() == 16u || name[16] == '_') ||
                name == "vehiclelightson128" ||
-               name.compare(0, 19, "vehiclelightson128") == 0 &&
-                   (name.size() == 19u || name[19] == '_');
+               name.compare(0, 18, "vehiclelightson128") == 0 &&
+                   (name.size() == 18u || name[18] == '_');
     };
     const bool nativeLampTexture =
         isLampAtlasVariant(textureName) || isLampAtlasVariant(maskName);
