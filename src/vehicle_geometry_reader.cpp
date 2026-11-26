@@ -1825,6 +1825,32 @@ bool VehicleGeometryReader::ScanIncremental(
                     }
                 }
 
+                // Native RGB only needs lamp-related atomics. Discover
+                // frame/material identity first, then avoid copying and
+                // transforming the rest of the vehicle mesh every scan.
+                const char* rawFrameName = GetFrameNodeName(
+                    RpAtomicGetFrame(atomic)
+                );
+                std::string frameName = rawFrameName != nullptr
+                    ? rawFrameName : "";
+                std::transform(frameName.begin(), frameName.end(), frameName.begin(),
+                    [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+                const bool namedLampFrame =
+                    frameName.find("lamp") != std::string::npos ||
+                    frameName.find("light") != std::string::npos ||
+                    frameName.find("indicator") != std::string::npos ||
+                    frameName.find("signal") != std::string::npos;
+                bool hasLampMaterial = false;
+                for (const MeshMaterialInfo& material : discoveredMaterials) {
+                    if (IsNativeLightingTexture(material.textureName) ||
+                        IsNativeLightingTexture(material.maskName)) {
+                        hasLampMaterial = true;
+                        break;
+                    }
+                }
+                if (!namedLampFrame && !hasLampMaterial)
+                    continue;
+
                 const RwUInt32 flags = RpGeometryGetFlags(geometry);
                 const bool nativeGeometry =
                     (flags & (rpGEOMETRYNATIVE |
