@@ -28,6 +28,33 @@ uint8_t ClampColor(float value) {
     return static_cast<uint8_t>(value);
 }
 
+EyeMotion ResolveEyeMotion(const LedEffectConfig& effect, uint32_t timeMs) {
+    if (effect.eyeMotionPlayback == MotionPlaybackMode::Manual)
+        return effect.eyeMotion;
+    const uint32_t interval = effect.eyeMotionIntervalMs < 500
+        ? 500u : effect.eyeMotionIntervalMs;
+    const uint32_t step = timeMs / interval;
+    static const EyeMotion order[] = {
+        EyeMotion::Idle, EyeMotion::LookLeft, EyeMotion::LookRight,
+        EyeMotion::LookUp, EyeMotion::LookDown, EyeMotion::LookUpLeft,
+        EyeMotion::LookUpRight, EyeMotion::LookDownLeft,
+        EyeMotion::LookDownRight, EyeMotion::Scan, EyeMotion::Shake,
+        EyeMotion::Wink
+    };
+    const uint32_t count = static_cast<uint32_t>(
+        sizeof(order) / sizeof(order[0])
+    );
+    if (effect.eyeMotionPlayback == MotionPlaybackMode::Automatic)
+        return order[step % count];
+    if (effect.eyeMotionPlayback == MotionPlaybackMode::Sequential)
+        return static_cast<EyeMotion>(step % count);
+    uint32_t value = step ^ 0x9E3779B9u;
+    value ^= value >> 16; value *= 0x7FEB352Du;
+    value ^= value >> 15; value *= 0x846CA68Bu;
+    value ^= value >> 16;
+    return static_cast<EyeMotion>(value % count);
+}
+
 void HSVtoRGB(
     float hue,
     uint8_t& red,
@@ -565,6 +592,25 @@ bool MatrixAnimationEngine::EvaluatePixel(
             const float dx = (static_cast<float>(column) - eyeCenterX) / radiusX;
             const float dy = (static_cast<float>(row) - eyeCenterY) / radiusY;
             const float absX = std::fabs(dx);
+            const float t = static_cast<float>(timeMs) * speed;
+            const EyeMotion activeMotion = ResolveEyeMotion(effect, timeMs);
+            float gazeX = std::sin(t / 900.0f) * 0.055f;
+            float gazeY = std::sin(t / 1250.0f) * 0.035f;
+            switch (activeMotion) {
+            case EyeMotion::LookLeft: gazeX = -0.30f; gazeY = 0.0f; break;
+            case EyeMotion::LookRight: gazeX = 0.30f; gazeY = 0.0f; break;
+            case EyeMotion::LookUp: gazeX = 0.0f; gazeY = -0.28f; break;
+            case EyeMotion::LookDown: gazeX = 0.0f; gazeY = 0.28f; break;
+            case EyeMotion::LookUpLeft: gazeX = -0.24f; gazeY = -0.22f; break;
+            case EyeMotion::LookUpRight: gazeX = 0.24f; gazeY = -0.22f; break;
+            case EyeMotion::LookDownLeft: gazeX = -0.24f; gazeY = 0.22f; break;
+            case EyeMotion::LookDownRight: gazeX = 0.24f; gazeY = 0.22f; break;
+            case EyeMotion::Scan: gazeX = std::sin(t / 430.0f) * 0.31f; gazeY = 0.0f; break;
+            case EyeMotion::Shake: gazeX = std::sin(t / 90.0f) * 0.25f; gazeY = std::sin(t / 130.0f) * 0.08f; break;
+            case EyeMotion::Idle:
+            case EyeMotion::Wink:
+            default: break;
+            }
 
             bool insideEye = false;
             switch (effect.eyeShape) {
@@ -605,13 +651,50 @@ bool MatrixAnimationEngine::EvaluatePixel(
                 );
             }
 
+            if (activeMotion == EyeMotion::Wink) {
+                const uint32_t winkPhase = timeMs % 4800u;
+                const bool winkThisEye = leftEye
+                    ? winkPhase < 420u
+                    : (winkPhase >= 2400u && winkPhase < 2820u);
+                if (winkThisEye)
+                    blinkAmount = 1.0f;
+            }
+
             if (insideEye) {
                 if (blinkAmount > 0.01f) {
-                    // A narrow horizontal shutter is the only generated
-                    // feature; texture artwork remains the source of all detail.
+                    // The procedural eyelid closes to a narrow slit. Custom
+                    // artwork keeps its own colors and is masked by the same lid.
                     intensity = std::fabs(dy) < (0.025f + 0.08f * (1.0f - blinkAmount))
                         ? 1.0f : 0.0f;
+                } else if (effect.textureName.empty()) {
+                    const float pupilX = dx - gazeX;
+                    const float pupilY = dy - gazeY;
+                    const float pupilDistance = pupilX * pupilX + pupilY * pupilY;
+                    if (pupilDistance < 0.115f * 0.115f) {
+                        red = effect.eyePupilRed;
+                        green = effect.eyePupilGreen;
+                        blue = effect.eyePupilBlue;
+                    } else if (pupilDistance < 0.34f * 0.34f) {
+                        red = effect.eyeIrisRed;
+                        green = effect.eyeIrisGreen;
+                        blue = effect.eyeIrisBlue;
+                        // A restrained radial ring adds depth without restoring
+                        // the retired Sharingan/Rinnegan motif presets.
+                        const float radial = std::sqrt(pupilDistance);
+                        if (radial > 0.285f) {
+                            red = static_cast<uint8_t>((static_cast<unsigned int>(red) * 3u) / 4u);
+                            green = static_cast<uint8_t>((static_cast<unsigned int>(green) * 3u) / 4u);
+                            blue = static_cast<uint8_t>((static_cast<unsigned int>(blue) * 3u) / 4u);
+                        }
+                    } else {
+                        red = effect.red;
+                        green = effect.green;
+                        blue = effect.blue;
+                    }
+                    intensity = 1.0f;
                 } else {
+                    // Custom image UV deformation is handled by the upcoming
+                    // metadata-aware texture mapper; this stage preserves source art.
                     intensity = 1.0f;
                 }
             } else {
