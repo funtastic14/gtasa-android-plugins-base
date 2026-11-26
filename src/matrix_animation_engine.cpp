@@ -719,9 +719,9 @@ bool MatrixAnimationEngine::EvaluatePixel(
             eyeBlinkAmount = blinkAmount;
 
             if (insideEye) {
-                if (blinkAmount > 0.01f) {
-                    // The procedural eyelid closes to a narrow slit. Custom
-                    // artwork keeps its own colors and is masked by the same lid.
+                if (blinkAmount > 0.01f && effect.textureName.empty()) {
+                    // Procedural eyelid closes to a narrow slit. Custom art
+                    // instead uses vertical UV compression in ApplyCustomTexture.
                     intensity = std::fabs(dy) < (0.025f + 0.08f * (1.0f - blinkAmount))
                         ? 1.0f : 0.0f;
                 } else if (effect.textureName.empty()) {
