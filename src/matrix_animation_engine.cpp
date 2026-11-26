@@ -225,6 +225,21 @@ struct TextureCacheEntry {
     bool valid = false;
 };
 
+// Shared bounded cache lets the procedural renderer detect a failed or
+// evicted custom texture and keep the eye visible instead of suppressing it.
+TextureCacheEntry g_eyeTextureCache[2];
+uint32_t g_nextEyeTextureSlot = 0;
+
+bool IsCustomTextureReady(const std::string& textureName) {
+    if (textureName.empty())
+        return false;
+    for (size_t i = 0; i < 2; ++i) {
+        if (g_eyeTextureCache[i].name == textureName)
+            return g_eyeTextureCache[i].valid;
+    }
+    return false;
+}
+
 void ApplyCustomTexture(
     const LedEffectConfig& effect,
     const std::string& textureName,
@@ -245,12 +260,10 @@ void ApplyCustomTexture(
     // Two bounded decoded-image slots cap resident RGBA texture memory at
     // 8 MiB (1024x1024x4 bytes per image). Image decoding/allocation happens
     // only when a texture is first encountered, never in the sampling loop.
-    static TextureCacheEntry cache[2];
-    static uint32_t nextSlot = 0;
     TextureCacheEntry* entry = nullptr;
     for (size_t i = 0; i < 2; ++i) {
-        if (cache[i].name == textureName) {
-            entry = &cache[i];
+        if (g_eyeTextureCache[i].name == textureName) {
+            entry = &g_eyeTextureCache[i];
             // A missing/temporarily unreadable file is not retried per pixel.
             // Retry at most once every 3 seconds so adding a texture at runtime
             // can recover without causing repeated filesystem reads.
@@ -263,7 +276,7 @@ void ApplyCustomTexture(
         }
     }
     if (entry == nullptr) {
-        entry = &cache[nextSlot++ % 2u];
+        entry = &g_eyeTextureCache[g_nextEyeTextureSlot++ % 2u];
         entry->name = textureName;
         entry->valid = false;
         entry->width = entry->height = 0;
@@ -778,7 +791,9 @@ bool MatrixAnimationEngine::EvaluatePixel(
             ? ResolveEyeTextureDesign(effect, timeMs) : nullptr;
     const std::string& activeEyeTextureName = activeEyeTexture != nullptr
         ? activeEyeTexture->textureName : effect.textureName;
-    const bool hasCustomEyeTexture = !activeEyeTextureName.empty();
+    // A configured but missing/invalid image must not disable procedural
+    // iris, pupil and lid rendering. Once decoded, the custom art takes over.
+    const bool hasCustomEyeTexture = IsCustomTextureReady(activeEyeTextureName);
 
     uint8_t red = pixel->red;
     uint8_t green = pixel->green;
