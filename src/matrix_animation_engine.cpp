@@ -1,6 +1,7 @@
 #include "matrix_animation_engine.h"
 #include "led_motion_engine.h"
 #include "profile_storage.h"
+#include <mod/thirdparty/stb/stb_image.h>
 
 #include <cmath>
 #include <cctype>
@@ -88,7 +89,7 @@ bool ReadPpmToken(const std::string& data, size_t& position, std::string& token)
 
 struct TextureCacheEntry {
     std::string name;
-    uint8_t pixels[128 * 128 * 3] = {};
+    uint8_t pixels[128 * 128 * 4] = {};
     uint16_t width = 0;
     uint16_t height = 0;
     bool valid = false;
@@ -123,7 +124,26 @@ void ApplyCustomTexture(
         entry->width = entry->height = 0;
 
         std::string data, token;
-        if (ProfileStorage::LoadTexturePpm(effect.textureName, data)) {
+        if (ProfileStorage::LoadTexturePng(effect.textureName, data) &&
+            !data.empty() && data.size() <= static_cast<size_t>(0x7fffffff)) {
+            int w = 0, h = 0, channels = 0;
+            stbi_uc* decoded = stbi_load_from_memory(
+                reinterpret_cast<const stbi_uc*>(data.data()),
+                static_cast<int>(data.size()), &w, &h, &channels, STBI_rgb_alpha
+            );
+            if (decoded != nullptr) {
+                if (w > 0 && w <= 128 && h > 0 && h <= 128) {
+                    std::memcpy(entry->pixels, decoded,
+                        static_cast<size_t>(w) * static_cast<size_t>(h) * 4u);
+                    entry->width = static_cast<uint16_t>(w);
+                    entry->height = static_cast<uint16_t>(h);
+                    entry->valid = true;
+                }
+                stbi_image_free(decoded);
+            }
+        }
+        if (!entry->valid &&
+            ProfileStorage::LoadTexturePpm(effect.textureName, data)) {
             size_t pos = 0;
             if (ReadPpmToken(data, pos, token) && token == "P3" &&
                 ReadPpmToken(data, pos, token)) {
@@ -145,10 +165,14 @@ void ApplyCustomTexture(
                                     ok = false;
                                     break;
                                 }
-                                entry->pixels[i] =
+                                entry->pixels[(i / 3) * 4 + (i % 3)] =
                                     static_cast<uint8_t>((value * 255) / maxValue);
                             }
                             if (ok) {
+                                const size_t pixelCount =
+                                    static_cast<size_t>(w) * static_cast<size_t>(h);
+                                for (size_t i = 0; i < pixelCount; ++i)
+                                    entry->pixels[i * 4 + 3] = 255;
                                 entry->width = static_cast<uint16_t>(w);
                                 entry->height = static_cast<uint16_t>(h);
                                 entry->valid = true;
@@ -167,10 +191,14 @@ void ApplyCustomTexture(
     const uint16_t ty = static_cast<uint16_t>(
         (static_cast<uint32_t>(row) * entry->height) / matrix.rows);
     const size_t index =
-        (static_cast<size_t>(ty) * entry->width + tx) * 3;
+        (static_cast<size_t>(ty) * entry->width + tx) * 4;
     output.red = entry->pixels[index];
     output.green = entry->pixels[index + 1];
     output.blue = entry->pixels[index + 2];
+    output.alpha = static_cast<uint8_t>(
+        (static_cast<uint16_t>(output.alpha) * entry->pixels[index + 3]) / 255u
+    );
+    output.visible = output.visible && output.alpha > 0;
 }
 
 struct FontCacheEntry {
