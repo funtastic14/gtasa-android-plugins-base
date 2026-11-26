@@ -441,8 +441,7 @@ static void DrawTouchKeyboard(
     char* buffer,
     size_t capacity,
     std::string& destination,
-    bool& changed,
-    bool allowSpace
+    bool& changed
 ) {
     if (!buffer || capacity == 0)
         return;
@@ -474,19 +473,27 @@ static void DrawTouchKeyboard(
 
     if (ImGui::Button(g_touchKeyboardUppercase ? "ABC" : "abc", ImVec2(62.0f, 38.0f)))
         g_touchKeyboardUppercase = !g_touchKeyboardUppercase;
-    if (allowSpace) {
-        ImGui::SameLine();
-        if (ImGui::Button("SPACE", ImVec2(88.0f, 38.0f))) {
-            const size_t len = std::strlen(buffer);
-            if (len + 1 < capacity) {
-                buffer[len] = ' ';
-                buffer[len + 1] = '\0';
-                destination = buffer;
-                changed = true;
-            }
+    ImGui::SameLine();
+    if (ImGui::Button("_", ImVec2(38.0f, 38.0f))) {
+        const size_t len = std::strlen(buffer);
+        if (len + 1 < capacity) {
+            buffer[len] = '_';
+            buffer[len + 1] = '\0';
+            destination = buffer;
+            changed = true;
         }
     }
     ImGui::SameLine();
+    if (ImGui::Button("SPACE", ImVec2(82.0f, 38.0f))) {
+        const size_t len = std::strlen(buffer);
+        if (len + 1 < capacity) {
+            buffer[len] = ' ';
+            buffer[len + 1] = '\0';
+            destination = buffer;
+            changed = true;
+        }
+    }
+
     if (ImGui::Button("BACKSPACE", ImVec2(104.0f, 38.0f))) {
         size_t len = std::strlen(buffer);
         if (len > 0) {
@@ -913,7 +920,7 @@ static void RenderEditor() {
         if (ImGui::Button(g_runningTextKeyboardOpen ? "Hide Virtual Keyboard" : "Open Virtual Keyboard", ImVec2(230.0f, 44.0f)))
             g_runningTextKeyboardOpen = !g_runningTextKeyboardOpen;
         if (g_runningTextKeyboardOpen)
-            DrawTouchKeyboard(g_runningTextBuffer, sizeof(g_runningTextBuffer), effect.text, changed, true);
+            DrawTouchKeyboard(g_runningTextBuffer, sizeof(g_runningTextBuffer), effect.text, changed);
         changed |= ImGui::SliderFloat("Text Spacing", &effect.textSpacing, 0.25f, 3.0f);
         changed |= ImGui::SliderFloat("Font Size", &effect.textScale, 0.35f, 2.0f);
         ImGui::TextWrapped("For clear small text, keep Font Size around 0.65 or higher. Very small glyphs merge because each LED is one physical pixel; increase Matrix Columns for finer detail.");
@@ -1136,7 +1143,7 @@ static void RenderEditor() {
             g_touchKeyboardUppercase = false;
         }
         if (g_runningTextKeyboardOpen)
-            DrawTouchKeyboard(g_eyeTextureBuffer, sizeof(g_eyeTextureBuffer), effect.textureName, changed, false);
+            DrawTouchKeyboard(g_eyeTextureBuffer, sizeof(g_eyeTextureBuffer), effect.textureName, changed);
         if (effect.textureName.empty()) {
             float irisColor[3] = {
                 effect.eyeIrisRed / 255.0f, effect.eyeIrisGreen / 255.0f,
