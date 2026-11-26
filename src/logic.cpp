@@ -1718,8 +1718,13 @@ static void OnRenderEffects() {
                     );
                     if (diagnosticLength > 0 &&
                         static_cast<size_t>(diagnosticLength) < sizeof(diagnostic)) {
+                        char diagnosticFile[64];
+                        std::snprintf(
+                            diagnosticFile, sizeof(diagnosticFile),
+                            "native_rgb_render_%d.txt", modelId
+                        );
                         VLS::ProfileStorage::SaveDiagnosticText(
-                            "native_rgb_render.txt",
+                            diagnosticFile,
                             std::string(diagnostic, static_cast<size_t>(diagnosticLength))
                         );
                     }
@@ -1908,8 +1913,13 @@ static void UpdateVehicleGeometryScan() {
             );
             if (diagnosticLength > 0 &&
                 static_cast<size_t>(diagnosticLength) < sizeof(diagnostic)) {
+                char diagnosticFile[64];
+                std::snprintf(
+                    diagnosticFile, sizeof(diagnosticFile),
+                    "native_rgb_scan_%d.txt", modelId
+                );
                 VLS::ProfileStorage::SaveDiagnosticText(
-                    "native_rgb_scan.txt",
+                    diagnosticFile,
                     std::string(diagnostic, static_cast<size_t>(diagnosticLength))
                 );
             }
