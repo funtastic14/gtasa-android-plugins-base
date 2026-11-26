@@ -949,7 +949,11 @@ static uint32_t RenderNativeLightsBatched(
                 triangle.c >= mesh.vertices.size())
                 continue;
 
-            if (stats != nullptr) ++stats->validTriangles;
+            if (stats != nullptr) {
+                ++stats->validTriangles;
+                stats->submittedVertices += 3u;
+                stats->submittedIndices += 3u;
+            }
             if (vertices.size() + 3u > MAX_BATCH_VERTICES)
                 flushBatch();
 
@@ -982,11 +986,6 @@ static uint32_t RenderNativeLightsBatched(
         }
         if (patchAdded)
             ++batchPatchCount;
-        if (stats != nullptr) {
-            stats->submittedVertices += static_cast<uint32_t>(
-                patchAdded ? patch.triangleIndices.size() * 3u : 0u
-            );
-        }
     }
 
     flushBatch();
