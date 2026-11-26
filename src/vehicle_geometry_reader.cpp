@@ -808,15 +808,18 @@ static std::string SurfaceRoleHint(const AtomicGeometryInfo& info, const GlassPa
     const auto contains = [](const std::string& value, const char* token) {
         return value.find(token) != std::string::npos;
     };
-    const bool explicitLamp =
+    const bool namedLampFrame =
         contains(frameName, "lamp") || contains(frameName, "light") ||
         contains(frameName, "headlight") || contains(frameName, "taillight") ||
-        contains(frameName, "indicator") || contains(frameName, "signal") ||
-        contains(textureName, "vehiclelight") || contains(textureName, "headlight") ||
-        contains(textureName, "taillight") || contains(textureName, "indicator") ||
-        contains(maskName, "vehiclelight") || contains(maskName, "headlight") ||
-        contains(maskName, "taillight");
-    if (explicitLamp) return "LIGHTING_CANDIDATE";
+        contains(frameName, "indicator") || contains(frameName, "signal");
+    // These are the exact lamp texture names used by converted/modded DFFs.
+    // A texture match alone is not enough: some body materials reuse the
+    // same atlas, so require a compact front/rear surface island as well.
+    const bool nativeLampTexture =
+        textureName == "vehiclelights128" ||
+        textureName == "vehiclelightson128";
+    if (namedLampFrame)
+        return "LIGHTING_CANDIDATE";
 
     const float ax = std::fabs(part.nx);
     const float ay = std::fabs(part.ny);
@@ -868,7 +871,8 @@ static std::string SurfaceRoleHint(const AtomicGeometryInfo& info, const GlassPa
         patchHeight >= 0.025f && patchHeight <= 0.70f &&
         patchDepth <= 0.30f &&
         part.area >= 0.003f && part.area <= 1.25f;
-    if (compactLampIsland && nearFrontOrRearEnd)
+    if (compactLampIsland && nearFrontOrRearEnd &&
+        (!bodyFrame || nativeLampTexture))
         return "LIGHTING_CANDIDATE";
 
     if (bodyFrame) return "BODY_CHASSIS";
