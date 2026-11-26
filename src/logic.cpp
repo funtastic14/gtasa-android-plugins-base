@@ -1249,14 +1249,21 @@ static void RenderEditor() {
                     static_cast<int>(effect.eyeTextures.size() - 1));
                 VLS::EyeTextureDesign& selected = effect.eyeTextures[selectedDesign];
                 if (ImGui::CollapsingHeader("Selected Design UV Mapping")) {
-                    changed |= ImGui::SliderFloat("Design Iris Center X", &selected.irisCenterX, 0.0f, 1.0f);
-                    changed |= ImGui::SliderFloat("Design Iris Center Y", &selected.irisCenterY, 0.0f, 1.0f);
-                    changed |= ImGui::SliderFloat("Design Iris Radius X", &selected.irisRadiusX, 0.02f, 0.50f);
-                    changed |= ImGui::SliderFloat("Design Iris Radius Y", &selected.irisRadiusY, 0.02f, 0.50f);
-                    changed |= ImGui::SliderFloat("Design Pupil Center X", &selected.pupilCenterX, 0.0f, 1.0f);
-                    changed |= ImGui::SliderFloat("Design Pupil Center Y", &selected.pupilCenterY, 0.0f, 1.0f);
-                    changed |= ImGui::SliderFloat("Design Pupil Radius X", &selected.pupilRadiusX, 0.01f, 0.30f);
-                    changed |= ImGui::SliderFloat("Design Pupil Radius Y", &selected.pupilRadiusY, 0.01f, 0.30f);
+                    bool mappingChanged = false;
+                    mappingChanged |= ImGui::SliderFloat("Design Iris Center X", &selected.irisCenterX, 0.0f, 1.0f);
+                    mappingChanged |= ImGui::SliderFloat("Design Iris Center Y", &selected.irisCenterY, 0.0f, 1.0f);
+                    mappingChanged |= ImGui::SliderFloat("Design Iris Radius X", &selected.irisRadiusX, 0.02f, 0.50f);
+                    mappingChanged |= ImGui::SliderFloat("Design Iris Radius Y", &selected.irisRadiusY, 0.02f, 0.50f);
+                    mappingChanged |= ImGui::SliderFloat("Design Pupil Center X", &selected.pupilCenterX, 0.0f, 1.0f);
+                    mappingChanged |= ImGui::SliderFloat("Design Pupil Center Y", &selected.pupilCenterY, 0.0f, 1.0f);
+                    mappingChanged |= ImGui::SliderFloat("Design Pupil Radius X", &selected.pupilRadiusX, 0.01f, 0.30f);
+                    mappingChanged |= ImGui::SliderFloat("Design Pupil Radius Y", &selected.pupilRadiusY, 0.01f, 0.30f);
+                    if (mappingChanged) {
+                        selected.mappingConfigured = true;
+                        changed = true;
+                    }
+                    if (!selected.mappingConfigured)
+                        ImGui::TextWrapped("No custom UV map yet: the engine will use bounded whole-eye texture movement. Adjust these values to enable independent iris/pupil mapping.");
                 }
             }
         }
