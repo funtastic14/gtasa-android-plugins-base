@@ -26,6 +26,7 @@
 #include <cstddef>
 #include <cstring>
 #include <cstdio>
+#include <string>
 
 namespace Logic {
 
@@ -1913,6 +1914,50 @@ static void UpdateVehicleGeometryScan() {
             );
             if (diagnosticLength > 0 &&
                 static_cast<size_t>(diagnosticLength) < sizeof(diagnostic)) {
+                std::string diagnosticText(
+                    diagnostic, static_cast<size_t>(diagnosticLength)
+                );
+                diagnosticText += "\nCACHED MESH / MATERIAL DETAILS\n";
+                for (const VLS::AtomicMesh& mesh : meshes) {
+                    uint32_t meshPatches = 0;
+                    uint32_t meshLightingPatches = 0;
+                    for (const VLS::SurfacePatch& patch : patches) {
+                        if (patch.atomicIndex != mesh.atomicIndex)
+                            continue;
+                        ++meshPatches;
+                        if (patch.role == VLS::SurfaceRoleCandidate::Lighting)
+                            ++meshLightingPatches;
+                    }
+                    char meshLine[256];
+                    const int meshLineLength = std::snprintf(
+                        meshLine, sizeof(meshLine),
+                        "Atomic %u Geometry %u: vertices=%u triangles=%u patches=%u lighting=%u\\n",
+                        static_cast<unsigned int>(mesh.atomicIndex),
+                        static_cast<unsigned int>(mesh.geometryIndex),
+                        static_cast<unsigned int>(mesh.vertices.size()),
+                        static_cast<unsigned int>(mesh.triangles.size()),
+                        static_cast<unsigned int>(meshPatches),
+                        static_cast<unsigned int>(meshLightingPatches)
+                    );
+                    if (meshLineLength > 0 &&
+                        static_cast<size_t>(meshLineLength) < sizeof(meshLine))
+                        diagnosticText.append(meshLine, static_cast<size_t>(meshLineLength));
+                    for (const VLS::MeshMaterialInfo& material : mesh.materials) {
+                        char materialLine[160];
+                        const int materialLineLength = std::snprintf(
+                            materialLine, sizeof(materialLine),
+                            "  Material %d: texture='%s' mask='%s'\\n",
+                            static_cast<int>(material.index),
+                            material.textureName.c_str(),
+                            material.maskName.c_str()
+                        );
+                        if (materialLineLength > 0 &&
+                            static_cast<size_t>(materialLineLength) < sizeof(materialLine))
+                            diagnosticText.append(
+                                materialLine, static_cast<size_t>(materialLineLength)
+                            );
+                    }
+                }
                 char diagnosticFile[64];
                 std::snprintf(
                     diagnosticFile, sizeof(diagnosticFile),
@@ -1920,7 +1965,7 @@ static void UpdateVehicleGeometryScan() {
                 );
                 VLS::ProfileStorage::SaveDiagnosticText(
                     diagnosticFile,
-                    std::string(diagnostic, static_cast<size_t>(diagnosticLength))
+                    diagnosticText
                 );
             }
             logger->Info(
