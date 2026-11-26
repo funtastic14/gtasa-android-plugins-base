@@ -817,10 +817,9 @@ static std::string SurfaceRoleHint(const AtomicGeometryInfo& info, const GlassPa
     // same atlas, so require a compact front/rear surface island as well.
     const bool nativeLampTexture =
         textureName == "vehiclelights128" ||
-        textureName == "vehiclelightson128";
-    if (namedLampFrame)
-        return "LIGHTING_CANDIDATE";
-
+        textureName == "vehiclelightson128" ||
+        maskName == "vehiclelights128" ||
+        maskName == "vehiclelightson128";
     const float ax = std::fabs(part.nx);
     const float ay = std::fabs(part.ny);
     const float az = std::fabs(part.nz);
@@ -871,8 +870,12 @@ static std::string SurfaceRoleHint(const AtomicGeometryInfo& info, const GlassPa
         patchHeight >= 0.025f && patchHeight <= 0.70f &&
         patchDepth <= 0.30f &&
         part.area >= 0.003f && part.area <= 1.25f;
+    // Never promote a generic compact body surface to Native RGB.
+    // Converted DFFs in this project use the exact GTA lamp atlas names;
+    // otherwise require an explicitly lamp-named frame plus the same tight
+    // geometry bounds. This blocks unrelated body panels sharing an atomic.
     if (compactLampIsland && nearFrontOrRearEnd &&
-        (!bodyFrame || nativeLampTexture))
+        (nativeLampTexture || namedLampFrame))
         return "LIGHTING_CANDIDATE";
 
     if (bodyFrame) return "BODY_CHASSIS";
