@@ -123,20 +123,25 @@ void ApplyCustomTexture(
         std::string data, token;
         if (ProfileStorage::LoadTexturePng(effect.textureName, data) &&
             !data.empty() && data.size() <= static_cast<size_t>(0x7fffffff)) {
+            const stbi_uc* encoded =
+                reinterpret_cast<const stbi_uc*>(data.data());
+            const int encodedSize = static_cast<int>(data.size());
             int w = 0, h = 0;
-            stbi_uc* decoded = stbi_load_from_memory(
-                reinterpret_cast<const stbi_uc*>(data.data()),
-                static_cast<int>(data.size()), &w, &h, nullptr, STBI_rgb_alpha
-            );
-            if (decoded != nullptr) {
-                if (w > 0 && w <= 128 && h > 0 && h <= 128) {
+            // Reject oversized images before asking stb_image to allocate
+            // the decoded bitmap, keeping peak memory bounded on Android.
+            if (stbi_info_from_memory(encoded, encodedSize, &w, &h, nullptr) &&
+                w > 0 && w <= 128 && h > 0 && h <= 128) {
+                stbi_uc* decoded = stbi_load_from_memory(
+                    encoded, encodedSize, &w, &h, nullptr, STBI_rgb_alpha
+                );
+                if (decoded != nullptr) {
                     std::memcpy(entry->pixels, decoded,
                         static_cast<size_t>(w) * static_cast<size_t>(h) * 4u);
                     entry->width = static_cast<uint16_t>(w);
                     entry->height = static_cast<uint16_t>(h);
                     entry->valid = true;
+                    stbi_image_free(decoded);
                 }
-                stbi_image_free(decoded);
             }
         }
         if (!entry->valid &&
