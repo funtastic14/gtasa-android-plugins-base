@@ -15,6 +15,7 @@ bool SaveProfileJson(int modelId, const std::string& json);
 bool LoadProfileJson(int modelId, std::string& json);
 bool LoadFontBitmap(const std::string& fontName, std::string& bitmap);
 bool LoadTexturePpm(const std::string& textureName, std::string& ppm);
+bool LoadTexturePng(const std::string& textureName, std::string& png);
 
 bool SaveDiagnosticText(
     const std::string& fileName,
