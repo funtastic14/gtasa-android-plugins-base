@@ -457,13 +457,13 @@ static void DrawTouchKeyboard(
                 static_cast<char>(g_touchKeyboardUppercase
                     ? (*key >= 'a' && *key <= 'z' ? *key - 'a' + 'A' : *key)
                     : *key),
-                '\\0'
+                '\0'
             };
             if (ImGui::Button(label, ImVec2(keyWidth, 38.0f))) {
                 const size_t len = std::strlen(buffer);
                 if (len + 1 < capacity) {
                     buffer[len] = label[0];
-                    buffer[len + 1] = '\\0';
+                    buffer[len + 1] = '\0';
                     destination = buffer;
                     changed = true;
                 }
@@ -480,7 +480,7 @@ static void DrawTouchKeyboard(
             const size_t len = std::strlen(buffer);
             if (len + 1 < capacity) {
                 buffer[len] = ' ';
-                buffer[len + 1] = '\\0';
+                buffer[len + 1] = '\0';
                 destination = buffer;
                 changed = true;
             }
@@ -490,14 +490,14 @@ static void DrawTouchKeyboard(
     if (ImGui::Button("BACKSPACE", ImVec2(104.0f, 38.0f))) {
         size_t len = std::strlen(buffer);
         if (len > 0) {
-            buffer[len - 1] = '\\0';
+            buffer[len - 1] = '\0';
             destination = buffer;
             changed = true;
         }
     }
     ImGui::SameLine();
     if (ImGui::Button("CLEAR", ImVec2(70.0f, 38.0f))) {
-        buffer[0] = '\\0';
+        buffer[0] = '\0';
         destination.clear();
         changed = true;
     }
