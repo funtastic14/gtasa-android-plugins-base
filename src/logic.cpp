@@ -1203,6 +1203,15 @@ static void RenderEditor() {
             }
             if (ImGui::Button("Remove Selected Design")) {
                 effect.eyeTextures.erase(effect.eyeTextures.begin() + selectedDesign);
+                for (size_t i = 0; i < effect.eyeTextureSequence.size();) {
+                    if (effect.eyeTextureSequence[i] == selectedDesign) {
+                        effect.eyeTextureSequence.erase(effect.eyeTextureSequence.begin() + i);
+                    } else {
+                        if (effect.eyeTextureSequence[i] > selectedDesign)
+                            --effect.eyeTextureSequence[i];
+                        ++i;
+                    }
+                }
                 if (effect.eyeTextures.empty()) {
                     effect.eyeTextureIndex = 0;
                     effect.eyeTextureSequence.clear();
