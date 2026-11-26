@@ -47,6 +47,8 @@ static const float g_adjustmentScaleValues[] = {0.1f, 1.0f, 5.0f, 20.0f};
 static char g_runningTextBuffer[129] = {};
 static char g_runningFontBuffer[33] = {};
 static char g_runningTextureBuffer[33] = {};
+static char g_eyeTextureBuffer[33] = {};
+static const VLS::LedEffectConfig* g_eyeTextureBufferEffect = nullptr;
 static const VLS::LedEffectConfig* g_runningTextBufferEffect = nullptr;
 static const VLS::LedEffectConfig* g_runningFontBufferEffect = nullptr;
 static const VLS::LedEffectConfig* g_runningTextureBufferEffect = nullptr;
@@ -1097,15 +1099,15 @@ static void RenderEditor() {
             changed = true;
         }
 
-        if (g_runningTextureBufferEffect != &effect) {
-            std::memset(g_runningTextureBuffer, 0, sizeof(g_runningTextureBuffer));
-            std::strncpy(g_runningTextureBuffer, effect.textureName.c_str(),
-                         sizeof(g_runningTextureBuffer) - 1);
-            g_runningTextureBufferEffect = &effect;
+        if (g_eyeTextureBufferEffect != &effect) {
+            std::memset(g_eyeTextureBuffer, 0, sizeof(g_eyeTextureBuffer));
+            std::strncpy(g_eyeTextureBuffer, effect.textureName.c_str(),
+                         sizeof(g_eyeTextureBuffer) - 1);
+            g_eyeTextureBufferEffect = &effect;
         }
         if (ImGui::InputText("Custom Eye Texture (PNG/PPM; blank = procedural)",
-                             g_runningTextureBuffer, sizeof(g_runningTextureBuffer))) {
-            effect.textureName = g_runningTextureBuffer;
+                             g_eyeTextureBuffer, sizeof(g_eyeTextureBuffer))) {
+            effect.textureName = g_eyeTextureBuffer;
             changed = true;
         }
         if (effect.textureName.empty()) {
