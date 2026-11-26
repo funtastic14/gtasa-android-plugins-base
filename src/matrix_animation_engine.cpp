@@ -874,11 +874,19 @@ bool MatrixAnimationEngine::EvaluatePixel(
 
             if (activeMotion == EyeMotion::Wink) {
                 const uint32_t winkPhase = timeMs % 4800u;
-                const bool winkThisEye = leftEye
-                    ? winkPhase < 420u
-                    : (winkPhase >= 2400u && winkPhase < 2820u);
-                if (winkThisEye)
-                    blinkAmount = 1.0f;
+                float winkAmount = 0.0f;
+                if (leftEye && winkPhase < 420u) {
+                    winkAmount = blinkEnvelope(
+                        static_cast<float>(winkPhase), 420.0f
+                    );
+                } else if (!leftEye &&
+                           winkPhase >= 2400u && winkPhase < 2820u) {
+                    winkAmount = blinkEnvelope(
+                        static_cast<float>(winkPhase - 2400u), 420.0f
+                    );
+                }
+                // Fade each wink smoothly instead of snapping the lid shut.
+                blinkAmount = std::max(blinkAmount, winkAmount);
             }
             eyeBlinkAmount = blinkAmount;
 
