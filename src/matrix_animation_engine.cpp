@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
+#include <vector>
 
 namespace VLS {
 
@@ -113,7 +114,7 @@ bool ReadPpmToken(const std::string& data, size_t& position, std::string& token)
 
 struct TextureCacheEntry {
     std::string name;
-    uint8_t pixels[128 * 128 * 4] = {};
+    std::vector<uint8_t> pixels;
     uint16_t width = 0;
     uint16_t height = 0;
     bool valid = false;
@@ -150,6 +151,7 @@ void ApplyCustomTexture(
         entry->name = effect.textureName;
         entry->valid = false;
         entry->width = entry->height = 0;
+        entry->pixels.clear();
 
         std::string data, token;
         if (ProfileStorage::LoadTexturePng(effect.textureName, data) &&
@@ -161,13 +163,15 @@ void ApplyCustomTexture(
             // Reject oversized images before asking stb_image to allocate
             // the decoded bitmap, keeping peak memory bounded on Android.
             if (stbi_info_from_memory(encoded, encodedSize, &w, &h, nullptr) &&
-                w > 0 && w <= 128 && h > 0 && h <= 128) {
+                w > 0 && w <= 1024 && h > 0 && h <= 1024) {
                 stbi_uc* decoded = stbi_load_from_memory(
                     encoded, encodedSize, &w, &h, nullptr, STBI_rgb_alpha
                 );
                 if (decoded != nullptr) {
-                    std::memcpy(entry->pixels, decoded,
-                        static_cast<size_t>(w) * static_cast<size_t>(h) * 4u);
+                    const size_t decodedBytes =
+                        static_cast<size_t>(w) * static_cast<size_t>(h) * 4u;
+                    entry->pixels.resize(decodedBytes);
+                    std::memcpy(entry->pixels.data(), decoded, decodedBytes);
                     entry->width = static_cast<uint16_t>(w);
                     entry->height = static_cast<uint16_t>(h);
                     entry->valid = true;
@@ -185,10 +189,13 @@ void ApplyCustomTexture(
                     const int h = std::atoi(token.c_str());
                     if (ReadPpmToken(data, pos, token)) {
                         const int maxValue = std::atoi(token.c_str());
-                        if (w > 0 && w <= 128 && h > 0 && h <= 128 &&
+                        if (w > 0 && w <= 1024 && h > 0 && h <= 1024 &&
                             maxValue > 0 && maxValue <= 255) {
+                            const size_t pixelCount =
+                                static_cast<size_t>(w) * static_cast<size_t>(h);
+                            entry->pixels.assign(pixelCount * 4u, 0);
                             bool ok = true;
-                            for (int i = 0; i < w * h * 3; ++i) {
+                            for (size_t i = 0; i < pixelCount * 3u; ++i) {
                                 if (!ReadPpmToken(data, pos, token)) {
                                     ok = false;
                                     break;
@@ -198,17 +205,17 @@ void ApplyCustomTexture(
                                     ok = false;
                                     break;
                                 }
-                                entry->pixels[(i / 3) * 4 + (i % 3)] =
+                                entry->pixels[(i / 3u) * 4u + (i % 3u)] =
                                     static_cast<uint8_t>((value * 255) / maxValue);
                             }
                             if (ok) {
-                                const size_t pixelCount =
-                                    static_cast<size_t>(w) * static_cast<size_t>(h);
                                 for (size_t i = 0; i < pixelCount; ++i)
-                                    entry->pixels[i * 4 + 3] = 255;
+                                    entry->pixels[i * 4u + 3u] = 255;
                                 entry->width = static_cast<uint16_t>(w);
                                 entry->height = static_cast<uint16_t>(h);
                                 entry->valid = true;
+                            } else {
+                                entry->pixels.clear();
                             }
                         }
                     }
