@@ -952,9 +952,9 @@ static uint32_t RenderNativeLightsBatched(
                 continue;
             const GeometryTriangle& triangle = mesh->triangles[triangleIndex];
             if (triangle.materialIndex != patch.materialIndex ||
-                triangle.a >= mesh.vertices.size() ||
-                triangle.b >= mesh.vertices.size() ||
-                triangle.c >= mesh.vertices.size())
+                triangle.a >= mesh->vertices.size() ||
+                triangle.b >= mesh->vertices.size() ||
+                triangle.c >= mesh->vertices.size())
                 continue;
 
             if (stats != nullptr) {
