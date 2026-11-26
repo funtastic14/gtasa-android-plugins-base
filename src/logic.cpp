@@ -1071,7 +1071,7 @@ static void RenderEditor() {
                          sizeof(g_runningTextureBuffer) - 1);
             g_runningTextureBufferEffect = &effect;
         }
-        if (ImGui::InputText("Custom Eye Texture (PPM)", g_runningTextureBuffer,
+        if (ImGui::InputText("Custom Eye Texture (PNG/PPM)", g_runningTextureBuffer,
                              sizeof(g_runningTextureBuffer))) {
             effect.textureName = g_runningTextureBuffer;
             changed = true;
@@ -1080,7 +1080,7 @@ static void RenderEditor() {
             "Custom eye artwork is sampled from the selected texture. "
             "The selected shape only masks the artwork; no procedural iris, "
             "expression, eyebrow, or visual motif is generated. "
-            "Use a P3 PPM texture in VehicleLEDSystem/textures/."
+            "Use a transparent PNG or P3 PPM in VehicleLEDSystem/textures/ (maximum 128x128)."
         );
         int blinkInterval = static_cast<int>(effect.eyeBlinkIntervalMs);
         if (ImGui::SliderInt("Blink Interval (ms)", &blinkInterval, 500, 8000)) {
