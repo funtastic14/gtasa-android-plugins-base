@@ -1065,28 +1065,75 @@ static void RenderEditor() {
             changed = true;
         }
 
+        static const char* eyeMotionNames[] = {
+            "Idle / Natural", "Look Left", "Look Right", "Look Up", "Look Down",
+            "Look Up-Left", "Look Up-Right", "Look Down-Left", "Look Down-Right",
+            "Scan", "Shake", "Wink"
+        };
+        int eyeMotion = static_cast<int>(effect.eyeMotion);
+        if (ImGui::Combo("Eye Movement", &eyeMotion, eyeMotionNames,
+                         IM_ARRAYSIZE(eyeMotionNames))) {
+            effect.eyeMotion = static_cast<VLS::EyeMotion>(eyeMotion);
+            changed = true;
+        }
+        static const char* eyePlaybackNames[] = {
+            "Manual", "Automatic", "Sequential", "Random"
+        };
+        int eyePlayback = static_cast<int>(effect.eyeMotionPlayback);
+        if (ImGui::Combo("Movement Playback", &eyePlayback, eyePlaybackNames, 4)) {
+            effect.eyeMotionPlayback = static_cast<VLS::MotionPlaybackMode>(eyePlayback);
+            changed = true;
+        }
+        if (effect.eyeMotionPlayback != VLS::MotionPlaybackMode::Manual) {
+            int movementInterval = static_cast<int>(effect.eyeMotionIntervalMs);
+            if (ImGui::SliderInt("Movement Interval (ms)", &movementInterval, 500, 15000)) {
+                effect.eyeMotionIntervalMs = static_cast<uint32_t>(movementInterval);
+                changed = true;
+            }
+        }
+        int blinkInterval = static_cast<int>(effect.eyeBlinkIntervalMs);
+        if (ImGui::SliderInt("Blink Interval (ms)", &blinkInterval, 500, 8000)) {
+            effect.eyeBlinkIntervalMs = static_cast<uint32_t>(blinkInterval);
+            changed = true;
+        }
+
         if (g_runningTextureBufferEffect != &effect) {
             std::memset(g_runningTextureBuffer, 0, sizeof(g_runningTextureBuffer));
             std::strncpy(g_runningTextureBuffer, effect.textureName.c_str(),
                          sizeof(g_runningTextureBuffer) - 1);
             g_runningTextureBufferEffect = &effect;
         }
-        if (ImGui::InputText("Custom Eye Texture (PNG/PPM)", g_runningTextureBuffer,
-                             sizeof(g_runningTextureBuffer))) {
+        if (ImGui::InputText("Custom Eye Texture (PNG/PPM; blank = procedural)",
+                             g_runningTextureBuffer, sizeof(g_runningTextureBuffer))) {
             effect.textureName = g_runningTextureBuffer;
             changed = true;
         }
-        ImGui::TextWrapped(
-            "Custom eye artwork is sampled from the selected texture. "
-            "The selected shape only masks the artwork; no procedural iris, "
-            "expression, eyebrow, or visual motif is generated. "
-            "Use a transparent PNG or P3 PPM in VehicleLEDSystem/textures/ (maximum 128x128)."
-        );
-        int blinkInterval = static_cast<int>(effect.eyeBlinkIntervalMs);
-        if (ImGui::SliderInt("Blink Interval (ms)", &blinkInterval, 500, 8000)) {
-            effect.eyeBlinkIntervalMs = static_cast<uint32_t>(blinkInterval);
-            changed = true;
+        if (effect.textureName.empty()) {
+            float irisColor[3] = {
+                effect.eyeIrisRed / 255.0f, effect.eyeIrisGreen / 255.0f,
+                effect.eyeIrisBlue / 255.0f
+            };
+            if (ImGui::ColorEdit3("Iris Color", irisColor)) {
+                effect.eyeIrisRed = static_cast<uint8_t>(irisColor[0] * 255.0f);
+                effect.eyeIrisGreen = static_cast<uint8_t>(irisColor[1] * 255.0f);
+                effect.eyeIrisBlue = static_cast<uint8_t>(irisColor[2] * 255.0f);
+                changed = true;
+            }
+            float pupilColor[3] = {
+                effect.eyePupilRed / 255.0f, effect.eyePupilGreen / 255.0f,
+                effect.eyePupilBlue / 255.0f
+            };
+            if (ImGui::ColorEdit3("Pupil Color", pupilColor)) {
+                effect.eyePupilRed = static_cast<uint8_t>(pupilColor[0] * 255.0f);
+                effect.eyePupilGreen = static_cast<uint8_t>(pupilColor[1] * 255.0f);
+                effect.eyePupilBlue = static_cast<uint8_t>(pupilColor[2] * 255.0f);
+                changed = true;
+            }
+            ImGui::TextWrapped("Procedural mode: the eye engine draws the iris and pupil and applies gaze movement. The three palettes remain independent.");
+        } else {
+            ImGui::TextWrapped("Custom mode preserves the PNG/PPM artwork and alpha. Full gaze deformation of a flattened custom image is the next implementation stage; no separate direction or blink frames are required.");
         }
+        ImGui::TextWrapped("Use PNG RGBA or P3 PPM in VehicleLEDSystem/textures/ (maximum 128x128). Expression presets have been removed; gaze and blink remain.");
     } else if (effect.type == VLS::LedEffectType::RunningText) {
         ImGui::TextWrapped("Text scrolling, transitions and text patterns use dedicated text controls, separate from general LED motion patterns.");
     }
