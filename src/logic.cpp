@@ -1931,7 +1931,7 @@ static void UpdateVehicleGeometryScan() {
                     char meshLine[256];
                     const int meshLineLength = std::snprintf(
                         meshLine, sizeof(meshLine),
-                        "Atomic %u Geometry %u: vertices=%u triangles=%u patches=%u lighting=%u\\n",
+                        "Atomic %u Geometry %u: vertices=%u triangles=%u patches=%u lighting=%u\n",
                         static_cast<unsigned int>(mesh.atomicIndex),
                         static_cast<unsigned int>(mesh.geometryIndex),
                         static_cast<unsigned int>(mesh.vertices.size()),
@@ -1946,7 +1946,7 @@ static void UpdateVehicleGeometryScan() {
                         char materialLine[160];
                         const int materialLineLength = std::snprintf(
                             materialLine, sizeof(materialLine),
-                            "  Material %d: texture='%s' mask='%s'\\n",
+                            "  Material %d: texture='%s' mask='%s'\n",
                             static_cast<int>(material.index),
                             material.textureName.c_str(),
                             material.maskName.c_str()
