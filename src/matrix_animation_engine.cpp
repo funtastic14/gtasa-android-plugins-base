@@ -690,10 +690,14 @@ void ApplyCustomTexture(
                     // Reveal nearby iris color where the pupil used to be.
                     const float radius = std::sqrt(sourcePdx*sourcePdx + sourcePdy*sourcePdy);
                     const float scale = radius > 0.0001f ? 1.06f/radius : 1.06f;
+                    // The old pupil is now at the translated iris
+                    // position. Rebuild its exposed iris area around that
+                    // translated center; cancelling irisMove here samples the
+                    // wrong (pre-gaze) location and can leave a visible trail.
                     sampleLocalU = pupilCenterX + irisMoveX +
-                        sourcePdx * scale * pupilRadiusX - irisMoveX;
+                        sourcePdx * scale * pupilRadiusX;
                     sampleV = pupilCenterY + irisMoveY +
-                        sourcePdy * scale * pupilRadiusY - irisMoveY;
+                        sourcePdy * scale * pupilRadiusY;
                 }
             }
 
