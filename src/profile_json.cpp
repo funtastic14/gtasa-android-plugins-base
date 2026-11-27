@@ -1482,7 +1482,7 @@ static bool AppendEffect(
     output += ",\"blendMode\":";
     AppendInt(output, static_cast<int>(effect.blendMode));
 
-    output += ",\"colorMode\":");
+    output += ",\"colorMode\":";
     AppendInt(output, static_cast<int>(effect.colorMode));
     output += ",\"motionPattern\":";
     AppendInt(output, static_cast<int>(effect.motionPattern));
