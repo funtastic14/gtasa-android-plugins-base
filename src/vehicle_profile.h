@@ -315,6 +315,14 @@ struct LedEffectConfig {
     // Physical shape of each LED/pixel; panel bounds remain rectangular.
     LedElementShape elementShape = LedElementShape::Square;
 
+    // Per-effect lighting controls. Disabled by default to keep legacy profiles light.
+    bool coronaEnabled = false;
+    bool glowEnabled = false;
+    bool lightSpreadEnabled = false;
+    float coronaIntensity = 0.75f;
+    float glowIntensity = 0.55f;
+    float lightSpreadIntensity = 0.30f;
+
     uint8_t red = 255;
     uint8_t green = 255;
     uint8_t blue = 255;
