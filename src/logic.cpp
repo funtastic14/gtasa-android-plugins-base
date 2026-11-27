@@ -1183,18 +1183,22 @@ static void RenderEditor() {
             "Aurora Flow", "Sparkle", "Flame Flicker", "Waterfall",
             "Vortex", "Police Flash",
             "Rotating Square", "Curved Sweep", "Square Expand", "Square Collapse",
-            "Circle Expand", "Circle Collapse", "Triangle Converge", "Triangle Orbit"
+            "Circle Expand", "Circle Collapse", "Triangle Converge", "Triangle Orbit",
+            "Multi-Line Flutter", "Triangle Fan Sweep", "Diagonal X Cross",
+            "Multi-Axis Center Burst", "Triple Mirror Wave", "Segmented Center Expand"
         };
         int motionIndex = static_cast<int>(effect.motionPattern);
-        if (ImGui::Combo("Motion Pattern", &motionIndex, motionNames, 65)) {
+        if (ImGui::Combo("Motion Pattern", &motionIndex, motionNames, IM_ARRAYSIZE(motionNames))) {
             if (motionIndex < 0) motionIndex = 0;
-            if (motionIndex > 64) motionIndex = 64;
+            if (motionIndex >= IM_ARRAYSIZE(motionNames))
+                motionIndex = IM_ARRAYSIZE(motionNames) - 1;
             effect.motionPattern = static_cast<VLS::LedMotionPattern>(motionIndex);
             changed = true;
         }
         ImGui::TextWrapped("Collision / Burst: Multi Collision, Cross Burst and Radial Burst add intersecting or expanding fronts. Rebound patterns bounce after impact; Reflection patterns reverse or mirror their wave direction.");
         ImGui::TextWrapped("Laser Write draws a moving beam with a fading trace. Laser Weld adds a hot core and spark-like trail. Color Style controls the beam palette.");
         ImGui::TextWrapped("Geometry Motion: Rotating Square and Triangle Orbit trace geometric outlines; Curved Sweep bends its travelling front; Square / Circle Expand and Collapse move frames between center and edges; Triangle Converge sends three luminous points to meet at center.");
+        ImGui::TextWrapped("Multi-panel motion: Multi-Line Flutter, Triangle Fan Sweep, Diagonal X Cross, Multi-Axis Center Burst, Triple Mirror Wave and Segmented Center Expand are designed to span a shared canvas across vertically stacked placements.");
     } else if (effect.type == VLS::LedEffectType::StroboEyes) {
         ImGui::Separator();
         ImGui::Text("STROBO EYES - Texture-Based Renderer");
