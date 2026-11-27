@@ -372,10 +372,16 @@ void AnalyzeEyeSemanticParts(TextureCacheEntry& entry) {
             entry.eyeParts.centerY[label] = static_cast<float>(entry.eyeParts.sumY[label] / n);
         }
     }
-    entry.eyeParts.confidence=(iris>count/100u?0.34f:0.0f)+
-        (pupil>count/500u?0.33f:0.0f)+(sclera>count/100u?0.33f:0.0f);
-    if (brow>count/300u)
-        entry.eyeParts.confidence=std::min(1.0f,entry.eyeParts.confidence+0.1f);
+    const bool hasIrisRegion = entry.eyeParts.componentCount[
+        static_cast<uint8_t>(EyeSemanticPart::Iris)] > 0;
+    const bool hasPupilRegion = entry.eyeParts.componentCount[
+        static_cast<uint8_t>(EyeSemanticPart::Pupil)] > 0;
+    const bool hasScleraPixels = sclera > std::max<uint32_t>(4u, count / 100u);
+    entry.eyeParts.confidence =
+        (hasIrisRegion && iris > std::max<uint32_t>(3u, count / 500u) ? 0.40f : 0.0f) +
+        (hasPupilRegion && pupil > std::max<uint32_t>(2u, count / 1000u) ? 0.25f : 0.0f) +
+        (hasScleraPixels ? 0.25f : 0.0f) +
+        (brow > std::max<uint32_t>(2u, count / 300u) ? 0.10f : 0.0f);
     entry.eyeParts.analyzed=true;
 }
 
@@ -537,8 +543,10 @@ void ApplyCustomTexture(
         float irisCenterY = design ? design->irisCenterY : effect.eyeTextureIrisCenterY;
         float irisRadiusX = design ? design->irisRadiusX : effect.eyeTextureIrisRadiusX;
         float irisRadiusY = design ? design->irisRadiusY : effect.eyeTextureIrisRadiusY;
-        bool hasMapping = design == nullptr || design->mappingConfigured;
-        if (!hasMapping && entry->eyeParts.componentCount[
+        bool hasMapping = design != nullptr && design->mappingConfigured;
+        const bool tryAutomaticMapping = !hasMapping;
+        if (tryAutomaticMapping && entry->eyeParts.confidence >= 0.40f &&
+            entry->eyeParts.componentCount[
                 static_cast<uint8_t>(EyeSemanticPart::Iris)] > 0) {
             const uint8_t irisLabel = static_cast<uint8_t>(EyeSemanticPart::Iris);
             const uint32_t halfStart = leftEye ? 0u : entry->width / 2u;
@@ -564,6 +572,10 @@ void ApplyCustomTexture(
                 hasMapping = true;
             }
         }
+        // Explicit effect defaults remain a fallback only when no per-texture
+        // design exists. An uncalibrated design with weak detection stays still.
+        if (!hasMapping && design == nullptr)
+            hasMapping = true;
 
         if (hasMapping && irisRadiusX > 0.001f && irisRadiusY > 0.001f) {
             float gazeX = 0.0f;
