@@ -723,6 +723,18 @@ static bool ReadEffect(
 
     effect.type = static_cast<LedEffectType>(type);
 
+    const JsonValue* layerOrderValue = Find(value, "layerOrder");
+    if (layerOrderValue != nullptr &&
+        !ReadUInt8(value, "layerOrder", effect.layerOrder))
+        return false;
+    int blendMode = static_cast<int>(effect.blendMode);
+    if (Find(value, "blendMode") != nullptr &&
+        (!ReadInt(value, "blendMode", blendMode) ||
+         blendMode < 0 ||
+         blendMode > static_cast<int>(LedLayerBlendMode::Additive)))
+        return false;
+    effect.blendMode = static_cast<LedLayerBlendMode>(blendMode);
+
     if (!ReadBool(value, "enabled", effect.enabled) ||
         !ReadUInt8(value, "red", effect.red) ||
         !ReadUInt8(value, "green", effect.green) ||
@@ -1463,8 +1475,12 @@ static bool AppendEffect(
 
     output += ",\"opacity\":";
     if (!AppendFloat(output, effect.opacity)) return false;
+    output += ",\"layerOrder\":";
+    AppendUInt(output, effect.layerOrder);
+    output += ",\"blendMode\":";
+    AppendInt(output, static_cast<int>(effect.blendMode));
 
-    output += ",\"colorMode\":";
+    output += ",\"colorMode\":
     AppendInt(output, static_cast<int>(effect.colorMode));
     output += ",\"motionPattern\":";
     AppendInt(output, static_cast<int>(effect.motionPattern));
