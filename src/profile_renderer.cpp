@@ -458,6 +458,25 @@ static MotionPlaybackMode GetPlacementMotionPlayback(const LedPlacement& placeme
     }
 }
 
+static bool DrawEffectGeometry(
+    std::vector<RwIm3DVertex>& vertices,
+    std::vector<RwImVertexIndex>& indices,
+    LedLayerBlendMode blendMode
+) {
+    if (vertices.empty() || indices.empty())
+        return false;
+    RenderStateGuard stateGuard(blendMode);
+    const RwUInt32 flags = rwIM3D_VERTEXXYZ | rwIM3D_VERTEXRGBA;
+    if (RwIm3DTransform(vertices.data(),
+            static_cast<RwUInt32>(vertices.size()), nullptr, flags) == nullptr)
+        return false;
+    const bool rendered = RwIm3DRenderIndexedPrimitive(
+        rwPRIMTYPETRILIST, indices.data(),
+        static_cast<RwUInt32>(indices.size()));
+    RwIm3DEnd();
+    return rendered;
+}
+
 static bool RenderMatrixEffect(
     CVehicle* vehicle,
     const LedPlacement& placement,
@@ -544,8 +563,12 @@ static bool RenderMatrixEffect(
     // so allocating two fresh vectors for every placement every frame is costly on mobile.
     static std::vector<RwIm3DVertex> vertices;
     static std::vector<RwImVertexIndex> indices;
+    static std::vector<RwIm3DVertex> lightVertices;
+    static std::vector<RwImVertexIndex> lightIndices;
     vertices.clear();
     indices.clear();
+    lightVertices.clear();
+    lightIndices.clear();
     // Per-pixel shape selection means one matrix may mix simple and complex
     // meshes. Reserve bounded reusable capacity; the 16-bit index guard below
     // remains authoritative for unusually dense matrices.
@@ -617,25 +640,25 @@ static bool RenderMatrixEffect(
             const float baseHalfWidth = (right - left) * 0.5f;
             const float baseHalfHeight = (top - bottom) * 0.5f;
             if (effect.lightSpreadEnabled)
-                AppendLightGeometry(vertices, indices, LedElementShape::Square,
+                AppendLightGeometry(lightVertices, lightIndices, LedElementShape::Square,
                     centerX, centerZ, baseHalfWidth * 2.8f, baseHalfHeight * 2.8f,
                     t.y + 0.002f, t, matrix, red, green, blue,
                     ClampColor(35.0f * effect.lightSpreadIntensity * output.intensity *
                         TransitionEngine::Clamp01(alphaCoverage * transitionCoverage)));
             if (effect.glowEnabled) {
-                AppendLightGeometry(vertices, indices, LedElementShape::CircleFilled,
+                AppendLightGeometry(lightVertices, lightIndices, LedElementShape::CircleFilled,
                     centerX, centerZ, baseHalfWidth * 2.0f, baseHalfHeight * 2.0f,
                     t.y + 0.001f, t, matrix, red, green, blue,
                     ClampColor(65.0f * effect.glowIntensity * output.intensity *
                         TransitionEngine::Clamp01(alphaCoverage * transitionCoverage)));
-                AppendLightGeometry(vertices, indices, LedElementShape::CircleFilled,
+                AppendLightGeometry(lightVertices, lightIndices, LedElementShape::CircleFilled,
                     centerX, centerZ, baseHalfWidth * 1.35f, baseHalfHeight * 1.35f,
                     t.y + 0.0015f, t, matrix, red, green, blue,
                     ClampColor(85.0f * effect.glowIntensity * output.intensity *
                         TransitionEngine::Clamp01(alphaCoverage * transitionCoverage)));
             }
             if (effect.coronaEnabled)
-                AppendLightGeometry(vertices, indices, LedElementShape::CircleFilled,
+                AppendLightGeometry(lightVertices, lightIndices, LedElementShape::CircleFilled,
                     centerX, centerZ, baseHalfWidth * 1.45f, baseHalfHeight * 1.45f,
                     t.y + 0.003f, t, matrix, red, green, blue,
                     ClampColor(105.0f * effect.coronaIntensity * output.intensity *
@@ -674,28 +697,12 @@ static bool RenderMatrixEffect(
     if (vertices.empty() || indices.empty())
         return false;
 
-    const bool hasLighting = effect.coronaEnabled || effect.glowEnabled || effect.lightSpreadEnabled;
-    RenderStateGuard stateGuard(hasLighting ? LedLayerBlendMode::Additive : effect.blendMode);
-
-    const RwUInt32 flags =
-        rwIM3D_VERTEXXYZ | rwIM3D_VERTEXRGBA;
-
-    if (RwIm3DTransform(
-            vertices.data(),
-            static_cast<RwUInt32>(vertices.size()),
-            nullptr,
-            flags
-        ) == nullptr)
-        return false;
-
-    const bool rendered = RwIm3DRenderIndexedPrimitive(
-        rwPRIMTYPETRILIST,
-        indices.data(),
-        static_cast<RwUInt32>(indices.size())
-    );
-
-    RwIm3DEnd();
-
+    const bool rendered = DrawEffectGeometry(
+        vertices, indices, effect.blendMode);
+    // Keep corona/glow/spread in an isolated additive pass; the LED core
+    // always retains its configured Alpha/Additive blend mode.
+    if (!lightVertices.empty() && !lightIndices.empty())
+        DrawEffectGeometry(lightVertices, lightIndices, LedLayerBlendMode::Additive);
     return rendered;
 }
 
@@ -798,8 +805,12 @@ static bool RenderEffect(
     // and 96 indices per LED (circle outline).
     static std::vector<RwIm3DVertex> vertices;
     static std::vector<RwImVertexIndex> indices;
+    static std::vector<RwIm3DVertex> lightVertices;
+    static std::vector<RwImVertexIndex> lightIndices;
     vertices.clear();
     indices.clear();
+    lightVertices.clear();
+    lightIndices.clear();
     if (vertices.capacity() < SEGMENTS * 32) vertices.reserve(SEGMENTS * 32);
     if (indices.capacity() < SEGMENTS * 96) indices.reserve(SEGMENTS * 96);
 
@@ -1002,22 +1013,22 @@ static bool RenderEffect(
         const uint8_t lightAlpha = ClampColor(255.0f * intensity *
             effect.opacity * alphaCoverage * transitionCoverage);
         if (effect.lightSpreadEnabled)
-            AppendLightGeometry(vertices, indices, LedElementShape::Square,
+            AppendLightGeometry(lightVertices, lightIndices, LedElementShape::Square,
                 centerX, centerZ, halfWidth * 2.8f, halfHeight * 2.8f,
                 t.y + 0.002f, t, matrix, red, green, blue,
                 ClampColor(35.0f * effect.lightSpreadIntensity * lightAlpha / 255.0f));
         if (effect.glowEnabled) {
-            AppendLightGeometry(vertices, indices, LedElementShape::CircleFilled,
+            AppendLightGeometry(lightVertices, lightIndices, LedElementShape::CircleFilled,
                 centerX, centerZ, halfWidth * 2.0f, halfHeight * 2.0f,
                 t.y + 0.001f, t, matrix, red, green, blue,
                 ClampColor(65.0f * effect.glowIntensity * lightAlpha / 255.0f));
-            AppendLightGeometry(vertices, indices, LedElementShape::CircleFilled,
+            AppendLightGeometry(lightVertices, lightIndices, LedElementShape::CircleFilled,
                 centerX, centerZ, halfWidth * 1.35f, halfHeight * 1.35f,
                 t.y + 0.0015f, t, matrix, red, green, blue,
                 ClampColor(85.0f * effect.glowIntensity * lightAlpha / 255.0f));
         }
         if (effect.coronaEnabled)
-            AppendLightGeometry(vertices, indices, LedElementShape::CircleFilled,
+            AppendLightGeometry(lightVertices, lightIndices, LedElementShape::CircleFilled,
                 centerX, centerZ, halfWidth * 1.45f, halfHeight * 1.45f,
                 t.y + 0.003f, t, matrix, red, green, blue,
                 ClampColor(105.0f * effect.coronaIntensity * lightAlpha / 255.0f));
@@ -1057,28 +1068,12 @@ static bool RenderEffect(
             indices.push_back(static_cast<RwImVertexIndex>(base + shapeIndices[i]));
     }
 
-    const bool hasLighting = effect.coronaEnabled || effect.glowEnabled || effect.lightSpreadEnabled;
-    RenderStateGuard stateGuard(hasLighting ? LedLayerBlendMode::Additive : effect.blendMode);
-
-    const RwUInt32 flags =
-        rwIM3D_VERTEXXYZ | rwIM3D_VERTEXRGBA;
-
-    if (RwIm3DTransform(
-            vertices.data(),
-            static_cast<RwUInt32>(vertices.size()),
-            nullptr,
-            flags
-        ) == nullptr)
-        return false;
-
-    const bool rendered = RwIm3DRenderIndexedPrimitive(
-        rwPRIMTYPETRILIST,
-        indices.data(),
-        static_cast<RwUInt32>(indices.size())
-    );
-
-    RwIm3DEnd();
-
+    const bool rendered = DrawEffectGeometry(
+        vertices, indices, effect.blendMode);
+    // Keep corona/glow/spread in an isolated additive pass; the LED core
+    // always retains its configured Alpha/Additive blend mode.
+    if (!lightVertices.empty() && !lightIndices.empty())
+        DrawEffectGeometry(lightVertices, lightIndices, LedLayerBlendMode::Additive);
     return rendered;
 }
 
