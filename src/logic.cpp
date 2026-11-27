@@ -1927,14 +1927,19 @@ static void OnRenderEffects() {
             }
             const VLS::EffectSequenceStep* activeSequenceStep =
                 g_sequenceRuntime.GetCurrentStep(*profile);
+            const VLS::EffectSequenceStep* previousSequenceStep =
+                g_sequenceRuntime.GetPreviousStep(*profile, frameTimeMs);
+            const float sequenceTransitionProgress =
+                g_sequenceRuntime.GetTransitionProgress(frameTimeMs);
             for (CVehicle* vehicle : g_frameVehicles) {
                 if (vehicle != currentVehicle || !IsVehiclePointerValid(vehicle))
                     continue;
 
-                // Render the ordered layer stack, with an active custom
-                // sequence step overriding only its target placement.
+                // Custom sequence changes crossfade outgoing and incoming
+                // effects using the same timestamp as the rest of this frame.
                 VLS::ProfileRenderer::RenderVehicleProfile(
-                    vehicle, *profile, frameTimeMs, activeSequenceStep
+                    vehicle, *profile, frameTimeMs, activeSequenceStep,
+                    previousSequenceStep, sequenceTransitionProgress
                 );
             }
         }
