@@ -1120,6 +1120,11 @@ uint32_t ProfileRenderer::RenderVehicleProfile(
 
     uint32_t rendered = 0;
 
+    // Sample the game clock once so every placement and every visual layer
+    // evaluates the same frame timestamp, avoiding phase drift from repeated
+    // timer reads during a single render callback.
+    const uint32_t motionTimeMs = CTimer::GetTimeMS();
+
     for (const LedPlacement& placement : profile.placements) {
         if (!placement.enabled || placement.effects.empty())
             continue;
@@ -1142,7 +1147,6 @@ uint32_t ProfileRenderer::RenderVehicleProfile(
         if (motionDriver == nullptr)
             continue;
 
-        const uint32_t motionTimeMs = CTimer::GetTimeMS();
         const MotionFrameState motionFrame = BuildMotionFrameState(
             *motionDriver, motionTimeMs, GetPlacementMotionPlayback(placement),
             placement.animationIntervalMs
