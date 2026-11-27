@@ -595,7 +595,34 @@ static bool RenderEffect(
 
     const bool strobeOn = motionFrame.phase < 0.5f;
 
+    // Strip effects can occupy a region of the same logical canvas used by
+    // matrix effects. The physical geometry remains placement-local; only
+    // animation/color sampling uses these shared logical coordinates.
+    const LedMatrixConfig& stripCanvas = effect.matrix;
+    const bool useSharedStripCanvas =
+        stripCanvas.canvasEnabled &&
+        stripCanvas.canvasColumns >= SEGMENTS &&
+        stripCanvas.canvasRows > 0 &&
+        static_cast<uint32_t>(stripCanvas.canvasOffsetColumn) + SEGMENTS <=
+            stripCanvas.canvasColumns &&
+        static_cast<uint32_t>(stripCanvas.canvasOffsetRow) <
+            stripCanvas.canvasRows;
+    const uint16_t logicalColumns = useSharedStripCanvas
+        ? stripCanvas.canvasColumns : static_cast<uint16_t>(SEGMENTS);
+    const uint16_t logicalRows = useSharedStripCanvas
+        ? stripCanvas.canvasRows : 1u;
+    const uint16_t logicalRow = useSharedStripCanvas
+        ? stripCanvas.canvasOffsetRow : 0u;
+
     for (uint32_t i = 0; i < SEGMENTS; ++i) {
+        const uint16_t logicalColumn = static_cast<uint16_t>(
+            (useSharedStripCanvas ? stripCanvas.canvasOffsetColumn : 0u) + i
+        );
+        const float nx = (static_cast<float>(logicalColumn) + 0.5f) /
+            static_cast<float>(logicalColumns);
+        const float ny = (static_cast<float>(logicalRow) + 0.5f) /
+            static_cast<float>(logicalRows);
+
         float intensity = 1.0f;
 
         uint8_t red = effect.red;
@@ -621,7 +648,7 @@ static bool RenderEffect(
             break;
 
         case LedEffectType::RGB: {
-            float colorPosition = (static_cast<float>(i) + 0.5f) / static_cast<float>(SEGMENTS);
+            float colorPosition = nx;
             switch (effect.colorDirection) {
             case LedColorDirection::RightToLeft:
             case LedColorDirection::BottomToTop:
@@ -649,8 +676,6 @@ static bool RenderEffect(
             return false;
         }
 
-        const float nx = (static_cast<float>(i) + 0.5f) / static_cast<float>(SEGMENTS);
-
         // Only general-purpose effects sample the shared motion field.
         // Strobo Eyes and Running Text retain their dedicated movement engines.
         if (effect.type == LedEffectType::RunningLED ||
@@ -658,9 +683,9 @@ static bool RenderEffect(
             effect.type == LedEffectType::StroboWave) {
             const float phase01 = motionFrame.phase;
             intensity *= EvaluateMotionIntensity(
-                motionFrame.pattern, nx, 0.5f, phase01,
-                static_cast<uint16_t>(i), 0,
-                static_cast<uint16_t>(SEGMENTS), 1
+                motionFrame.pattern, nx, ny, phase01,
+                logicalColumn, logicalRow,
+                logicalColumns, logicalRows
             );
         }
 
