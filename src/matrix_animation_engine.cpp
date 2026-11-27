@@ -218,6 +218,15 @@ bool ReadPpmToken(const std::string& data, size_t& position, std::string& token)
     return !token.empty();
 }
 
+enum class EyeSemanticPart : uint8_t {
+    Unknown = 0, Sclera = 1, Iris = 2, Pupil = 3, Eyebrow = 4
+};
+struct EyeSemanticAnalysis {
+    std::vector<uint8_t> labels;
+    uint32_t counts[5] = {};
+    bool analyzed = false;
+    float confidence = 0.0f;
+};
 struct TextureCacheEntry {
     std::string name;
     std::vector<uint8_t> pixels;
@@ -225,7 +234,50 @@ struct TextureCacheEntry {
     uint16_t height = 0;
     uint32_t lastAttemptMs = 0;
     bool valid = false;
+    EyeSemanticAnalysis eyeParts;
 };
+
+// Cached conservative pixel classification; flattened PNGs have no layer data.
+void AnalyzeEyeSemanticParts(TextureCacheEntry& entry) {
+    entry.eyeParts.labels.clear();
+    std::fill(entry.eyeParts.counts, entry.eyeParts.counts + 5, 0u);
+    entry.eyeParts.analyzed = false;
+    entry.eyeParts.confidence = 0.0f;
+    if (!entry.valid || !entry.width || !entry.height) return;
+    const size_t count = static_cast<size_t>(entry.width) * entry.height;
+    entry.eyeParts.labels.assign(count, 0);
+    uint32_t iris = 0, pupil = 0, sclera = 0, brow = 0;
+    for (uint16_t y = 0; y < entry.height; ++y) {
+        for (uint16_t x = 0; x < entry.width; ++x) {
+            const size_t p = (static_cast<size_t>(y) * entry.width + x) * 4u;
+            const uint8_t r=entry.pixels[p], g=entry.pixels[p+1],
+                b=entry.pixels[p+2], a=entry.pixels[p+3];
+            if (a < 24) continue;
+            const int hi=std::max(r,std::max(g,b)), lo=std::min(r,std::min(g,b));
+            const int sat=hi-lo, lum=(r*30+g*59+b*11)/100;
+            const float nx=(static_cast<float>(x)+0.5f)/entry.width;
+            const float ny=(static_cast<float>(y)+0.5f)/entry.height;
+            EyeSemanticPart part=EyeSemanticPart::Unknown;
+            if (lum<=48 && ny<0.36f && nx>0.04f && nx<0.96f) {
+                part=EyeSemanticPart::Eyebrow; ++brow;
+            } else if (lum<=40 && ny>0.15f && ny<0.90f) {
+                part=EyeSemanticPart::Pupil; ++pupil;
+            } else if (sat>=36 && lum>24 && ny>0.10f && ny<0.94f) {
+                part=EyeSemanticPart::Iris; ++iris;
+            } else if (lum>=145 && sat<=70) {
+                part=EyeSemanticPart::Sclera; ++sclera;
+            }
+            const uint8_t label=static_cast<uint8_t>(part);
+            entry.eyeParts.labels[static_cast<size_t>(y)*entry.width+x]=label;
+            ++entry.eyeParts.counts[label];
+        }
+    }
+    entry.eyeParts.confidence=(iris>count/100u?0.34f:0.0f)+
+        (pupil>count/500u?0.33f:0.0f)+(sclera>count/100u?0.33f:0.0f);
+    if (brow>count/300u)
+        entry.eyeParts.confidence=std::min(1.0f,entry.eyeParts.confidence+0.1f);
+    entry.eyeParts.analyzed=true;
+}
 
 // Shared bounded cache lets the procedural renderer detect a failed or
 // evicted custom texture and keep the eye visible instead of suppressing it.
@@ -342,6 +394,8 @@ TextureCacheEntry* GetOrLoadCustomTexture(
             }
         }
     
+        if (entry->valid && !entry->eyeParts.analyzed)
+            AnalyzeEyeSemanticParts(*entry);
         return entry;
 }
 
