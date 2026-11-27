@@ -54,7 +54,7 @@ void VehicleLightEngine::AddHighBeam(
         const CVector position = base + right * (0.55f * side);
         for (int ray = 0; ray < 3; ++ray) {
             CVector direction = forward + right * rayOffsets[ray];
-            direction.Normalize();
+            direction.NormalizeAndMag();
             CPointLights::AddLight(
                 PLTYPE_SPOTLIGHT,
                 position,
