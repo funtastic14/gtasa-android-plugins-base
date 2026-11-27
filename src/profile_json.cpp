@@ -1201,6 +1201,8 @@ static bool ValidateProfileReferences(
                 static_cast<int>(effect.colorMode) > static_cast<int>(LedColorMode::Alternating) ||
                 static_cast<int>(effect.colorDirection) < 0 ||
                 static_cast<int>(effect.colorDirection) > static_cast<int>(LedColorDirection::EdgeToCenter) ||
+                static_cast<int>(effect.blendMode) < 0 ||
+                static_cast<int>(effect.blendMode) > static_cast<int>(LedLayerBlendMode::Additive) ||
                 !std::isfinite(effect.colorSpread) ||
                 effect.colorSpread < 0.1f || effect.colorSpread > 8.0f ||
                 !std::isfinite(effect.speed) ||
