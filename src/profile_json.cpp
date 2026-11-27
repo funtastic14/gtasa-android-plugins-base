@@ -734,6 +734,13 @@ static bool ReadEffect(
          blendMode > static_cast<int>(LedLayerBlendMode::Additive)))
         return false;
     effect.blendMode = static_cast<LedLayerBlendMode>(blendMode);
+    int elementShape = static_cast<int>(effect.elementShape);
+    if (Find(value, "elementShape") != nullptr &&
+        (!ReadInt(value, "elementShape", elementShape) ||
+         elementShape < 0 ||
+         elementShape > static_cast<int>(LedElementShape::Octagon)))
+        return false;
+    effect.elementShape = static_cast<LedElementShape>(elementShape);
 
     if (!ReadBool(value, "enabled", effect.enabled) ||
         !ReadUInt8(value, "red", effect.red) ||
@@ -1494,6 +1501,8 @@ static bool AppendEffect(
     AppendUInt(output, effect.layerOrder);
     output += ",\"blendMode\":";
     AppendInt(output, static_cast<int>(effect.blendMode));
+    output += ",\"elementShape\":";
+    AppendInt(output, static_cast<int>(effect.elementShape));
 
     output += ",\"colorMode\":";
     AppendInt(output, static_cast<int>(effect.colorMode));
