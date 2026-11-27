@@ -58,7 +58,12 @@ public:
         uint16_t rows,
         uint32_t seed
     ) {
-        const float p = SmoothStep(progress);
+        const float clampedProgress = Clamp01(progress);
+        if (clampedProgress <= 0.0f)
+            return 0.0f;
+        if (clampedProgress >= 1.0f)
+            return 1.0f;
+        const float p = SmoothStep(clampedProgress);
         x = Clamp01(x);
         y = Clamp01(y);
         constexpr float edge = 0.035f;
