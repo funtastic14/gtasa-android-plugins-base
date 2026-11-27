@@ -17,6 +17,8 @@ struct MatrixPixelOutput {
 
 class MatrixAnimationEngine {
 public:
+    static void PrepareEffect(const LedEffectConfig& effect, uint32_t timeMs);
+
     static bool EvaluatePixel(
         const LedEffectConfig& effect,
         uint16_t column,
