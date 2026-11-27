@@ -1107,6 +1107,20 @@ static uint32_t RenderNativeLightsBatched(
         return 0;
     }
 
+    // Derive front/rear thresholds from each vehicle's actual geometry.
+    // Absolute Y thresholds misclassified lamps on short/custom vehicle models.
+    float vehicleMinY = std::numeric_limits<float>::max();
+    float vehicleMaxY = std::numeric_limits<float>::lowest();
+    for (const AtomicMesh& mesh : meshes) {
+        for (const GeometryVertex& vertex : mesh.vehicleSpaceVertices) {
+            vehicleMinY = std::min(vehicleMinY, vertex.y);
+            vehicleMaxY = std::max(vehicleMaxY, vertex.y);
+        }
+    }
+    const float vehicleLength = std::max(0.0f, vehicleMaxY - vehicleMinY);
+    const float longitudinalMid = (vehicleMinY + vehicleMaxY) * 0.5f;
+    const float longitudinalThreshold = std::max(0.06f, vehicleLength * 0.08f);
+
     // Atomic indices are bounded by the geometry scanner (0..127). Build a
     // fixed lookup table once per render call instead of linearly searching
     // the mesh vector for every lamp patch.
@@ -1185,8 +1199,10 @@ static uint32_t RenderNativeLightsBatched(
             continue;
         if (stats != nullptr) ++stats->lightingPatches;
 
-        const bool front = patch.centroid.y > 0.25f;
-        const bool rear = patch.centroid.y < -0.25f;
+        const bool front = patch.centroid.y >
+            longitudinalMid + longitudinalThreshold;
+        const bool rear = patch.centroid.y <
+            longitudinalMid - longitudinalThreshold;
         if (front && stats != nullptr) ++stats->frontPatches;
         if (rear && stats != nullptr) ++stats->rearPatches;
         if (!front && !rear) {
