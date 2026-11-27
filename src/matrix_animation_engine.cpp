@@ -819,17 +819,26 @@ void ApplyCustomTexture(
                     sampleLocalU = localU - irisMoveX - pupilExtraX;
                     sampleV = v - irisMoveY - pupilExtraY;
                 } else if (inOldPupil) {
-                    // Reveal nearby iris color where the pupil used to be.
-                    const float radius = std::sqrt(sourcePdx*sourcePdx + sourcePdy*sourcePdy);
-                    const float scale = radius > 0.0001f ? 1.20f/radius : 1.20f;
-                    // The old pupil is now at the translated iris
-                    // position. Rebuild its exposed iris area around that
-                    // translated center; cancelling irisMove here samples the
-                    // wrong (pre-gaze) location and can leave a visible trail.
-                    sampleLocalU = pupilCenterX + irisMoveX +
-                        sourcePdx * scale * pupilRadiusX;
-                    sampleV = pupilCenterY + irisMoveY +
-                        sourcePdy * scale * pupilRadiusY;
+                    // Reveal a classified iris pixel rather than sampling a
+                    // fixed ring that may still contain the old dark pupil.
+                    // The search is bounded and uses the same cached semantic
+                    // labels as the iris-to-sclera repair above.
+                    if (!findSemanticRingSample(
+                            static_cast<uint8_t>(EyeSemanticPart::Iris),
+                            pupilCenterX + irisMoveX,
+                            pupilCenterY + irisMoveY,
+                            sourcePdx, sourcePdy,
+                            pupilRadiusX, pupilRadiusY,
+                            sampleLocalU, sampleV)) {
+                        const float radius = std::sqrt(
+                            sourcePdx * sourcePdx + sourcePdy * sourcePdy);
+                        const float scale = radius > 0.0001f
+                            ? 1.20f / radius : 1.20f;
+                        sampleLocalU = pupilCenterX + irisMoveX +
+                            sourcePdx * scale * pupilRadiusX;
+                        sampleV = pupilCenterY + irisMoveY +
+                            sourcePdy * scale * pupilRadiusY;
+                    }
                 }
             }
 
