@@ -221,12 +221,20 @@ bool ReadPpmToken(const std::string& data, size_t& position, std::string& token)
 enum class EyeSemanticPart : uint8_t {
     Unknown = 0, Sclera = 1, Iris = 2, Pupil = 3, Eyebrow = 4
 };
+struct EyeComponentBounds {
+    uint32_t pixels = 0;
+    uint32_t minX = 0, minY = 0, maxX = 0, maxY = 0;
+    double sumX = 0.0, sumY = 0.0;
+    float centerX = 0.0f, centerY = 0.0f;
+};
 struct EyeSemanticAnalysis {
     std::vector<uint8_t> labels;
     uint32_t counts[5] = {};
     uint32_t minX[5] = {}, minY[5] = {}, maxX[5] = {}, maxY[5] = {};
     double sumX[5] = {}, sumY[5] = {};
     float centerX[5] = {}, centerY[5] = {};
+    EyeComponentBounds components[5][2] = {};
+    uint8_t componentCount[5] = {};
     bool analyzed = false;
     float confidence = 0.0f;
 };
@@ -289,6 +297,98 @@ void AnalyzeEyeSemanticParts(TextureCacheEntry& entry) {
                 entry.eyeParts.sumX[label] += x;
                 entry.eyeParts.sumY[label] += y;
             }
+        }
+    }
+    // Split each semantic candidate mask into connected regions. Keep the
+    // two largest regions per class so a side-by-side pair of eyes remains
+    // distinguishable. Reuse the label buffer as the visited map: pixels
+    // are restored after each flood fill, avoiding a second full-size mask.
+    std::vector<uint32_t> componentQueue;
+    for (uint8_t label = 1; label < 5; ++label) {
+        entry.eyeParts.componentCount[label] = 0;
+        for (uint32_t seed = 0; seed < count; ++seed) {
+            if (entry.eyeParts.labels[seed] != label) continue;
+            componentQueue.clear();
+            componentQueue.push_back(seed);
+            entry.eyeParts.labels[seed] = 0;
+            EyeComponentBounds component;
+            component.minX = entry.width;
+            component.minY = entry.height;
+            while (!componentQueue.empty()) {
+                const uint32_t index = componentQueue.back();
+                componentQueue.pop_back();
+                const uint32_t px = index % entry.width;
+                const uint32_t py = index / entry.width;
+                ++component.pixels;
+                component.minX = std::min(component.minX, px);
+                component.minY = std::min(component.minY, py);
+                component.maxX = std::max(component.maxX, px);
+                component.maxY = std::max(component.maxY, py);
+                component.sumX += px;
+                component.sumY += py;
+                const uint32_t y0 = py > 0 ? py - 1u : py;
+                const uint32_t y1 = std::min<uint32_t>(entry.height - 1u, py + 1u);
+                const uint32_t x0 = px > 0 ? px - 1u : px;
+                const uint32_t x1 = std::min<uint32_t>(entry.width - 1u, px + 1u);
+                for (uint32_t ny = y0; ny <= y1; ++ny) {
+                    for (uint32_t nx = x0; nx <= x1; ++nx) {
+                        const uint32_t neighbor = ny * entry.width + nx;
+                        if (entry.eyeParts.labels[neighbor] == label) {
+                            entry.eyeParts.labels[neighbor] = 0;
+                            componentQueue.push_back(neighbor);
+                        }
+                    }
+                }
+            }
+            for (size_t i = 0; i < componentQueue.size(); ++i)
+                entry.eyeParts.labels[componentQueue[i]] = label;
+            // The stack is empty after flood fill; restore the component by
+            // scanning its bounded box. This is bounded to the component ROI.
+            component.centerX = component.pixels
+                ? static_cast<float>(component.sumX / component.pixels) : 0.0f;
+            component.centerY = component.pixels
+                ? static_cast<float>(component.sumY / component.pixels) : 0.0f;
+            const uint8_t slot = entry.eyeParts.componentCount[label];
+            if (slot < 2) {
+                entry.eyeParts.components[label][slot] = component;
+                entry.eyeParts.componentCount[label] = slot + 1;
+            } else {
+                uint8_t smallest = entry.eyeParts.components[label][0].pixels <=
+                    entry.eyeParts.components[label][1].pixels ? 0 : 1;
+                if (component.pixels > entry.eyeParts.components[label][smallest].pixels)
+                    entry.eyeParts.components[label][smallest] = component;
+            }
+            // Restore labels by walking the component's bounding rectangle.
+            // Only candidate pixels are rewritten; unrelated classes remain.
+            for (uint32_t ry = component.minY; ry <= component.maxY; ++ry) {
+                for (uint32_t rx = component.minX; rx <= component.maxX; ++rx) {
+                    const size_t ri = static_cast<size_t>(ry) * entry.width + rx;
+                    if (entry.eyeParts.labels[ri] == 0) {
+                        const size_t p = ri * 4u;
+                        const uint8_t rr=entry.pixels[p], gg=entry.pixels[p+1],
+                            bb=entry.pixels[p+2], aa=entry.pixels[p+3];
+                        if (aa >= 24) {
+                            const int hi=std::max(rr,std::max(gg,bb));
+                            const int lo=std::min(rr,std::min(gg,bb));
+                            const int sat=hi-lo, lum=(rr*30+gg*59+bb*11)/100;
+                            const float nx=(static_cast<float>(rx)+0.5f)/entry.width;
+                            const float ny=(static_cast<float>(ry)+0.5f)/entry.height;
+                            uint8_t candidate=0;
+                            if (lum<=48 && ny<0.36f && nx>0.04f && nx<0.96f) candidate=4;
+                            else if (lum<=40 && ny>0.15f && ny<0.90f) candidate=3;
+                            else if (sat>=36 && lum>24 && ny>0.10f && ny<0.94f) candidate=2;
+                            else if (lum>=145 && sat<=70) candidate=1;
+                            if (candidate == label) entry.eyeParts.labels[ri] = label;
+                        }
+                    }
+                }
+            }
+        }
+        if (entry.eyeParts.componentCount[label] == 2 &&
+            entry.eyeParts.components[label][1].pixels >
+            entry.eyeParts.components[label][0].pixels) {
+            std::swap(entry.eyeParts.components[label][0],
+                      entry.eyeParts.components[label][1]);
         }
     }
     for (uint8_t label = 1; label < 5; ++label) {
@@ -459,11 +559,37 @@ void ApplyCustomTexture(
         const bool leftEye = column < matrix.columns / 2;
         const float localU = leftEye ? u * 2.0f : (u - 0.5f) * 2.0f;
         const float eyeV = v;
-        const float irisCenterX = design ? design->irisCenterX : effect.eyeTextureIrisCenterX;
-        const float irisCenterY = design ? design->irisCenterY : effect.eyeTextureIrisCenterY;
-        const float irisRadiusX = design ? design->irisRadiusX : effect.eyeTextureIrisRadiusX;
-        const float irisRadiusY = design ? design->irisRadiusY : effect.eyeTextureIrisRadiusY;
-        const bool hasMapping = design == nullptr || design->mappingConfigured;
+        float irisCenterX = design ? design->irisCenterX : effect.eyeTextureIrisCenterX;
+        float irisCenterY = design ? design->irisCenterY : effect.eyeTextureIrisCenterY;
+        float irisRadiusX = design ? design->irisRadiusX : effect.eyeTextureIrisRadiusX;
+        float irisRadiusY = design ? design->irisRadiusY : effect.eyeTextureIrisRadiusY;
+        bool hasMapping = design == nullptr || design->mappingConfigured;
+        if (!hasMapping && entry->eyeParts.componentCount[
+                static_cast<uint8_t>(EyeSemanticPart::Iris)] > 0) {
+            const uint8_t irisLabel = static_cast<uint8_t>(EyeSemanticPart::Iris);
+            const uint32_t halfStart = leftEye ? 0u : entry->width / 2u;
+            const uint32_t halfEnd = leftEye ? entry->width / 2u : entry->width;
+            const EyeComponentBounds* best = nullptr;
+            for (uint8_t i = 0; i < entry->eyeParts.componentCount[irisLabel]; ++i) {
+                const EyeComponentBounds& candidate =
+                    entry->eyeParts.components[irisLabel][i];
+                if (candidate.centerX >= halfStart && candidate.centerX < halfEnd &&
+                    (best == nullptr || candidate.pixels > best->pixels))
+                    best = &candidate;
+            }
+            if (best != nullptr && best->pixels >= 3u) {
+                const float halfWidth = static_cast<float>(halfEnd - halfStart);
+                irisCenterX = (best->centerX - static_cast<float>(halfStart)) / halfWidth;
+                irisCenterY = best->centerY / static_cast<float>(entry->height);
+                irisRadiusX = std::max(0.015f,
+                    static_cast<float>(best->maxX - best->minX + 1u) /
+                    (2.0f * halfWidth));
+                irisRadiusY = std::max(0.015f,
+                    static_cast<float>(best->maxY - best->minY + 1u) /
+                    (2.0f * static_cast<float>(entry->height)));
+                hasMapping = true;
+            }
+        }
 
         if (hasMapping && irisRadiusX > 0.001f && irisRadiusY > 0.001f) {
             float gazeX = 0.0f;
