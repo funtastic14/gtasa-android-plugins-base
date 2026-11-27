@@ -659,6 +659,92 @@ static void RenderEditor() {
     if (nativeLightsChanged)
         g_profileManager.MarkDirty(modelId);
 
+    // -----------------------------------------------------
+    // Programmable custom sequence and transition editor
+    // -----------------------------------------------------
+    ImGui::Separator();
+    ImGui::Text("Custom Effect Sequence");
+    if (profile->sequences.empty()) {
+        if (ImGui::Button("Create Custom Sequence", ImVec2(240.0f, 42.0f))) {
+            VLS::EffectSequence sequence;
+            sequence.enabled = true;
+            sequence.loop = true;
+            if (!profile->placements.empty() &&
+                !profile->placements[0].effects.empty()) {
+                VLS::EffectSequenceStep step;
+                step.placementId = profile->placements[0].id;
+                step.effectIndex = profile->placements[0].activeEffectIndex;
+                step.durationMs = 1000;
+                sequence.steps.push_back(step);
+            }
+            profile->sequences.push_back(sequence);
+            ResetSequenceRuntime();
+            g_profileManager.MarkDirty(modelId);
+        }
+        ImGui::TextWrapped("Build a timed sequence from LED effects. Each step can target a different placement and effect.");
+    } else {
+        VLS::EffectSequence& sequence = profile->sequences[0];
+        bool sequenceChanged = false;
+        sequenceChanged |= ImGui::Checkbox("Sequence Enabled", &sequence.enabled);
+        sequenceChanged |= ImGui::Checkbox("Loop Sequence", &sequence.loop);
+        static const char* transitionNames[] = {
+            "Crossfade", "Wipe", "Shutter", "Radial", "Pixel Dissolve"
+        };
+        int transitionMode = static_cast<int>(sequence.transitionMode);
+        if (ImGui::Combo("Transition Mode", &transitionMode, transitionNames, IM_ARRAYSIZE(transitionNames))) {
+            if (transitionMode < 0) transitionMode = 0;
+            if (transitionMode > 4) transitionMode = 4;
+            sequence.transitionMode = static_cast<VLS::EffectTransitionMode>(transitionMode);
+            sequenceChanged = true;
+        }
+        static const char* transitionDirectionNames[] = {
+            "Left to Right", "Right to Left", "Top to Bottom",
+            "Bottom to Top", "Center Out", "Edge to Center"
+        };
+        int transitionDirection = static_cast<int>(sequence.transitionDirection);
+        if (ImGui::Combo("Transition Direction", &transitionDirection,
+                         transitionDirectionNames, IM_ARRAYSIZE(transitionDirectionNames))) {
+            if (transitionDirection < 0) transitionDirection = 0;
+            if (transitionDirection > 5) transitionDirection = 5;
+            sequence.transitionDirection = static_cast<VLS::EffectTransitionDirection>(transitionDirection);
+            sequenceChanged = true;
+        }
+        ImGui::Text("Sequence steps: %d / 64", static_cast<int>(sequence.steps.size()));
+        if (ImGui::Button("Add Current LED Effect to Sequence", ImVec2(300.0f, 40.0f))) {
+            if (sequence.steps.size() < 64 && !profile->placements.empty()) {
+                const VLS::LedPlacement& target = profile->placements[
+                    static_cast<size_t>(std::max(0, std::min(g_selectedPlacement,
+                        static_cast<int>(profile->placements.size()) - 1)))
+                ];
+                if (!target.effects.empty()) {
+                    VLS::EffectSequenceStep step;
+                    step.placementId = target.id;
+                    step.effectIndex = static_cast<uint32_t>(std::max(0, std::min(g_selectedEffect,
+                        static_cast<int>(target.effects.size()) - 1)));
+                    step.durationMs = 1000;
+                    sequence.steps.push_back(step);
+                    sequenceChanged = true;
+                }
+            }
+        }
+        if (!sequence.steps.empty()) {
+            VLS::EffectSequenceStep& lastStep = sequence.steps.back();
+            int duration = static_cast<int>(lastStep.durationMs);
+            if (ImGui::SliderInt("Last Step Duration (ms)", &duration, 100, 30000)) {
+                lastStep.durationMs = static_cast<uint32_t>(duration);
+                sequenceChanged = true;
+            }
+            if (ImGui::Button("Remove Last Sequence Step", ImVec2(240.0f, 38.0f))) {
+                sequence.steps.pop_back();
+                sequenceChanged = true;
+            }
+        }
+        if (sequenceChanged) {
+            ResetSequenceRuntime();
+            g_profileManager.MarkDirty(modelId);
+        }
+    }
+
     if (profile->placements.empty()) {
         ImGui::Text("No LED placements yet. Add an LED placement to configure strips.");
         ImGui::EndChild();
@@ -2189,14 +2275,8 @@ static void UpdateSequenceRuntime() {
     if (g_currentProfile == nullptr)
         return;
 
-    if (g_animationMode != VLS::AnimationMode::Custom) {
-        if (g_sequenceRuntime.IsRunning())
-            g_sequenceRuntime.Stop();
-
-        g_sequenceSelectionAttempted = false;
-        return;
-    }
-
+    // An enabled profile sequence is authoritative; do not require the
+    // legacy global animation-mode switch (which is not exposed by the editor).
     const uint32_t nowMs = CTimer::GetTimeMS();
 
     if (g_sequenceRuntime.IsRunning()) {
