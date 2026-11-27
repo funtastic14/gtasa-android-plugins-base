@@ -1628,6 +1628,39 @@ static void RenderEditor() {
             ImGui::PopID();
         };
 
+        // Quick layout helper for physically stacked LED panels.
+        // Each placement selects its own vertical slot while sharing one
+        // virtual canvas. Unequal panel dimensions remain configurable below.
+        ImGui::Separator();
+        ImGui::Text("Vertical Panel Stack (3-7 Panels)");
+        int stackPanelCount = regionRows > 0
+            ? canvasRows / regionRows : 3;
+        if (stackPanelCount < 3 || stackPanelCount > 7)
+            stackPanelCount = 3;
+        const char* stackPanelCountNames[] = {
+            "3 Panels", "4 Panels", "5 Panels", "6 Panels", "7 Panels"
+        };
+        int stackPanelCountChoice = stackPanelCount - 3;
+        if (ImGui::Combo("Stack Size", &stackPanelCountChoice,
+                         stackPanelCountNames, IM_ARRAYSIZE(stackPanelCountNames))) {
+            stackPanelCount = stackPanelCountChoice + 3;
+            canvasRows = std::min(256, regionRows * stackPanelCount);
+            changed = true;
+        }
+        int stackPanelIndex = regionRows > 0 ? offsetRow / regionRows : 0;
+        stackPanelIndex = std::max(0, std::min(stackPanelIndex, stackPanelCount - 1));
+        const char* stackPositionNames[] = {
+            "Panel 1 (Top)", "Panel 2", "Panel 3", "Panel 4",
+            "Panel 5", "Panel 6", "Panel 7 (Bottom)"
+        };
+        if (ImGui::Combo("This Placement", &stackPanelIndex,
+                         stackPositionNames, stackPanelCount)) {
+            offsetRow = stackPanelIndex * regionRows;
+            changed = true;
+        }
+        ImGui::TextWrapped("Use the same Stack Size on every participating placement. Select a different This Placement value for each physical panel. Each panel keeps its own vehicle position and dimensions.");
+        ImGui::Separator();
+
         drawCanvasStepper("Canvas Columns", "CanvasColumns",
                           canvasColumns, regionColumns, 256, "-", "+");
         drawCanvasStepper("Canvas Rows", "CanvasRows",
