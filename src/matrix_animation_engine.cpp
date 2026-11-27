@@ -260,6 +260,11 @@ void AnalyzeEyeSemanticParts(TextureCacheEntry& entry) {
     std::fill(entry.eyeParts.sumY, entry.eyeParts.sumY + 5, 0.0);
     std::fill(entry.eyeParts.centerX, entry.eyeParts.centerX + 5, 0.0f);
     std::fill(entry.eyeParts.centerY, entry.eyeParts.centerY + 5, 0.0f);
+    std::fill(entry.eyeParts.componentCount, entry.eyeParts.componentCount + 5, 0u);
+    for (uint8_t label = 0; label < 5; ++label) {
+        for (uint8_t slot = 0; slot < 2; ++slot)
+            entry.eyeParts.components[label][slot] = EyeComponentBounds();
+    }
     entry.eyeParts.analyzed = false;
     entry.eyeParts.confidence = 0.0f;
     if (!entry.valid || !entry.width || !entry.height) return;
@@ -427,6 +432,10 @@ TextureCacheEntry* GetOrLoadCustomTexture(
             entry->valid = false;
             entry->width = entry->height = 0;
             entry->pixels.clear();
+            // Cache slots are reused for different texture names. Reset the
+            // semantic analysis as well, otherwise the next texture can
+            // inherit stale labels/components and skip its one-time analysis.
+            entry->eyeParts = EyeSemanticAnalysis();
             entry->lastAttemptMs = timeMs;
     
             std::string data, token;
@@ -536,8 +545,10 @@ void ApplyCustomTexture(
         // Keep the authored eye artwork fixed. Only a calibrated iris region
         // (including its pupil) is translated; the complete texture is never
         // scaled, mirrored, or shifted to simulate gaze.
-        const bool leftEye = column < matrix.columns / 2;
-        const float localU = leftEye ? u * 2.0f : (u - 0.5f) * 2.0f;
+        const bool pairedEyes = matrix.columns >= 2;
+        const bool leftEye = !pairedEyes || column < (matrix.columns + 1u) / 2u;
+        const float localU = !pairedEyes ? u :
+            (leftEye ? u * 2.0f : (u - 0.5f) * 2.0f);
         const float eyeV = v;
         float irisCenterX = design ? design->irisCenterX : effect.eyeTextureIrisCenterX;
         float irisCenterY = design ? design->irisCenterY : effect.eyeTextureIrisCenterY;
@@ -545,12 +556,16 @@ void ApplyCustomTexture(
         float irisRadiusY = design ? design->irisRadiusY : effect.eyeTextureIrisRadiusY;
         bool hasMapping = design != nullptr && design->mappingConfigured;
         const bool tryAutomaticMapping = !hasMapping;
-        if (tryAutomaticMapping && entry->eyeParts.confidence >= 0.40f &&
+        // Require evidence for all three nested eye regions before moving
+        // anything automatically. A colorful patch alone is not enough:
+        // flattened art can contain many unrelated high-chroma details.
+        if (tryAutomaticMapping && entry->eyeParts.confidence >= 0.90f &&
             entry->eyeParts.componentCount[
                 static_cast<uint8_t>(EyeSemanticPart::Iris)] > 0) {
             const uint8_t irisLabel = static_cast<uint8_t>(EyeSemanticPart::Iris);
-            const uint32_t halfStart = leftEye ? 0u : entry->width / 2u;
-            const uint32_t halfEnd = leftEye ? entry->width / 2u : entry->width;
+            const uint32_t halfStart = !pairedEyes || leftEye ? 0u : entry->width / 2u;
+            const uint32_t halfEnd = !pairedEyes ? entry->width :
+                (leftEye ? entry->width / 2u : entry->width);
             const EyeComponentBounds* best = nullptr;
             for (uint8_t i = 0; i < entry->eyeParts.componentCount[irisLabel]; ++i) {
                 const EyeComponentBounds& candidate =
@@ -622,8 +637,9 @@ void ApplyCustomTexture(
                 pupilRadiusX > 0.001f && pupilRadiusY > 0.001f;
             if (!hasPupil) {
                 const uint8_t pupilLabel = static_cast<uint8_t>(EyeSemanticPart::Pupil);
-                const uint32_t halfStart = leftEye ? 0u : entry->width / 2u;
-                const uint32_t halfEnd = leftEye ? entry->width / 2u : entry->width;
+                const uint32_t halfStart = !pairedEyes || leftEye ? 0u : entry->width / 2u;
+                const uint32_t halfEnd = !pairedEyes ? entry->width :
+                    (leftEye ? entry->width / 2u : entry->width);
                 const float halfWidth = static_cast<float>(std::max<uint32_t>(1u, halfEnd-halfStart));
                 const EyeComponentBounds* bestPupil = nullptr;
                 float bestDistance = 1000000.0f;
@@ -683,9 +699,9 @@ void ApplyCustomTexture(
 
             sampleLocalU = Clamp01(sampleLocalU);
             sampleV = Clamp01(sampleV);
-            u = leftEye
-                ? sampleLocalU * 0.5f
-                : 0.5f + sampleLocalU * 0.5f;
+            u = !pairedEyes ? sampleLocalU :
+                (leftEye ? sampleLocalU * 0.5f :
+                    0.5f + sampleLocalU * 0.5f);
             v = sampleV;
         }
 
