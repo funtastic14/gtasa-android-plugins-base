@@ -46,7 +46,7 @@ inline LedMotionPattern ResolveMotionPattern(
         return effect.motionPattern;
     const uint32_t interval = intervalMs < 500 ? 500 : intervalMs;
     const uint32_t step = timeMs / interval;
-    const uint32_t count = static_cast<uint32_t>(LedMotionPattern::SegmentedCenterExpand) + 1u;
+    const uint32_t count = static_cast<uint32_t>(LedMotionPattern::CenterAnchoredSideSlider) + 1u;
     if (playback == MotionPlaybackMode::Sequential)
         return static_cast<LedMotionPattern>(step % count);
     if (playback == MotionPlaybackMode::Automatic) {
@@ -83,7 +83,10 @@ inline LedMotionPattern ResolveMotionPattern(
             LedMotionPattern::ZoomOut, LedMotionPattern::Flow,
             LedMotionPattern::MultiLineFlutter, LedMotionPattern::TriangleFanSweep,
             LedMotionPattern::DiagonalXCross, LedMotionPattern::MultiAxisCenterBurst,
-            LedMotionPattern::TripleMirrorWave, LedMotionPattern::SegmentedCenterExpand
+            LedMotionPattern::TripleMirrorWave, LedMotionPattern::SegmentedCenterExpand,
+            LedMotionPattern::AccumulateLeftToRight, LedMotionPattern::AccumulateRightToLeft,
+            LedMotionPattern::AccumulateCenterOut, LedMotionPattern::AccumulateEdgesToCenter,
+            LedMotionPattern::SideAnchoredCenterSlider, LedMotionPattern::CenterAnchoredSideSlider
         };
         const uint32_t size = static_cast<uint32_t>(sizeof(automaticOrder) / sizeof(automaticOrder[0]));
         return automaticOrder[step % size];
@@ -648,6 +651,69 @@ inline float EvaluateMotionIntensity(
             mirrorX * PI2 * 1.5f - wavePhase + rowBand);
         const float envelope = 0.58f + 0.42f * std::sin(y * PI2 * 1.5f + rowBand);
         return 0.025f + 0.975f * wave * envelope;
+    }
+    case LedMotionPattern::AccumulateLeftToRight:
+    case LedMotionPattern::AccumulateRightToLeft:
+    case LedMotionPattern::AccumulateCenterOut:
+    case LedMotionPattern::AccumulateEdgesToCenter: {
+        // One luminous element arrives per step and remains lit. The field
+        // progressively fills, pauses at completion, then starts a new cycle.
+        const uint16_t safeColumns = columns > 0u ? columns : 1u;
+        const float scaled = phase * static_cast<float>(safeColumns + 1u);
+        const uint16_t settled = static_cast<uint16_t>(
+            std::min<float>(safeColumns, std::floor(scaled)));
+        const float headProgress = scaled - std::floor(scaled);
+        bool isSettled = false;
+        bool isHead = false;
+        if (pattern == LedMotionPattern::AccumulateLeftToRight) {
+            isSettled = column < settled;
+            isHead = column == settled && settled < safeColumns;
+        } else if (pattern == LedMotionPattern::AccumulateRightToLeft) {
+            isSettled = column >= safeColumns - settled;
+            isHead = settled < safeColumns && column == safeColumns - settled - 1u;
+        } else {
+            const uint16_t center = safeColumns / 2u;
+            const uint16_t distance = column > center
+                ? column - center : center - column;
+            const uint16_t maxDistance = std::max<uint16_t>(1u, safeColumns - center);
+            const uint16_t reach = static_cast<uint16_t>(
+                std::min<float>(maxDistance, std::floor(scaled * 0.5f)));
+            isSettled = pattern == LedMotionPattern::AccumulateCenterOut
+                ? distance <= reach
+                : distance >= maxDistance - reach;
+            const uint16_t nextDistance = reach + 1u;
+            isHead = nextDistance < maxDistance && distance == nextDistance;
+        }
+        if (isSettled)
+            return 1.0f;
+        if (isHead)
+            return 0.35f + 0.65f * headProgress;
+        return 0.018f;
+    }
+    case LedMotionPattern::SideAnchoredCenterSlider: {
+        // Both outer anchors stay illuminated; a center element slides
+        // between them and reverses at each end.
+        const float travel = 0.5f - 0.5f * std::cos(wavePhase);
+        const float leftDistance = x;
+        const float rightDistance = 1.0f - x;
+        const float centerPosition = 0.12f + 0.76f * travel;
+        const float slider = clamp01(1.0f - std::fabs(x - centerPosition) * columns * 0.85f);
+        const float anchors = (leftDistance < 0.075f || rightDistance < 0.075f) ? 1.0f : 0.0f;
+        const float chevron = clamp01(1.0f - std::fabs(x - centerPosition) * columns * 0.42f);
+        return std::max(anchors, std::max(slider, chevron * 0.72f));
+    }
+    case LedMotionPattern::CenterAnchoredSideSlider: {
+        // A fixed center anchor remains lit while two side elements slide
+        // outward/inward in mirrored motion.
+        const float travel = 0.5f - 0.5f * std::cos(wavePhase);
+        const float sidePosition = 0.10f + 0.40f * travel;
+        const float leftSlider = clamp01(1.0f - std::fabs(x - sidePosition) * columns * 0.85f);
+        const float rightSlider = clamp01(1.0f - std::fabs(x - (1.0f - sidePosition)) * columns * 0.85f);
+        const float centerAnchor = clamp01(1.0f - std::fabs(x - 0.5f) * columns * 0.9f);
+        const float leftChevron = clamp01(1.0f - std::fabs(x - sidePosition) * columns * 0.42f);
+        const float rightChevron = clamp01(1.0f - std::fabs(x - (1.0f - sidePosition)) * columns * 0.42f);
+        return std::max(centerAnchor, std::max(leftSlider, std::max(rightSlider,
+            0.72f * std::max(leftChevron, rightChevron))));
     }
     case LedMotionPattern::SegmentedCenterExpand: {
         // Rectangular segments expand from the center toward both horizontal edges.
