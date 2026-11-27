@@ -41,8 +41,10 @@ jobs:
           cp libVehicleLEDSystem-armeabi-v7a.so package/
           cp assets/fonts/*.vlsfont package/VehicleLEDSystem/fonts/
           cp assets/textures/*.ppm package/VehicleLEDSystem/textures/
+          cp assets/textures/eyes/static/eyes.png package/VehicleLEDSystem/textures/eyes.png
           cp assets/fonts/README.md package/VehicleLEDSystem/fonts/
           cp assets/textures/README.md package/VehicleLEDSystem/textures/
+          cp assets/textures/eyes/README.md package/VehicleLEDSystem/textures/README-eyes.md
           cd package && zip -r ../VehicleLEDSystem-test-package.zip .
 
       - name: Create GitHub Release
