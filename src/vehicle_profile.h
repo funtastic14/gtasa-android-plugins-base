@@ -354,6 +354,7 @@ struct LedEffectConfig {
 
     // Dedicated vertical panel stack for Strobo Wave. Panel cells are
     // addressed within one logical canvas; no heap-backed panel list.
+    bool stroboPanelStackEnabled = false;
     uint8_t stroboPanelCount = 5;
     uint16_t stroboPanelColumns = 21;
     uint16_t stroboPanelRows = 7;
