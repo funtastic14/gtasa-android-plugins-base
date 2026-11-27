@@ -380,6 +380,26 @@ static bool RenderMatrixEffect(
     if (pixelCount > 4096)
         return false;
 
+    // Transition masks use the same logical coordinates as the shared
+    // animation canvas. This keeps wipes, shutters, radial reveals and pixel
+    // dissolves continuous when one matrix is split across several regions.
+    const bool useSharedCanvas =
+        effect.matrix.canvasEnabled &&
+        effect.matrix.canvasColumns > 0 &&
+        effect.matrix.canvasRows > 0 &&
+        static_cast<uint32_t>(effect.matrix.canvasOffsetColumn) + columns <=
+            effect.matrix.canvasColumns &&
+        static_cast<uint32_t>(effect.matrix.canvasOffsetRow) + rows <=
+            effect.matrix.canvasRows;
+    const uint16_t transitionColumns = useSharedCanvas
+        ? effect.matrix.canvasColumns : static_cast<uint16_t>(columns);
+    const uint16_t transitionRows = useSharedCanvas
+        ? effect.matrix.canvasRows : static_cast<uint16_t>(rows);
+    const uint16_t transitionOffsetColumn = useSharedCanvas
+        ? effect.matrix.canvasOffsetColumn : 0u;
+    const uint16_t transitionOffsetRow = useSharedCanvas
+        ? effect.matrix.canvasOffsetRow : 0u;
+
     const LedTransform& t = placement.transform;
 
     if (!std::isfinite(t.x) ||
@@ -467,11 +487,13 @@ static bool RenderMatrixEffect(
             if (transitionProgress < 1.0f) {
                 transitionCoverage = TransitionEngine::EvaluateIncoming(
                     transitionMode, transitionDirection, transitionProgress,
-                    (static_cast<float>(column) + 0.5f) / static_cast<float>(columns),
-                    (static_cast<float>(row) + 0.5f) / static_cast<float>(rows),
-                    static_cast<uint16_t>(column), static_cast<uint16_t>(row),
-                    static_cast<uint16_t>(columns), static_cast<uint16_t>(rows),
-                    transitionSeed
+                    (static_cast<float>(transitionOffsetColumn + column) + 0.5f) /
+                        static_cast<float>(transitionColumns),
+                    (static_cast<float>(transitionOffsetRow + row) + 0.5f) /
+                        static_cast<float>(transitionRows),
+                    static_cast<uint16_t>(transitionOffsetColumn + column),
+                    static_cast<uint16_t>(transitionOffsetRow + row),
+                    transitionColumns, transitionRows, transitionSeed
                 );
                 if (!incomingTransition)
                     transitionCoverage = 1.0f - transitionCoverage;
