@@ -1330,41 +1330,135 @@ static std::vector<SurfacePatch> BuildSurfacePatches(
 ) {
     std::vector<SurfacePatch> patches;
     std::unordered_map<uint32_t, const AtomicMesh*> meshByAtomic;
-    for (const AtomicMesh& mesh : meshes) meshByAtomic[mesh.atomicIndex] = &mesh;
+    for (const AtomicMesh& mesh : meshes)
+        meshByAtomic[mesh.atomicIndex] = &mesh;
 
     for (const AtomicGeometryInfo& info : details) {
         const auto meshIt = meshByAtomic.find(info.atomicIndex);
-        if (meshIt == meshByAtomic.end()) continue;
+        if (meshIt == meshByAtomic.end())
+            continue;
         const AtomicMesh& mesh = *meshIt->second;
 
         for (const GlassPart& part : info.glassParts) {
-            if (part.triangleIndices.empty() || part.materialCounts.empty()) continue;
-            const int16_t materialIndex = part.materialCounts.front().first;
-            const auto materialIt = std::find_if(
-                info.materials.begin(), info.materials.end(),
-                [materialIndex](const MeshMaterialInfo& item) {
-                    return item.index == materialIndex;
-                }
-            );
+            if (part.triangleIndices.empty() ||
+                part.materialCounts.empty())
+                continue;
 
-            SurfacePatch patch;
-            patch.atomicIndex = info.atomicIndex;
-            patch.materialIndex = materialIndex;
-            patch.frameName = info.frameName;
-            patch.role = ToSurfaceRole(
-                SurfaceRoleHint(info, part, textureNameMode)
-            );
-            patch.triangleIndices = part.triangleIndices;
-            patch.centroid = {part.cx, part.cy, part.cz};
-            patch.normal = {part.nx, part.ny, part.nz};
-            patch.minBounds = {part.minX, part.minY, part.minZ};
-            patch.maxBounds = {part.maxX, part.maxY, part.maxZ};
-            patch.area = part.area;
-            if (materialIt != info.materials.end()) {
-                patch.textureName = materialIt->textureName;
-                patch.maskName = materialIt->maskName;
+            for (const auto& materialCount : part.materialCounts) {
+                if (patches.size() >= 512u)
+                    break;
+                const int16_t materialIndex = materialCount.first;
+                GlassPart materialPart;
+                materialPart.materialCounts.emplace_back(
+                    materialIndex, 0u);
+                const float high = std::numeric_limits<float>::max();
+                materialPart.minX = materialPart.minY =
+                    materialPart.minZ = high;
+                materialPart.maxX = materialPart.maxY =
+                    materialPart.maxZ = -high;
+                materialPart.triangleIndices.reserve(materialCount.second);
+
+                for (uint32_t triangleIndex : part.triangleIndices) {
+                    if (triangleIndex >= mesh.triangles.size())
+                        continue;
+                    const GeometryTriangle& triangle =
+                        mesh.triangles[triangleIndex];
+                    if (triangle.materialIndex != materialIndex ||
+                        triangle.a >= mesh.vehicleSpaceVertices.size() ||
+                        triangle.b >= mesh.vehicleSpaceVertices.size() ||
+                        triangle.c >= mesh.vehicleSpaceVertices.size())
+                        continue;
+
+                    const GeometryVertex& av =
+                        mesh.vehicleSpaceVertices[triangle.a];
+                    const GeometryVertex& bv =
+                        mesh.vehicleSpaceVertices[triangle.b];
+                    const GeometryVertex& cv =
+                        mesh.vehicleSpaceVertices[triangle.c];
+                    const RwV3d a{av.x, av.y, av.z};
+                    const RwV3d b{bv.x, bv.y, bv.z};
+                    const RwV3d c{cv.x, cv.y, cv.z};
+                    const RwV3d ab{b.x-a.x, b.y-a.y, b.z-a.z};
+                    const RwV3d ac{c.x-a.x, c.y-a.y, c.z-a.z};
+                    const RwV3d normal = CrossProduct(ab, ac);
+                    const float length = std::sqrt(
+                        RwV3dDotProduct(normal, normal));
+                    if (!std::isfinite(length) || length < 1e-5f)
+                        continue;
+
+                    const float area = length * 0.5f;
+                    ++materialPart.triangles;
+                    ++materialPart.materialCounts[0].second;
+                    materialPart.triangleIndices.push_back(triangleIndex);
+                    materialPart.area += area;
+                    materialPart.cx += (a.x+b.x+c.x) * area / 3.0f;
+                    materialPart.cy += (a.y+b.y+c.y) * area / 3.0f;
+                    materialPart.cz += (a.z+b.z+c.z) * area / 3.0f;
+                    materialPart.nx += normal.x;
+                    materialPart.ny += normal.y;
+                    materialPart.nz += normal.z;
+                    const RwV3d points[3] = {a, b, c};
+                    for (uint32_t k = 0; k < 3; ++k) {
+                        materialPart.minX = std::min(
+                            materialPart.minX, points[k].x);
+                        materialPart.minY = std::min(
+                            materialPart.minY, points[k].y);
+                        materialPart.minZ = std::min(
+                            materialPart.minZ, points[k].z);
+                        materialPart.maxX = std::max(
+                            materialPart.maxX, points[k].x);
+                        materialPart.maxY = std::max(
+                            materialPart.maxY, points[k].y);
+                        materialPart.maxZ = std::max(
+                            materialPart.maxZ, points[k].z);
+                    }
+                }
+
+                if (materialPart.triangleIndices.empty() ||
+                    materialPart.area <= 1e-6f)
+                    continue;
+                materialPart.cx /= materialPart.area;
+                materialPart.cy /= materialPart.area;
+                materialPart.cz /= materialPart.area;
+                const float normalLength = std::sqrt(
+                    materialPart.nx * materialPart.nx +
+                    materialPart.ny * materialPart.ny +
+                    materialPart.nz * materialPart.nz);
+                if (normalLength > 1e-6f) {
+                    materialPart.nx /= normalLength;
+                    materialPart.ny /= normalLength;
+                    materialPart.nz /= normalLength;
+                }
+
+                const auto materialIt = std::find_if(
+                    info.materials.begin(), info.materials.end(),
+                    [materialIndex](const MeshMaterialInfo& item) {
+                        return item.index == materialIndex;
+                    }
+                );
+                SurfacePatch patch;
+                patch.atomicIndex = info.atomicIndex;
+                patch.materialIndex = materialIndex;
+                patch.frameName = info.frameName;
+                patch.role = ToSurfaceRole(
+                    SurfaceRoleHint(info, materialPart, textureNameMode));
+                patch.triangleIndices =
+                    std::move(materialPart.triangleIndices);
+                patch.centroid = {
+                    materialPart.cx, materialPart.cy, materialPart.cz};
+                patch.normal = {
+                    materialPart.nx, materialPart.ny, materialPart.nz};
+                patch.minBounds = {
+                    materialPart.minX, materialPart.minY, materialPart.minZ};
+                patch.maxBounds = {
+                    materialPart.maxX, materialPart.maxY, materialPart.maxZ};
+                patch.area = materialPart.area;
+                if (materialIt != info.materials.end()) {
+                    patch.textureName = materialIt->textureName;
+                    patch.maskName = materialIt->maskName;
+                }
+                patches.push_back(std::move(patch));
             }
-            patches.push_back(std::move(patch));
         }
     }
     return patches;
