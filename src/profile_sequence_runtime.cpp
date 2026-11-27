@@ -107,19 +107,6 @@ bool ProfileSequenceRuntime::Update(
         return false;
     }
 
-    if (m_stepIndex >= sequence.steps.size()) {
-        Stop();
-        return false;
-    }
-
-    const EffectSequenceStep& currentStep =
-        sequence.steps[m_stepIndex];
-
-    if (!IsStepReferenceValid(profile, currentStep)) {
-        Stop();
-        return false;
-    }
-
     // Advance against scheduled step boundaries, not the current frame time.
     // This keeps the sequence clock stable after a slow frame or brief game hitch.
     uint32_t advancedSteps = 0;
@@ -162,11 +149,6 @@ bool ProfileSequenceRuntime::Update(
     // If a very long hitch spans multiple full loops, continue catching up on
     // the next update rather than spending unbounded time in the render thread.
     return true;
-
-    m_running = false;
-    m_finished = true;
-
-    return false;
 }
 
 const EffectSequenceStep*
