@@ -149,7 +149,13 @@ enum class LedMotionPattern : uint8_t {
     CircleExpand,
     CircleCollapse,
     TriangleConverge,
-    TriangleOrbit
+    TriangleOrbit,
+    MultiLineFlutter,
+    TriangleFanSweep,
+    DiagonalXCross,
+    MultiAxisCenterBurst,
+    TripleMirrorWave,
+    SegmentedCenterExpand
 };
 
 enum class MotionPlaybackMode : uint8_t {
