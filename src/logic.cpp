@@ -1436,6 +1436,22 @@ static void RenderEditor() {
     }
 
     ImGui::Separator();
+    ImGui::Text("LED Element Shape");
+    static const char* elementShapeNames[] = {
+        "Square", "Circle Filled", "Circle Outline", "Diamond",
+        "Triangle", "Hexagon", "Octagon"
+    };
+    int elementShape = static_cast<int>(effect.elementShape);
+    if (ImGui::Combo("Element Shape", &elementShape,
+                     elementShapeNames, IM_ARRAYSIZE(elementShapeNames))) {
+        if (elementShape < 0 || elementShape > static_cast<int>(VLS::LedElementShape::Octagon))
+            elementShape = static_cast<int>(VLS::LedElementShape::Square);
+        effect.elementShape = static_cast<VLS::LedElementShape>(elementShape);
+        changed = true;
+    }
+    ImGui::TextWrapped("Changes the physical outline of each LED/pixel. The placement panel remains rectangular.");
+
+    ImGui::Separator();
     ImGui::Text("Layer Composition");
     int layerOrder = effect.layerOrder;
     if (ImGui::SliderInt("Layer Order", &layerOrder, 0, 255)) {
