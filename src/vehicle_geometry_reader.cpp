@@ -1358,12 +1358,19 @@ static std::vector<SurfacePatch> BuildSurfacePatches(
                     materialPart.maxZ = -high;
                 materialPart.triangleIndices.reserve(materialCount.second);
 
-                for (uint32_t triangleIndex : part.triangleIndices) {
-                    if (triangleIndex >= mesh.triangles.size())
+                while (materialTriangleCursor < part.triangleIndices.size()) {
+                    const uint32_t triangleIndex =
+                        part.triangleIndices[materialTriangleCursor];
+                    if (triangleIndex >= mesh.triangles.size()) {
+                        ++materialTriangleCursor;
                         continue;
+                    }
                     const GeometryTriangle& triangle =
                         mesh.triangles[triangleIndex];
-                    if (triangle.materialIndex != materialIndex ||
+                    if (triangle.materialIndex > materialIndex)
+                        break;
+                    ++materialTriangleCursor;
+                    if (triangle.materialIndex < materialIndex ||
                         triangle.a >= mesh.vehicleSpaceVertices.size() ||
                         triangle.b >= mesh.vehicleSpaceVertices.size() ||
                         triangle.c >= mesh.vehicleSpaceVertices.size())
@@ -2618,6 +2625,21 @@ bool VehicleGeometryReader::ScanIncremental(
                 part.materialCounts.empty())
                 continue;
 
+            // Sort once, then consume each material's contiguous triangle range.
+            // The previous implementation rescanned the full component for every
+            // material (O(materials * triangles)) and recalculated geometry repeatedly.
+            std::sort(
+                part.triangleIndices.begin(), part.triangleIndices.end(),
+                [&mesh](uint32_t lhs, uint32_t rhs) {
+                    if (lhs >= mesh.triangles.size())
+                        return false;
+                    if (rhs >= mesh.triangles.size())
+                        return true;
+                    return mesh.triangles[lhs].materialIndex <
+                           mesh.triangles[rhs].materialIndex;
+                }
+            );
+            size_t materialTriangleCursor = 0;
             for (const auto& materialCount : part.materialCounts) {
                 if (g_cachedSurfacePatches.size() >= 512u)
                     break;
