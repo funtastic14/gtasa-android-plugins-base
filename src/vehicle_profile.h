@@ -2,6 +2,7 @@
 #pragma once
 
 #include <cstdint>
+#include "effect_transition_engine.h"
 #include <vector>
 #include <string>
 
@@ -385,6 +386,8 @@ struct EffectSequenceStep {
 struct EffectSequence {
     bool enabled = false;
     bool loop = true;
+    EffectTransitionMode transitionMode = EffectTransitionMode::Crossfade;
+    EffectTransitionDirection transitionDirection = EffectTransitionDirection::LeftToRight;
 
     std::vector<EffectSequenceStep> steps;
 };
