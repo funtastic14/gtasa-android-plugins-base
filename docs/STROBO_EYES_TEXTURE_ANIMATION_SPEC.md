@@ -129,3 +129,19 @@ Procedural Eye keeps independent eyeball, iris, and pupil color controls. Custom
 8. Invalid PNG/metadata falls back safely and does not crash.
 9. Test on low-memory Android hardware for frame-time stability and bounded memory.
 10. Build success is necessary but not sufficient; in-game visual tests are required.
+
+
+## Cached semantic pixel analysis (implementation checkpoint)
+
+The texture cache now runs a one-time conservative pixel classification after
+successful PNG/PPM decode. Labels are stored in a bounded cache alongside the
+RGBA image and include Unknown, Sclera, Iris, Pupil, and Eyebrow candidate
+classes. Classification uses alpha, luminance, chroma, and normalized position
+as soft priors. A confidence score indicates whether plausible iris/pupil/
+sclera regions were found. It is not a universal layer extractor: grayscale,
+stylized, overlapping, or flattened art may be ambiguous.
+
+This checkpoint establishes the cached analysis data. It does **not yet** drive
+independent component animation or inpainting/reconstruction; the existing
+texture motion remains the interim renderer. Do not treat this as the final
+four-component animation implementation or as game-test ready.
