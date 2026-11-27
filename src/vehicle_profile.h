@@ -276,6 +276,16 @@ struct LedMatrixConfig {
     std::vector<LedMatrixPixel> pixels;
 };
 
+enum class LedElementShape : uint8_t {
+    Square = 0,
+    CircleFilled = 1,
+    CircleOutline = 2,
+    Diamond = 3,
+    Triangle = 4,
+    Hexagon = 5,
+    Octagon = 6
+};
+
 // Posisi dan ukuran LED relatif terhadap kendaraan
 // (transformasi satu placement).
 struct LedEffectConfig {
@@ -286,6 +296,8 @@ struct LedEffectConfig {
     // Multi-layer composition: lower order draws first; higher order draws on top.
     uint8_t layerOrder = 0;
     LedLayerBlendMode blendMode = LedLayerBlendMode::Alpha;
+    // Physical shape of each LED/pixel; panel bounds remain rectangular.
+    LedElementShape elementShape = LedElementShape::Square;
 
     uint8_t red = 255;
     uint8_t green = 255;
