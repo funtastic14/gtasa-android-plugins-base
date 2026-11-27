@@ -777,6 +777,9 @@ static bool ReadEffect(
         return false;
     }
 
+    if (Find(value, "stroboPanelStackEnabled") &&
+        !ReadBool(value, "stroboPanelStackEnabled", effect.stroboPanelStackEnabled))
+        return false;
     if (Find(value, "stroboPanelCount")) {
         if (!ReadUInt8(value, "stroboPanelCount", effect.stroboPanelCount) ||
             (effect.stroboPanelCount != 3 && effect.stroboPanelCount != 5 &&
@@ -1102,7 +1105,8 @@ static bool ReadEffect(
     // Explicit Strobo Wave panel configuration owns its matrix dimensions.
     // Legacy profiles without this key keep their original matrix untouched.
     if (effect.type == LedEffectType::StroboWave &&
-        Find(value, "stroboPanelCount") != nullptr) {
+        effect.stroboPanelStackEnabled &&
+        Find(value, "stroboPanelStackEnabled") != nullptr) {
         const uint32_t totalRows =
             static_cast<uint32_t>(effect.stroboPanelCount) * effect.stroboPanelRows +
             static_cast<uint32_t>(effect.stroboPanelCount - 1u) * effect.stroboPanelGapRows;
@@ -1650,6 +1654,8 @@ static bool AppendEffect(
     AppendInt(output, static_cast<int>(effect.motionPlayback));
     output += ",\"motionIntervalMs\":";
     AppendUInt(output, effect.motionIntervalMs);
+    output += ",\"stroboPanelStackEnabled\":";
+    output += effect.stroboPanelStackEnabled ? "true" : "false";
     output += ",\"stroboPanelCount\":";
     AppendUInt(output, effect.stroboPanelCount);
     output += ",\"stroboPanelColumns\":";
