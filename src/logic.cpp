@@ -1185,7 +1185,10 @@ static void RenderEditor() {
             "Rotating Square", "Curved Sweep", "Square Expand", "Square Collapse",
             "Circle Expand", "Circle Collapse", "Triangle Converge", "Triangle Orbit",
             "Multi-Line Flutter", "Triangle Fan Sweep", "Diagonal X Cross",
-            "Multi-Axis Center Burst", "Triple Mirror Wave", "Segmented Center Expand"
+            "Multi-Axis Center Burst", "Triple Mirror Wave", "Segmented Center Expand",
+            "Accumulate Left to Right", "Accumulate Right to Left",
+            "Accumulate Center Out", "Accumulate Edges to Center",
+            "Side Anchored - Center Slider", "Center Anchored - Side Sliders"
         };
         int motionIndex = static_cast<int>(effect.motionPattern);
         if (ImGui::Combo("Motion Pattern", &motionIndex, motionNames, IM_ARRAYSIZE(motionNames))) {
@@ -1199,6 +1202,7 @@ static void RenderEditor() {
         ImGui::TextWrapped("Laser Write draws a moving beam with a fading trace. Laser Weld adds a hot core and spark-like trail. Color Style controls the beam palette.");
         ImGui::TextWrapped("Geometry Motion: Rotating Square and Triangle Orbit trace geometric outlines; Curved Sweep bends its travelling front; Square / Circle Expand and Collapse move frames between center and edges; Triangle Converge sends three luminous points to meet at center.");
         ImGui::TextWrapped("Multi-panel motion: Multi-Line Flutter, Triangle Fan Sweep, Diagonal X Cross, Multi-Axis Center Burst, Triple Mirror Wave and Segmented Center Expand are designed to span a shared canvas across vertically stacked placements.");
+        ImGui::TextWrapped("Progressive motion: Accumulate patterns add one moving LED at a time and leave each arrived LED illuminated until the canvas fills. Anchored sliders keep the selected anchor points lit while the remaining element(s) slide between or away from them.");
     } else if (effect.type == VLS::LedEffectType::StroboEyes) {
         ImGui::Separator();
         ImGui::Text("STROBO EYES - Texture-Based Renderer");
