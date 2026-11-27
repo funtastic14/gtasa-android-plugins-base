@@ -36,7 +36,9 @@ public:
         uint32_t frameTimeMs,
         const EffectSequenceStep* activeStep = nullptr,
         const EffectSequenceStep* previousStep = nullptr,
-        float transitionProgress = 1.0f
+        float transitionProgress = 1.0f,
+        EffectTransitionMode transitionMode = EffectTransitionMode::Crossfade,
+        EffectTransitionDirection transitionDirection = EffectTransitionDirection::LeftToRight
     );
 
     static bool RenderSelectedEffect(
