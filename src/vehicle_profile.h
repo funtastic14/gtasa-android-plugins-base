@@ -378,8 +378,14 @@ struct EffectSequence {
     std::vector<EffectSequenceStep> steps;
 };
 
+enum class NativeLightScanMode : uint8_t {
+    ModelId = 0,
+    TextureName = 1
+};
+
 // Profil konfigurasi satu model kendaraan.
 struct NativeVehicleLightConfig {
+    NativeLightScanMode scanMode = NativeLightScanMode::ModelId;
     bool highBeamEnabled = false;
     float highBeamRange = 500.0f;
     float highBeamIntensity = 1.25f;
