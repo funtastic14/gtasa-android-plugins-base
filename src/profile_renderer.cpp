@@ -355,7 +355,12 @@ static bool RenderMatrixEffect(
     const LedEffectConfig& effect,
     uint32_t motionTimeMs,
     const MotionFrameState& motionFrame,
-    float alphaCoverage = 1.0f
+    float alphaCoverage = 1.0f,
+    EffectTransitionMode transitionMode = EffectTransitionMode::Crossfade,
+    EffectTransitionDirection transitionDirection = EffectTransitionDirection::LeftToRight,
+    float transitionProgress = 1.0f,
+    bool incomingTransition = true,
+    uint32_t transitionSeed = 0
 ) {
     if (vehicle == nullptr || !effect.matrix.enabled)
         return false;
@@ -458,6 +463,19 @@ static bool RenderMatrixEffect(
             const uint8_t red = ClampColor(output.red * output.intensity);
             const uint8_t green = ClampColor(output.green * output.intensity);
             const uint8_t blue = ClampColor(output.blue * output.intensity);
+            float transitionCoverage = 1.0f;
+            if (transitionProgress < 1.0f) {
+                transitionCoverage = TransitionEngine::EvaluateIncoming(
+                    transitionMode, transitionDirection, transitionProgress,
+                    (static_cast<float>(column) + 0.5f) / static_cast<float>(columns),
+                    (static_cast<float>(row) + 0.5f) / static_cast<float>(rows),
+                    static_cast<uint16_t>(column), static_cast<uint16_t>(row),
+                    static_cast<uint16_t>(columns), static_cast<uint16_t>(rows),
+                    transitionSeed
+                );
+                if (!incomingTransition)
+                    transitionCoverage = 1.0f - transitionCoverage;
+            }
 
             CVector local[4];
             local[0] = {left,  t.y, bottom};
@@ -468,7 +486,7 @@ static bool RenderMatrixEffect(
             for (uint32_t v = 0; v < 4; ++v) {
                 CVector world = TransformPlacementPoint(local[v], t, matrix);
                 RwIm3DVertex vertex;
-                SetVertex(vertex, world, red, green, blue, ClampColor(output.alpha * TransitionEngine::Clamp01(alphaCoverage)));
+                SetVertex(vertex, world, red, green, blue, ClampColor(output.alpha * TransitionEngine::Clamp01(alphaCoverage * transitionCoverage)));
                 vertices.push_back(vertex);
             }
 
@@ -516,13 +534,20 @@ static bool RenderEffect(
     const LedEffectConfig& effect,
     uint32_t motionTimeMs,
     const MotionFrameState& motionFrame,
-    float alphaCoverage = 1.0f
+    float alphaCoverage = 1.0f,
+    EffectTransitionMode transitionMode = EffectTransitionMode::Crossfade,
+    EffectTransitionDirection transitionDirection = EffectTransitionDirection::LeftToRight,
+    float transitionProgress = 1.0f,
+    bool incomingTransition = true,
+    uint32_t transitionSeed = 0
 ) {
     if (vehicle == nullptr || !effect.enabled)
         return false;
 
     if (effect.matrix.enabled)
-        return RenderMatrixEffect(vehicle, placement, effect, motionTimeMs, motionFrame, alphaCoverage);
+        return RenderMatrixEffect(vehicle, placement, effect, motionTimeMs, motionFrame,
+            alphaCoverage, transitionMode, transitionDirection, transitionProgress,
+            incomingTransition, transitionSeed);
 
     CMatrix* matrix = vehicle->GetMatrix();
     if (matrix == nullptr)
@@ -779,6 +804,16 @@ static bool RenderEffect(
         red = ClampColor(red * brightness * intensity);
         green = ClampColor(green * brightness * intensity);
         blue = ClampColor(blue * brightness * intensity);
+        float transitionCoverage = 1.0f;
+        if (transitionProgress < 1.0f) {
+            transitionCoverage = TransitionEngine::EvaluateIncoming(
+                transitionMode, transitionDirection, transitionProgress,
+                nx, ny, logicalColumn, logicalRow,
+                logicalColumns, logicalRows, transitionSeed
+            );
+            if (!incomingTransition)
+                transitionCoverage = 1.0f - transitionCoverage;
+        }
 
         const float left =
             t.x - effectiveWidth * 0.5f + i * segmentWidth;
@@ -815,7 +850,7 @@ static bool RenderEffect(
                 red,
                 green,
                 blue,
-                ClampColor(effect.opacity * 255.0f * TransitionEngine::Clamp01(alphaCoverage))
+                ClampColor(effect.opacity * 255.0f * TransitionEngine::Clamp01(alphaCoverage * transitionCoverage))
             );
         }
 
@@ -1118,7 +1153,9 @@ uint32_t ProfileRenderer::RenderVehicleProfile(
     uint32_t frameTimeMs,
     const EffectSequenceStep* activeStep,
     const EffectSequenceStep* previousStep,
-    float transitionProgress
+    float transitionProgress,
+    EffectTransitionMode transitionMode,
+    EffectTransitionDirection transitionDirection
 ) {
     if (vehicle == nullptr || !profile.enabled)
         return 0;
@@ -1157,11 +1194,10 @@ uint32_t ProfileRenderer::RenderVehicleProfile(
                 continue;
             }
 
-            const float incomingCoverage = TransitionEngine::EvaluateIncoming(
-                EffectTransitionMode::Crossfade,
-                EffectTransitionDirection::LeftToRight,
-                transitionProgress, 0.5f, 0.5f, 0, 0, 1, 1, 0
-            );
+            const uint32_t transitionSeed =
+                (static_cast<uint32_t>(profile.modelId) * 2654435761u) ^
+                (activeStep->placementId * 2246822519u) ^
+                (activeStep->effectIndex * 3266489917u);
             if (isOutgoing) {
                 const LedEffectConfig& outgoing =
                     placement.effects[previousStep->effectIndex];
@@ -1171,7 +1207,9 @@ uint32_t ProfileRenderer::RenderVehicleProfile(
                     placement.animationIntervalMs
                 );
                 if (RenderEffect(vehicle, placement, outgoing, frameTimeMs,
-                        outgoingFrame, 1.0f - incomingCoverage))
+                        outgoingFrame, 1.0f, transitionMode,
+                        transitionDirection, transitionProgress, false,
+                        transitionSeed))
                     ++rendered;
             }
             if (isIncoming) {
@@ -1183,7 +1221,9 @@ uint32_t ProfileRenderer::RenderVehicleProfile(
                     placement.animationIntervalMs
                 );
                 if (RenderEffect(vehicle, placement, incoming, frameTimeMs,
-                        incomingFrame, incomingCoverage))
+                        incomingFrame, 1.0f, transitionMode,
+                        transitionDirection, transitionProgress, true,
+                        transitionSeed))
                     ++rendered;
             }
             continue;
