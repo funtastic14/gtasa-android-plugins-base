@@ -2,6 +2,7 @@
 #pragma once
 
 #include <cstdint>
+#include <array>
 #include "effect_transition_engine.h"
 #include <vector>
 #include <string>
@@ -162,6 +163,26 @@ enum class LedMotionPattern : uint8_t {
     AccumulateEdgesToCenter,
     SideAnchoredCenterSlider,
     CenterAnchoredSideSlider
+};
+
+
+// Per-panel Strobo Wave motion and density. Fixed-size storage avoids per-frame
+// allocations and keeps profiles bounded on low-memory Android devices.
+enum class MotionDensityMode : uint8_t {
+    Adaptive = 0,
+    Fixed = 1,
+    Scalable = 2,
+    Custom = 3
+};
+
+struct StroboWavePanelConfig {
+    bool enabled = true;
+    LedMotionPattern motionPattern = LedMotionPattern::LeftToRight;
+    LedColorDirection direction = LedColorDirection::LeftToRight;
+    MotionDensityMode densityMode = MotionDensityMode::Adaptive;
+    float densityX = 1.0f;
+    float densityY = 1.0f;
+    float phaseOffset = 0.0f;
 };
 
 enum class MotionPlaybackMode : uint8_t {
@@ -330,6 +351,16 @@ struct LedEffectConfig {
     float brightness = 1.0f;
     float opacity = 1.0f;
     float speed = 1.0f;
+
+    // Dedicated vertical panel stack for Strobo Wave. Panel cells are
+    // addressed within one logical canvas; no heap-backed panel list.
+    uint8_t stroboPanelCount = 5;
+    uint16_t stroboPanelColumns = 21;
+    uint16_t stroboPanelRows = 7;
+    uint8_t stroboPanelGapRows = 1;
+    uint32_t stroboFlashPeriodMs = 500;
+    std::array<StroboWavePanelConfig, 7> stroboPanels;
+
     uint32_t durationMs = 1000; // Per-step duration for this LED's Custom sequence.
 
     LedColorMode colorMode = LedColorMode::Solid;
