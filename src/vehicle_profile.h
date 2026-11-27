@@ -52,6 +52,11 @@ enum class LedColorDirection : uint8_t {
     EdgeToCenter
 };
 
+enum class LedLayerBlendMode : uint8_t {
+    Alpha,
+    Additive
+};
+
 // Dedicated Strobo Eyes controls. These are intentionally independent
 // from the general-purpose LED motion pattern engine.
 enum class EyeShape : uint8_t {
@@ -276,6 +281,10 @@ struct LedEffectConfig {
     LedEffectType type = LedEffectType::RunningLED;
 
     bool enabled = true;
+
+    // Multi-layer composition: lower order draws first; higher order draws on top.
+    uint8_t layerOrder = 0;
+    LedLayerBlendMode blendMode = LedLayerBlendMode::Alpha;
 
     uint8_t red = 255;
     uint8_t green = 255;
