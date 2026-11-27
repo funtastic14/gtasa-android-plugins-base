@@ -87,6 +87,8 @@ static constexpr uint32_t MAX_MATRIX_PIXELS = 4096;
 
 static CVehicle* g_geometryScanVehicle = nullptr;
 static int g_geometryScanModelId = -1;
+static VLS::NativeLightScanMode g_geometryScanMode =
+    VLS::NativeLightScanMode::ModelId;
 static bool g_geometryScanSucceeded = false;
 static bool g_geometryScanAttemptComplete = false;
 static bool g_geometryScanClumpUnavailable = false;
@@ -615,6 +617,21 @@ static void RenderEditor() {
     ImGui::Separator();
     ImGui::Text("Native Vehicle Lighting");
     bool nativeLightsChanged = false;
+    static const char* nativeScanModeNames[] = {
+        "Model ID", "Texture Name"
+    };
+    int nativeScanMode = static_cast<int>(profile->nativeLights.scanMode);
+    if (ImGui::Combo("Native RGB Scan Mode", &nativeScanMode,
+                     nativeScanModeNames, IM_ARRAYSIZE(nativeScanModeNames))) {
+        profile->nativeLights.scanMode =
+            static_cast<VLS::NativeLightScanMode>(nativeScanMode);
+        nativeLightsChanged = true;
+    }
+    ImGui::TextWrapped(
+        "Model ID uses the vehicle geometry scan. Texture Name only accepts "
+        "vehiclelight128/vehiclelights128/vehiclelightson128 atlas names, "
+        "including vehicle-specific suffixes such as _solair."
+    );
     nativeLightsChanged |= ImGui::Checkbox("High Beam", &profile->nativeLights.highBeamEnabled);
     if (profile->nativeLights.highBeamEnabled) {
         nativeLightsChanged |= ImGui::SliderFloat("High Beam Range", &profile->nativeLights.highBeamRange, 10.0f, 500.0f);
@@ -1899,6 +1916,7 @@ static void ResetVehicleGeometryScan() {
 
     g_geometryScanVehicle = nullptr;
     g_geometryScanModelId = -1;
+    g_geometryScanMode = VLS::NativeLightScanMode::ModelId;
     g_geometryScanSucceeded = false;
     g_geometryScanAttemptComplete = false;
     g_geometryScanClumpUnavailable = false;
@@ -1918,11 +1936,19 @@ static void UpdateVehicleGeometryScan() {
         return;
     }
 
+    const VLS::VehicleProfile* activeProfile =
+        g_profileManager.Find(modelId);
+    const VLS::NativeLightScanMode scanMode = activeProfile != nullptr
+        ? activeProfile->nativeLights.scanMode
+        : VLS::NativeLightScanMode::ModelId;
+
     if (vehicle != g_geometryScanVehicle ||
-        modelId != g_geometryScanModelId) {
+        modelId != g_geometryScanModelId ||
+        scanMode != g_geometryScanMode) {
         VLS::VehicleGeometryReader::Clear();
         g_geometryScanVehicle = vehicle;
         g_geometryScanModelId = modelId;
+        g_geometryScanMode = scanMode;
         g_geometryScanSucceeded = false;
         g_geometryScanAttemptComplete = false;
         g_geometryScanClumpUnavailable = false;
@@ -1972,7 +1998,8 @@ static void UpdateVehicleGeometryScan() {
             vehicle,
             modelId,
             stats,
-            complete
+            complete,
+            scanMode == VLS::NativeLightScanMode::TextureName
         );
 
     if (complete) {
