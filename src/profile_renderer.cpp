@@ -519,28 +519,16 @@ static bool RenderMatrixEffect(
     static std::vector<RwImVertexIndex> indices;
     vertices.clear();
     indices.clear();
-    uint32_t verticesPerPixel = 4;
-    uint32_t indicesPerPixel = 6;
-    switch (effect.elementShape) {
-    case LedElementShape::CircleFilled:
-        verticesPerPixel = 17; indicesPerPixel = 48; break;
-    case LedElementShape::CircleOutline:
-        verticesPerPixel = 32; indicesPerPixel = 96; break;
-    case LedElementShape::Diamond:
-        verticesPerPixel = 5; indicesPerPixel = 12; break;
-    case LedElementShape::Triangle:
-        verticesPerPixel = 4; indicesPerPixel = 9; break;
-    case LedElementShape::Hexagon:
-        verticesPerPixel = 7; indicesPerPixel = 18; break;
-    case LedElementShape::Octagon:
-        verticesPerPixel = 9; indicesPerPixel = 24; break;
-    default:
-        break;
-    }
-    if (vertices.capacity() < pixelCount * verticesPerPixel)
-        vertices.reserve(pixelCount * verticesPerPixel);
-    if (indices.capacity() < pixelCount * indicesPerPixel)
-        indices.reserve(pixelCount * indicesPerPixel);
+    // Per-pixel shape selection means one matrix may mix simple and complex
+    // meshes. Reserve bounded reusable capacity; the 16-bit index guard below
+    // remains authoritative for unusually dense matrices.
+    const size_t vertexReserve = std::min<size_t>(
+        static_cast<size_t>(pixelCount) * 32u, 65536u);
+    const size_t indexReserve = static_cast<size_t>(pixelCount) * 96u;
+    if (vertices.capacity() < vertexReserve)
+        vertices.reserve(vertexReserve);
+    if (indices.capacity() < indexReserve)
+        indices.reserve(indexReserve);
 
     // Resolve and decode the selected eye art once per placement, before
     // entering the per-pixel hot loop. Texture changes may load here, never
@@ -603,7 +591,12 @@ static bool RenderMatrixEffect(
             RwImVertexIndex shapeIndices[96];
             uint32_t shapeVertexCount = 0;
             uint32_t shapeIndexCount = 0;
-            BuildElementGeometry(effect.elementShape,
+            const LedElementShape pixelShape =
+                effect.matrix.pixels.size() == pixelCount &&
+                effect.matrix.pixels[row * columns + column].elementShape != LedElementShape::Inherit
+                    ? effect.matrix.pixels[row * columns + column].elementShape
+                    : effect.elementShape;
+            BuildElementGeometry(pixelShape,
                 (left + right) * 0.5f, (top + bottom) * 0.5f,
                 (right - left) * 0.5f, (top - bottom) * 0.5f, t.y,
                 local, shapeIndices, shapeVertexCount, shapeIndexCount);
@@ -1345,29 +1338,6 @@ uint32_t ProfileRenderer::RenderVehicleProfile(
             continue;
         }
 
-        // Every visual layer inside one physical placement samples one
-        // controller. Prefer the configured active effect as the motion
-        // driver, falling back to the first enabled effect.
-        const LedEffectConfig* motionDriver = nullptr;
-        if (placement.activeEffectIndex < placement.effects.size() &&
-            placement.effects[placement.activeEffectIndex].enabled) {
-            motionDriver = &placement.effects[placement.activeEffectIndex];
-        } else {
-            for (const LedEffectConfig& candidate : placement.effects) {
-                if (candidate.enabled) {
-                    motionDriver = &candidate;
-                    break;
-                }
-            }
-        }
-        if (motionDriver == nullptr)
-            continue;
-
-        const MotionFrameState motionFrame = BuildMotionFrameState(
-            *motionDriver, frameTimeMs, GetPlacementMotionPlayback(placement),
-            placement.animationIntervalMs
-        );
-
         // Draw effect layers in stable ascending order without allocating
         // a temporary sort buffer in the per-frame render path.
         bool hasPreviousLayer = false;
@@ -1390,8 +1360,13 @@ uint32_t ProfileRenderer::RenderVehicleProfile(
             }
             if (selectedIndex == placement.effects.size())
                 break;
-            if (RenderEffect(vehicle, placement, placement.effects[selectedIndex],
-                    frameTimeMs, motionFrame))
+            const LedEffectConfig& layerEffect = placement.effects[selectedIndex];
+            const MotionFrameState layerMotionFrame = BuildMotionFrameState(
+                layerEffect, frameTimeMs, GetPlacementMotionPlayback(placement),
+                placement.animationIntervalMs
+            );
+            if (RenderEffect(vehicle, placement, layerEffect,
+                    frameTimeMs, layerMotionFrame))
                 ++rendered;
             hasPreviousLayer = true;
             previousLayerOrder = selectedOrder;
