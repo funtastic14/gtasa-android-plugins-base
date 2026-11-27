@@ -922,8 +922,15 @@ static uint32_t RenderNativeLightsBatched(
         const bool rear = patch.centroid.y < -0.25f;
         if (front && stats != nullptr) ++stats->frontPatches;
         if (rear && stats != nullptr) ++stats->rearPatches;
-        if ((!front || !profile.nativeLights.rgbHeadlightsEnabled) &&
-            (!rear || !profile.nativeLights.rgbTaillightsEnabled)) {
+        if (!front && !rear) {
+            // A patch near the vehicle's longitudinal center is not a
+            // front/rear lamp candidate. Keep it separate from user-disabled
+            // headlight/taillight patches in diagnostics.
+            if (stats != nullptr) ++stats->unclassifiedSidePatches;
+            continue;
+        }
+        if ((front && !profile.nativeLights.rgbHeadlightsEnabled) ||
+            (rear && !profile.nativeLights.rgbTaillightsEnabled)) {
             if (stats != nullptr) ++stats->sideDisabled;
             continue;
         }
