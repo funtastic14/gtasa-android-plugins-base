@@ -1405,17 +1405,11 @@ bool MatrixAnimationEngine::EvaluatePixel(
         intensity = 1.0f;
         break;
 
-    case LedEffectType::StroboWave: {
-        const uint32_t period = std::max<uint32_t>(100u,
-            std::min<uint32_t>(5000u, effect.stroboFlashPeriodMs));
-        const float offset = effect.stroboPanels[0].phaseOffset;
-        const int64_t shifted = static_cast<int64_t>(timeMs) +
-            static_cast<int64_t>(offset * static_cast<float>(period));
-        const uint32_t phaseMs = static_cast<uint32_t>(
-            (shifted % static_cast<int64_t>(period) + period) % period);
-        intensity = phaseMs < period / 2u ? 1.0f : 0.0f;
+    case LedEffectType::StroboWave:
+        // Panel timing is evaluated independently below. Legacy one-panel
+        // profiles retain their previous master flash cadence there.
+        intensity = 1.0f;
         break;
-    }
 
     case LedEffectType::StroboEyes: {
         // Procedural mode builds the eye from the selected shape and palettes.
@@ -1686,9 +1680,19 @@ bool MatrixAnimationEngine::EvaluatePixel(
         effect.type == LedEffectType::RunningText
             ? effect.motionPattern
             : localMotionFrame.pattern;
-    if (effect.type == LedEffectType::StroboWave) {
-        const uint32_t stride = static_cast<uint32_t>(effect.stroboPanelRows) +
-            effect.stroboPanelGapRows;
+    const uint32_t panelStride = static_cast<uint32_t>(effect.stroboPanelRows) +
+        effect.stroboPanelGapRows;
+    const uint32_t requiredPanelRows =
+        static_cast<uint32_t>(effect.stroboPanelCount) * effect.stroboPanelRows +
+        static_cast<uint32_t>(effect.stroboPanelCount - 1u) * effect.stroboPanelGapRows;
+    const bool hasConfiguredPanelStack =
+        effect.type == LedEffectType::StroboWave &&
+        effect.stroboPanelCount >= 3 && effect.stroboPanelCount <= 7 &&
+        matrix.columns >= effect.stroboPanelColumns &&
+        matrix.rows >= requiredPanelRows;
+
+    if (hasConfiguredPanelStack) {
+        const uint32_t stride = panelStride;
         const uint32_t panelIndex = stride == 0 ? 99u : row / stride;
         const uint32_t localRow = stride == 0 ? 0u : row % stride;
         if (panelIndex >= effect.stroboPanelCount ||
@@ -1715,6 +1719,8 @@ bool MatrixAnimationEngine::EvaluatePixel(
         (effect.type != LedEffectType::RunningText ||
          activePattern == LedMotionPattern::LaserWrite ||
          activePattern == LedMotionPattern::LaserWeld)) {
+        if (effect.type == LedEffectType::StroboWave)
+            intensity *= localMotionFrame.phase < 0.5f ? 1.0f : 0.0f;
         const float phase = localMotionFrame.phase;
         const bool verticalText =
             effect.textMotion == RunningTextMotion::ScrollUp ||
