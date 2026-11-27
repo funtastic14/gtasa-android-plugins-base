@@ -25,7 +25,10 @@ constexpr float NATIVE_RGB_SURFACE_OFFSET = 0.012f;
 
 class RenderStateGuard {
 public:
-    explicit RenderStateGuard(bool preserveTexture = false) {
+    explicit RenderStateGuard(
+        LedLayerBlendMode blendMode = LedLayerBlendMode::Alpha,
+        bool preserveTexture = false
+    ) {
         Save(rwRENDERSTATETEXTURERASTER, m_texture, m_hasTexture);
         Save(rwRENDERSTATEVERTEXALPHAENABLE, m_vertexAlpha, m_hasVertexAlpha);
         Save(rwRENDERSTATESRCBLEND, m_srcBlend, m_hasSrcBlend);
@@ -38,7 +41,11 @@ public:
             RwRenderStateSet(rwRENDERSTATETEXTURERASTER, nullptr);
         RwRenderStateSet(rwRENDERSTATEVERTEXALPHAENABLE, Value(1));
         RwRenderStateSet(rwRENDERSTATESRCBLEND, Value(rwBLENDSRCALPHA));
-        RwRenderStateSet(rwRENDERSTATEDESTBLEND, Value(rwBLENDINVSRCALPHA));
+        RwRenderStateSet(
+            rwRENDERSTATEDESTBLEND,
+            Value(blendMode == LedLayerBlendMode::Additive
+                ? rwBLENDONE : rwBLENDINVSRCALPHA)
+        );
 
         // Depth-test prevents LEDs from showing through vehicle body panels.
         // Keep depth writes disabled for transparent LED rendering.
@@ -477,7 +484,7 @@ static bool RenderMatrixEffect(
     if (vertices.empty() || indices.empty())
         return false;
 
-    RenderStateGuard stateGuard;
+    RenderStateGuard stateGuard(effect.blendMode);
 
     const RwUInt32 flags =
         rwIM3D_VERTEXXYZ | rwIM3D_VERTEXRGBA;
@@ -821,7 +828,7 @@ static bool RenderEffect(
         indices[indexCount++] = base + 3;
     }
 
-    RenderStateGuard stateGuard;
+    RenderStateGuard stateGuard(effect.blendMode);
 
     const RwUInt32 flags =
         rwIM3D_VERTEXXYZ | rwIM3D_VERTEXRGBA;
@@ -1141,9 +1148,34 @@ uint32_t ProfileRenderer::RenderVehicleProfile(
             placement.animationIntervalMs
         );
 
-        for (const LedEffectConfig& effect : placement.effects) {
-            if (RenderEffect(vehicle, placement, effect, motionTimeMs, motionFrame))
+        // Draw effect layers in stable ascending order without allocating
+        // a temporary sort buffer in the per-frame render path.
+        bool hasPreviousLayer = false;
+        uint8_t previousLayerOrder = 0;
+        size_t previousLayerIndex = 0;
+        for (size_t layer = 0; layer < placement.effects.size(); ++layer) {
+            size_t selectedIndex = placement.effects.size();
+            uint8_t selectedOrder = 255;
+            for (size_t candidate = 0; candidate < placement.effects.size(); ++candidate) {
+                const uint8_t order = placement.effects[candidate].layerOrder;
+                const bool followsPrevious = !hasPreviousLayer ||
+                    order > previousLayerOrder ||
+                    (order == previousLayerOrder && candidate > previousLayerIndex);
+                if (!followsPrevious)
+                    continue;
+                if (selectedIndex == placement.effects.size() || order < selectedOrder) {
+                    selectedIndex = candidate;
+                    selectedOrder = order;
+                }
+            }
+            if (selectedIndex == placement.effects.size())
+                break;
+            if (RenderEffect(vehicle, placement, placement.effects[selectedIndex],
+                    motionTimeMs, motionFrame))
                 ++rendered;
+            hasPreviousLayer = true;
+            previousLayerOrder = selectedOrder;
+            previousLayerIndex = selectedIndex;
         }
     }
 
