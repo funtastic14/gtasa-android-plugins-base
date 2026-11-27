@@ -1701,6 +1701,11 @@ static bool AppendSequence(
     output += ",\"loop\":";
     output += sequence.loop ? "true" : "false";
 
+    output += ",\"transitionMode\":";
+    AppendInt(output, static_cast<int>(sequence.transitionMode));
+    output += ",\"transitionDirection\":";
+    AppendInt(output, static_cast<int>(sequence.transitionDirection));
+
     output += ",\"steps\":[";
 
     for (size_t i = 0; i < sequence.steps.size(); ++i) {
