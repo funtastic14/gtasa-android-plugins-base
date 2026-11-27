@@ -2410,7 +2410,19 @@ bool VehicleGeometryReader::ScanIncremental(
             GlassPart& part =
                 state.currentInfo.glassParts[partIndex];
             ++part.triangles;
-            ++part.materialCounts[0].second;
+            auto materialCountIt = std::find_if(
+                part.materialCounts.begin(), part.materialCounts.end(),
+                [&triangle](const std::pair<int16_t, uint32_t>& item) {
+                    return item.first == triangle.materialIndex;
+                }
+            );
+            if (materialCountIt == part.materialCounts.end()) {
+                if (part.materialCounts.size() >= MAX_SCAN_MATERIAL_COUNT)
+                    return failClosed("component material limit exceeded during patch aggregation");
+                part.materialCounts.emplace_back(triangle.materialIndex, 1u);
+            } else {
+                ++materialCountIt->second;
+            }
             part.triangleIndices.push_back(index);
 
             const float area = length * 0.5f;
@@ -2512,52 +2524,124 @@ bool VehicleGeometryReader::ScanIncremental(
                 part.materialCounts.empty())
                 continue;
 
-            if (g_cachedSurfacePatches.size() >= 512u)
-                continue;
+            for (const auto& materialCount : part.materialCounts) {
+                if (g_cachedSurfacePatches.size() >= 512u)
+                    break;
+                const int16_t materialIndex = materialCount.first;
+                GlassPart materialPart;
+                materialPart.materialCounts.emplace_back(
+                    materialIndex, 0u);
+                const float high = std::numeric_limits<float>::max();
+                materialPart.minX = materialPart.minY =
+                    materialPart.minZ = high;
+                materialPart.maxX = materialPart.maxY =
+                    materialPart.maxZ = -high;
+                materialPart.triangleIndices.reserve(materialCount.second);
 
-            if (part.area > 1e-6f) {
-                part.cx /= part.area;
-                part.cy /= part.area;
-                part.cz /= part.area;
+                for (uint32_t triangleIndex : part.triangleIndices) {
+                    if (triangleIndex >= mesh.triangles.size())
+                        continue;
+                    const GeometryTriangle& triangle =
+                        mesh.triangles[triangleIndex];
+                    if (triangle.materialIndex != materialIndex ||
+                        triangle.a >= mesh.vehicleSpaceVertices.size() ||
+                        triangle.b >= mesh.vehicleSpaceVertices.size() ||
+                        triangle.c >= mesh.vehicleSpaceVertices.size())
+                        continue;
+
+                    const GeometryVertex& av =
+                        mesh.vehicleSpaceVertices[triangle.a];
+                    const GeometryVertex& bv =
+                        mesh.vehicleSpaceVertices[triangle.b];
+                    const GeometryVertex& cv =
+                        mesh.vehicleSpaceVertices[triangle.c];
+                    const RwV3d a{av.x, av.y, av.z};
+                    const RwV3d b{bv.x, bv.y, bv.z};
+                    const RwV3d c{cv.x, cv.y, cv.z};
+                    const RwV3d ab{b.x-a.x, b.y-a.y, b.z-a.z};
+                    const RwV3d ac{c.x-a.x, c.y-a.y, c.z-a.z};
+                    const RwV3d normal = CrossProduct(ab, ac);
+                    const float length = std::sqrt(
+                        RwV3dDotProduct(normal, normal));
+                    if (!std::isfinite(length) || length < 1e-5f)
+                        continue;
+
+                    const float area = length * 0.5f;
+                    ++materialPart.triangles;
+                    ++materialPart.materialCounts[0].second;
+                    materialPart.triangleIndices.push_back(triangleIndex);
+                    materialPart.area += area;
+                    materialPart.cx += (a.x+b.x+c.x) * area / 3.0f;
+                    materialPart.cy += (a.y+b.y+c.y) * area / 3.0f;
+                    materialPart.cz += (a.z+b.z+c.z) * area / 3.0f;
+                    materialPart.nx += normal.x;
+                    materialPart.ny += normal.y;
+                    materialPart.nz += normal.z;
+                    const RwV3d points[3] = {a, b, c};
+                    for (uint32_t k = 0; k < 3; ++k) {
+                        materialPart.minX = std::min(
+                            materialPart.minX, points[k].x);
+                        materialPart.minY = std::min(
+                            materialPart.minY, points[k].y);
+                        materialPart.minZ = std::min(
+                            materialPart.minZ, points[k].z);
+                        materialPart.maxX = std::max(
+                            materialPart.maxX, points[k].x);
+                        materialPart.maxY = std::max(
+                            materialPart.maxY, points[k].y);
+                        materialPart.maxZ = std::max(
+                            materialPart.maxZ, points[k].z);
+                    }
+                }
+
+                if (materialPart.triangleIndices.empty() ||
+                    materialPart.area <= 1e-6f)
+                    continue;
+                materialPart.cx /= materialPart.area;
+                materialPart.cy /= materialPart.area;
+                materialPart.cz /= materialPart.area;
                 const float normalLength = std::sqrt(
-                    part.nx*part.nx + part.ny*part.ny + part.nz*part.nz
-                );
+                    materialPart.nx * materialPart.nx +
+                    materialPart.ny * materialPart.ny +
+                    materialPart.nz * materialPart.nz);
                 if (normalLength > 1e-6f) {
-                    part.nx /= normalLength;
-                    part.ny /= normalLength;
-                    part.nz /= normalLength;
+                    materialPart.nx /= normalLength;
+                    materialPart.ny /= normalLength;
+                    materialPart.nz /= normalLength;
                 }
-            }
 
-            const int16_t materialIndex =
-                part.materialCounts.front().first;
-            const auto materialIt = std::find_if(
-                state.currentInfo.materials.begin(),
-                state.currentInfo.materials.end(),
-                [materialIndex](const MeshMaterialInfo& item) {
-                    return item.index == materialIndex;
+                const auto materialIt = std::find_if(
+                    state.currentInfo.materials.begin(),
+                    state.currentInfo.materials.end(),
+                    [materialIndex](const MeshMaterialInfo& item) {
+                        return item.index == materialIndex;
+                    }
+                );
+
+                SurfacePatch patch;
+                patch.atomicIndex = state.currentInfo.atomicIndex;
+                patch.materialIndex = materialIndex;
+                patch.frameName = state.currentInfo.frameName;
+                patch.role = ToSurfaceRole(
+                    SurfaceRoleHint(
+                        state.currentInfo, materialPart, textureNameMode));
+                patch.triangleIndices =
+                    std::move(materialPart.triangleIndices);
+                patch.centroid = {
+                    materialPart.cx, materialPart.cy, materialPart.cz};
+                patch.normal = {
+                    materialPart.nx, materialPart.ny, materialPart.nz};
+                patch.minBounds = {
+                    materialPart.minX, materialPart.minY, materialPart.minZ};
+                patch.maxBounds = {
+                    materialPart.maxX, materialPart.maxY, materialPart.maxZ};
+                patch.area = materialPart.area;
+                if (materialIt != state.currentInfo.materials.end()) {
+                    patch.textureName = materialIt->textureName;
+                    patch.maskName = materialIt->maskName;
                 }
-            );
-
-            SurfacePatch patch;
-            patch.atomicIndex = state.currentInfo.atomicIndex;
-            patch.materialIndex = materialIndex;
-            patch.frameName = state.currentInfo.frameName;
-            patch.role = ToSurfaceRole(
-                SurfaceRoleHint(state.currentInfo, part, textureNameMode)
-            );
-            patch.triangleIndices =
-                std::move(part.triangleIndices);
-            patch.centroid = {part.cx, part.cy, part.cz};
-            patch.normal = {part.nx, part.ny, part.nz};
-            patch.minBounds = {part.minX, part.minY, part.minZ};
-            patch.maxBounds = {part.maxX, part.maxY, part.maxZ};
-            patch.area = part.area;
-            if (materialIt != state.currentInfo.materials.end()) {
-                patch.textureName = materialIt->textureName;
-                patch.maskName = materialIt->maskName;
+                g_cachedSurfacePatches.push_back(std::move(patch));
             }
-            g_cachedSurfacePatches.push_back(std::move(patch));
         }
 
         if (state.patchCursor >= partCount) {
