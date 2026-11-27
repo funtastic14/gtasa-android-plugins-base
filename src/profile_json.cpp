@@ -1106,6 +1106,19 @@ static bool ReadSequence(
         return false;
     }
 
+    int transitionMode = static_cast<int>(sequence.transitionMode);
+    int transitionDirection = static_cast<int>(sequence.transitionDirection);
+    if (Find(value, "transitionMode") &&
+        (!ReadInt(value, "transitionMode", transitionMode) ||
+         transitionMode < 0 || transitionMode > static_cast<int>(EffectTransitionMode::PixelDissolve)))
+        return false;
+    if (Find(value, "transitionDirection") &&
+        (!ReadInt(value, "transitionDirection", transitionDirection) ||
+         transitionDirection < 0 || transitionDirection > static_cast<int>(EffectTransitionDirection::EdgeToCenter)))
+        return false;
+    sequence.transitionMode = static_cast<EffectTransitionMode>(transitionMode);
+    sequence.transitionDirection = static_cast<EffectTransitionDirection>(transitionDirection);
+
     const JsonValue* steps = Find(value, "steps");
 
     if (steps != nullptr) {
