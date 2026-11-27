@@ -749,6 +749,17 @@ static bool ReadEffect(
         return false;
     effect.elementShape = static_cast<LedElementShape>(elementShape);
 
+    if ((Find(value, "coronaEnabled") && !ReadBool(value, "coronaEnabled", effect.coronaEnabled)) ||
+        (Find(value, "glowEnabled") && !ReadBool(value, "glowEnabled", effect.glowEnabled)) ||
+        (Find(value, "lightSpreadEnabled") && !ReadBool(value, "lightSpreadEnabled", effect.lightSpreadEnabled)) ||
+        !ReadOptionalFloat(value, "coronaIntensity", effect.coronaIntensity) ||
+        !ReadOptionalFloat(value, "glowIntensity", effect.glowIntensity) ||
+        !ReadOptionalFloat(value, "lightSpreadIntensity", effect.lightSpreadIntensity) ||
+        !std::isfinite(effect.coronaIntensity) || effect.coronaIntensity < 0.0f || effect.coronaIntensity > 2.0f ||
+        !std::isfinite(effect.glowIntensity) || effect.glowIntensity < 0.0f || effect.glowIntensity > 2.0f ||
+        !std::isfinite(effect.lightSpreadIntensity) || effect.lightSpreadIntensity < 0.0f || effect.lightSpreadIntensity > 2.0f)
+        return false;
+
     if (!ReadBool(value, "enabled", effect.enabled) ||
         !ReadUInt8(value, "red", effect.red) ||
         !ReadUInt8(value, "green", effect.green) ||
@@ -1523,6 +1534,18 @@ static bool AppendEffect(
     AppendInt(output, static_cast<int>(effect.blendMode));
     output += ",\"elementShape\":";
     AppendInt(output, static_cast<int>(effect.elementShape));
+    output += ",\"coronaEnabled\":";
+    output += effect.coronaEnabled ? "true" : "false";
+    output += ",\"glowEnabled\":";
+    output += effect.glowEnabled ? "true" : "false";
+    output += ",\"lightSpreadEnabled\":";
+    output += effect.lightSpreadEnabled ? "true" : "false";
+    output += ",\"coronaIntensity\":";
+    if (!AppendFloat(output, effect.coronaIntensity)) return false;
+    output += ",\"glowIntensity\":";
+    if (!AppendFloat(output, effect.glowIntensity)) return false;
+    output += ",\"lightSpreadIntensity\":";
+    if (!AppendFloat(output, effect.lightSpreadIntensity)) return false;
 
     output += ",\"colorMode\":";
     AppendInt(output, static_cast<int>(effect.colorMode));
