@@ -1,6 +1,6 @@
 # VLS Matrix Textures
 
-Custom matrix textures support transparent RGBA PNG files and ASCII PPM P3 files, with maximum dimensions of 128x128.
+Custom matrix textures support transparent RGBA PNG files and ASCII PPM P3 files, with maximum dimensions of 1024x1024.
 
 Install as `VehicleLEDSystem/textures/<texture-name>.png` or `.ppm`, then enter the filename without extension in the effect's texture field. Names may contain letters, digits, underscore and hyphen, up to 32 characters.
 
