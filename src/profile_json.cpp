@@ -636,6 +636,13 @@ static bool ReadMatrixPixel(
     }
 
     pixel.direction = static_cast<LedDirection>(direction);
+    int elementShape = static_cast<int>(pixel.elementShape);
+    if (Find(value, "elementShape") != nullptr &&
+        (!ReadInt(value, "elementShape", elementShape) ||
+         (elementShape != static_cast<int>(LedElementShape::Inherit) &&
+          (elementShape < 0 || elementShape > static_cast<int>(LedElementShape::Octagon)))))
+        return false;
+    pixel.elementShape = static_cast<LedElementShape>(elementShape);
 
     return
         ReadFloat(value, "customAngle", pixel.customAngle) &&
@@ -1147,8 +1154,11 @@ static bool ReadSequence(
 
 static bool ValidatePixel(const LedMatrixPixel& pixel) {
     int direction = static_cast<int>(pixel.direction);
+    int shape = static_cast<int>(pixel.elementShape);
 
     return
+        (shape == static_cast<int>(LedElementShape::Inherit) ||
+         (shape >= 0 && shape <= static_cast<int>(LedElementShape::Octagon))) &&
         direction >= 0 &&
         direction <= static_cast<int>(LedDirection::CustomAngle) &&
         std::isfinite(pixel.customAngle) &&
@@ -1379,8 +1389,15 @@ static bool AppendMatrixPixel(
     if (!ValidatePixel(pixel))
         return false;
 
+    const int shape = static_cast<int>(pixel.elementShape);
+    if (shape != static_cast<int>(LedElementShape::Inherit) &&
+        (shape < 0 || shape > static_cast<int>(LedElementShape::Octagon)))
+        return false;
+
     output += "{\"enabled\":";
     output += pixel.enabled ? "true" : "false";
+    output += ",\"elementShape\":";
+    AppendInt(output, shape);
 
     output += ",\"direction\":";
     AppendInt(output, static_cast<int>(pixel.direction));
