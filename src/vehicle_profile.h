@@ -155,7 +155,13 @@ enum class LedMotionPattern : uint8_t {
     DiagonalXCross,
     MultiAxisCenterBurst,
     TripleMirrorWave,
-    SegmentedCenterExpand
+    SegmentedCenterExpand,
+    AccumulateLeftToRight,
+    AccumulateRightToLeft,
+    AccumulateCenterOut,
+    AccumulateEdgesToCenter,
+    SideAnchoredCenterSlider,
+    CenterAnchoredSideSlider
 };
 
 enum class MotionPlaybackMode : uint8_t {
