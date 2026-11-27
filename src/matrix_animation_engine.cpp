@@ -224,6 +224,9 @@ enum class EyeSemanticPart : uint8_t {
 struct EyeSemanticAnalysis {
     std::vector<uint8_t> labels;
     uint32_t counts[5] = {};
+    uint32_t minX[5] = {}, minY[5] = {}, maxX[5] = {}, maxY[5] = {};
+    double sumX[5] = {}, sumY[5] = {};
+    float centerX[5] = {}, centerY[5] = {};
     bool analyzed = false;
     float confidence = 0.0f;
 };
@@ -241,6 +244,14 @@ struct TextureCacheEntry {
 void AnalyzeEyeSemanticParts(TextureCacheEntry& entry) {
     entry.eyeParts.labels.clear();
     std::fill(entry.eyeParts.counts, entry.eyeParts.counts + 5, 0u);
+    std::fill(entry.eyeParts.minX, entry.eyeParts.minX + 5, entry.width);
+    std::fill(entry.eyeParts.minY, entry.eyeParts.minY + 5, entry.height);
+    std::fill(entry.eyeParts.maxX, entry.eyeParts.maxX + 5, 0u);
+    std::fill(entry.eyeParts.maxY, entry.eyeParts.maxY + 5, 0u);
+    std::fill(entry.eyeParts.sumX, entry.eyeParts.sumX + 5, 0.0);
+    std::fill(entry.eyeParts.sumY, entry.eyeParts.sumY + 5, 0.0);
+    std::fill(entry.eyeParts.centerX, entry.eyeParts.centerX + 5, 0.0f);
+    std::fill(entry.eyeParts.centerY, entry.eyeParts.centerY + 5, 0.0f);
     entry.eyeParts.analyzed = false;
     entry.eyeParts.confidence = 0.0f;
     if (!entry.valid || !entry.width || !entry.height) return;
@@ -270,6 +281,21 @@ void AnalyzeEyeSemanticParts(TextureCacheEntry& entry) {
             const uint8_t label=static_cast<uint8_t>(part);
             entry.eyeParts.labels[static_cast<size_t>(y)*entry.width+x]=label;
             ++entry.eyeParts.counts[label];
+            if (label != 0) {
+                entry.eyeParts.minX[label] = std::min<uint32_t>(entry.eyeParts.minX[label], x);
+                entry.eyeParts.minY[label] = std::min<uint32_t>(entry.eyeParts.minY[label], y);
+                entry.eyeParts.maxX[label] = std::max<uint32_t>(entry.eyeParts.maxX[label], x);
+                entry.eyeParts.maxY[label] = std::max<uint32_t>(entry.eyeParts.maxY[label], y);
+                entry.eyeParts.sumX[label] += x;
+                entry.eyeParts.sumY[label] += y;
+            }
+        }
+    }
+    for (uint8_t label = 1; label < 5; ++label) {
+        const uint32_t n = entry.eyeParts.counts[label];
+        if (n) {
+            entry.eyeParts.centerX[label] = static_cast<float>(entry.eyeParts.sumX[label] / n);
+            entry.eyeParts.centerY[label] = static_cast<float>(entry.eyeParts.sumY[label] / n);
         }
     }
     entry.eyeParts.confidence=(iris>count/100u?0.34f:0.0f)+
