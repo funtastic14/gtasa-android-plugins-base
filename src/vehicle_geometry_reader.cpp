@@ -2639,6 +2639,13 @@ bool VehicleGeometryReader::ScanIncremental(
                            mesh.triangles[rhs].materialIndex;
                 }
             );
+            std::sort(
+                part.materialCounts.begin(), part.materialCounts.end(),
+                [](const std::pair<int16_t, uint32_t>& lhs,
+                   const std::pair<int16_t, uint32_t>& rhs) {
+                    return lhs.first < rhs.first;
+                }
+            );
             size_t materialTriangleCursor = 0;
             for (const auto& materialCount : part.materialCounts) {
                 if (g_cachedSurfacePatches.size() >= 512u)
