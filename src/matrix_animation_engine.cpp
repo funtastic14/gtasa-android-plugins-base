@@ -545,7 +545,7 @@ void ApplyCustomTexture(
         // Keep the authored eye artwork fixed. Only a calibrated iris region
         // (including its pupil) is translated; the complete texture is never
         // scaled, mirrored, or shifted to simulate gaze.
-        const bool pairedEyes = matrix.columns >= 2;
+        const bool pairedEyes = matrix.columns >= 2 && entry->width >= 2;
         const bool leftEye = !pairedEyes || column < (matrix.columns + 1u) / 2u;
         const float localU = !pairedEyes ? u :
             (leftEye ? u * 2.0f : (u - 0.5f) * 2.0f);
