@@ -110,6 +110,27 @@ inline MotionFrameState BuildMotionFrameState(
     state.cycleIndex = timeMs / state.intervalMs;
     state.phase = GetMotionPhase(timeMs, effect.speed);
     state.pattern = ResolveMotionPattern(effect, timeMs, playback, state.intervalMs);
+    state.previousPattern = state.pattern;
+    state.transitionProgress = 1.0f;
+    // Smoothly blend automatic/sequential/random pattern changes. This is
+    // resolved once per placement frame and shared by all its pixels.
+    // Manual playback deliberately remains immediate because the user has
+    // explicitly selected one fixed pattern.
+    if (playback != MotionPlaybackMode::Manual && state.cycleIndex > 0u) {
+        const uint32_t transitionMs = std::min<uint32_t>(
+            360u, std::max<uint32_t>(120u, state.intervalMs / 3u));
+        const uint32_t phaseMs = timeMs % state.intervalMs;
+        if (phaseMs < transitionMs) {
+            state.previousPattern = ResolveMotionPattern(
+                effect, timeMs - phaseMs - state.intervalMs,
+                playback, state.intervalMs);
+            const float p = static_cast<float>(phaseMs) /
+                static_cast<float>(transitionMs);
+            // Smooth Step avoids the abrupt brightness/color discontinuity
+            // at either end of the transition.
+            state.transitionProgress = p * p * (3.0f - 2.0f * p);
+        }
+    }
     return state;
 }
 

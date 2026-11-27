@@ -183,6 +183,8 @@ struct MotionFrameState {
     uint32_t cycleIndex = 0;
     float phase = 0.0f;
     LedMotionPattern pattern = LedMotionPattern::LeftToRight;
+    LedMotionPattern previousPattern = LedMotionPattern::LeftToRight;
+    float transitionProgress = 1.0f;
 };
 
 enum class RunningTextMotion : uint8_t {

@@ -550,11 +550,30 @@ void ApplyCustomTexture(
         const float localU = !pairedEyes ? u :
             (leftEye ? u * 2.0f : (u - 0.5f) * 2.0f);
         const float eyeV = v;
-        float irisCenterX = design ? design->irisCenterX : effect.eyeTextureIrisCenterX;
-        float irisCenterY = design ? design->irisCenterY : effect.eyeTextureIrisCenterY;
-        float irisRadiusX = design ? design->irisRadiusX : effect.eyeTextureIrisRadiusX;
-        float irisRadiusY = design ? design->irisRadiusY : effect.eyeTextureIrisRadiusY;
-        bool hasMapping = design != nullptr && design->mappingConfigured;
+        const bool hasDesignMapping =
+            design != nullptr && design->mappingConfigured;
+        // The effect-level UV controls are the live manual fallback for an
+        // uncalibrated design. Previously the mere presence of a design caused
+        // its untouched defaults to shadow these controls, so slider changes
+        // appeared to do nothing.
+        float irisCenterX = hasDesignMapping
+            ? design->irisCenterX : effect.eyeTextureIrisCenterX;
+        float irisCenterY = hasDesignMapping
+            ? design->irisCenterY : effect.eyeTextureIrisCenterY;
+        float irisRadiusX = hasDesignMapping
+            ? design->irisRadiusX : effect.eyeTextureIrisRadiusX;
+        float irisRadiusY = hasDesignMapping
+            ? design->irisRadiusY : effect.eyeTextureIrisRadiusY;
+        const bool effectUvCustomized =
+            std::fabs(effect.eyeTextureIrisCenterX - 0.50f) > 0.0001f ||
+            std::fabs(effect.eyeTextureIrisCenterY - 0.50f) > 0.0001f ||
+            std::fabs(effect.eyeTextureIrisRadiusX - 0.25f) > 0.0001f ||
+            std::fabs(effect.eyeTextureIrisRadiusY - 0.30f) > 0.0001f ||
+            std::fabs(effect.eyeTexturePupilCenterX - 0.50f) > 0.0001f ||
+            std::fabs(effect.eyeTexturePupilCenterY - 0.50f) > 0.0001f ||
+            std::fabs(effect.eyeTexturePupilRadiusX - 0.10f) > 0.0001f ||
+            std::fabs(effect.eyeTexturePupilRadiusY - 0.14f) > 0.0001f;
+        bool hasMapping = hasDesignMapping || effectUvCustomized;
         const bool tryAutomaticMapping = !hasMapping;
         // Require evidence for all three nested eye regions before moving
         // anything automatically. A colorful patch alone is not enough:
@@ -666,7 +685,7 @@ void ApplyCustomTexture(
                 // The original flattened pixels contain no hidden background.
                 const float radius = std::sqrt(
                     sourceDx * sourceDx + sourceDy * sourceDy);
-                const float scale = radius > 0.0001f ? 1.045f / radius : 1.045f;
+                const float scale = radius > 0.0001f ? 1.18f / radius : 1.18f;
                 sampleLocalU = irisCenterX + sourceDx * scale * irisRadiusX;
                 sampleV = irisCenterY + sourceDy * scale * irisRadiusY;
             }
@@ -674,11 +693,15 @@ void ApplyCustomTexture(
             // Find the pupil component belonging to this eye. Its movement is
             // a second transform layered over the iris, not a whole-texture
             // zoom or a mirror operation.
-            float pupilCenterX = design ? design->pupilCenterX : irisCenterX;
-            float pupilCenterY = design ? design->pupilCenterY : irisCenterY;
-            float pupilRadiusX = design ? design->pupilRadiusX : 0.0f;
-            float pupilRadiusY = design ? design->pupilRadiusY : 0.0f;
-            bool hasPupil = design != nullptr && design->mappingConfigured &&
+            float pupilCenterX = hasDesignMapping
+                ? design->pupilCenterX : effect.eyeTexturePupilCenterX;
+            float pupilCenterY = hasDesignMapping
+                ? design->pupilCenterY : effect.eyeTexturePupilCenterY;
+            float pupilRadiusX = hasDesignMapping
+                ? design->pupilRadiusX : effect.eyeTexturePupilRadiusX;
+            float pupilRadiusY = hasDesignMapping
+                ? design->pupilRadiusY : effect.eyeTexturePupilRadiusY;
+            bool hasPupil = (hasDesignMapping || effectUvCustomized) &&
                 pupilRadiusX > 0.001f && pupilRadiusY > 0.001f;
             if (!hasPupil) {
                 const uint8_t pupilLabel = static_cast<uint8_t>(EyeSemanticPart::Pupil);
@@ -734,7 +757,7 @@ void ApplyCustomTexture(
                 } else if (inOldPupil) {
                     // Reveal nearby iris color where the pupil used to be.
                     const float radius = std::sqrt(sourcePdx*sourcePdx + sourcePdy*sourcePdy);
-                    const float scale = radius > 0.0001f ? 1.06f/radius : 1.06f;
+                    const float scale = radius > 0.0001f ? 1.20f/radius : 1.20f;
                     // The old pupil is now at the translated iris
                     // position. Rebuild its exposed iris area around that
                     // translated center; cancelling irisMove here samples the
@@ -1455,12 +1478,26 @@ bool MatrixAnimationEngine::EvaluatePixel(
             effect.textMotion == RunningTextMotion::BounceVertical;
         const float motionX = effect.type == LedEffectType::RunningText && verticalText ? y : x;
         const float motionY = effect.type == LedEffectType::RunningText && verticalText ? x : y;
-        intensity *= EvaluateMotionIntensity(
+        const uint16_t sampleColumn = matrix.canvasEnabled
+            ? static_cast<uint16_t>(canvasColumn) : column;
+        const uint16_t sampleRow = matrix.canvasEnabled
+            ? static_cast<uint16_t>(canvasRow) : row;
+        const float nextIntensity = EvaluateMotionIntensity(
             activePattern, motionX, motionY, phase,
-            matrix.canvasEnabled ? static_cast<uint16_t>(canvasColumn) : column,
-            matrix.canvasEnabled ? static_cast<uint16_t>(canvasRow) : row,
-            canvasColumns, canvasRows
+            sampleColumn, sampleRow, canvasColumns, canvasRows
         );
+        if (effect.type != LedEffectType::RunningText &&
+            localMotionFrame.transitionProgress < 0.9999f) {
+            const float previousIntensity = EvaluateMotionIntensity(
+                localMotionFrame.previousPattern, motionX, motionY, phase,
+                sampleColumn, sampleRow, canvasColumns, canvasRows
+            );
+            intensity *= previousIntensity * (1.0f -
+                localMotionFrame.transitionProgress) +
+                nextIntensity * localMotionFrame.transitionProgress;
+        } else {
+            intensity *= nextIntensity;
+        }
     }
 
     const float brightness =
