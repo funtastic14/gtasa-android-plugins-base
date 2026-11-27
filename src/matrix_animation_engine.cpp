@@ -31,18 +31,15 @@ uint8_t ClampColor(float value) {
     return static_cast<uint8_t>(value);
 }
 
-const EyeTextureDesign* ResolveEyeTextureDesign(
+const EyeTextureDesign* ResolveEyeTextureDesignAtStep(
     const LedEffectConfig& effect,
-    uint32_t timeMs
+    uint32_t step
 ) {
     const size_t count = effect.eyeTextures.size();
     if (count == 0)
         return nullptr;
     size_t selected = effect.eyeTextureIndex < count
         ? effect.eyeTextureIndex : 0;
-    const uint32_t interval = effect.eyeTextureIntervalMs < 500
-        ? 500u : effect.eyeTextureIntervalMs;
-    const uint32_t step = timeMs / interval;
     switch (effect.eyeTexturePlayback) {
     case EyeTexturePlaybackMode::Manual:
         break;
@@ -67,6 +64,42 @@ const EyeTextureDesign* ResolveEyeTextureDesign(
     }
     }
     return &effect.eyeTextures[selected];
+}
+
+const EyeTextureDesign* ResolveEyeTextureDesign(
+    const LedEffectConfig& effect,
+    uint32_t timeMs
+) {
+    const uint32_t interval = effect.eyeTextureIntervalMs < 500
+        ? 500u : effect.eyeTextureIntervalMs;
+    return ResolveEyeTextureDesignAtStep(effect, timeMs / interval);
+}
+
+struct EyeTextureTransition {
+    const EyeTextureDesign* previous = nullptr;
+    float progress = 1.0f;
+};
+
+EyeTextureTransition ResolveEyeTextureTransition(
+    const LedEffectConfig& effect,
+    uint32_t timeMs
+) {
+    EyeTextureTransition transition;
+    if (effect.eyeTexturePlayback == EyeTexturePlaybackMode::Manual ||
+        effect.eyeTextures.size() < 2)
+        return transition;
+    const uint32_t interval = effect.eyeTextureIntervalMs < 500
+        ? 500u : effect.eyeTextureIntervalMs;
+    const uint32_t step = timeMs / interval;
+    const uint32_t phase = timeMs % interval;
+    const uint32_t duration = std::max<uint32_t>(
+        100u, std::min<uint32_t>(300u, interval / 3u));
+    if (step == 0 || phase >= duration)
+        return transition;
+    transition.previous = ResolveEyeTextureDesignAtStep(effect, step - 1u);
+    const float t = Clamp01(static_cast<float>(phase) / duration);
+    transition.progress = t * t * (3.0f - 2.0f * t);
+    return transition;
 }
 
 EyeMotion ResolveEyeMotionAtStep(
@@ -1146,6 +1179,11 @@ void MatrixAnimationEngine::PrepareEffect(
         ? design->textureName : effect.textureName;
     if (!textureName.empty())
         GetOrLoadCustomTexture(textureName, timeMs);
+    const EyeTextureTransition transition =
+        ResolveEyeTextureTransition(effect, timeMs);
+    if (transition.previous != nullptr &&
+        !transition.previous->textureName.empty())
+        GetOrLoadCustomTexture(transition.previous->textureName, timeMs);
 }
 
 bool MatrixAnimationEngine::EvaluatePixel(
@@ -1250,6 +1288,15 @@ bool MatrixAnimationEngine::EvaluatePixel(
             ? ResolveEyeTextureDesign(effect, timeMs) : nullptr;
     const std::string& activeEyeTextureName = activeEyeTexture != nullptr
         ? activeEyeTexture->textureName : effect.textureName;
+    const EyeTextureTransition eyeTextureTransition =
+        effect.type == LedEffectType::StroboEyes
+            ? ResolveEyeTextureTransition(effect, timeMs)
+            : EyeTextureTransition();
+    const EyeTextureDesign* previousEyeTexture =
+        eyeTextureTransition.previous;
+    const std::string& previousEyeTextureName =
+        previousEyeTexture != nullptr
+            ? previousEyeTexture->textureName : effect.textureName;
     // A configured but missing/invalid image must not disable procedural
     // iris, pupil and lid rendering. Once decoded, the custom art takes over.
     const bool hasCustomEyeTexture = IsCustomTextureReady(activeEyeTextureName);
@@ -1648,9 +1695,41 @@ bool MatrixAnimationEngine::EvaluatePixel(
     if (effect.transparentMatrixBackground && intensity <= 0.055f)
         output.alpha = 0;
     output.visible = output.intensity > 0.001f && output.alpha > 0;
-    ApplyCustomTexture(effect, activeEyeTextureName, activeEyeTexture,
-                       matrix, column, row, timeMs, speed,
-                       activeEyeMotion, eyeBlinkAmount, output);
+    const bool canBlendEyeTextures =
+        effect.type == LedEffectType::StroboEyes &&
+        previousEyeTexture != nullptr &&
+        previousEyeTextureName != activeEyeTextureName &&
+        eyeTextureTransition.progress < 1.0f &&
+        IsCustomTextureReady(previousEyeTextureName) &&
+        hasCustomEyeTexture;
+    if (canBlendEyeTextures) {
+        MatrixPixelOutput currentOutput = output;
+        MatrixPixelOutput previousOutput = output;
+        ApplyCustomTexture(effect, activeEyeTextureName, activeEyeTexture,
+                           matrix, column, row, timeMs, speed,
+                           activeEyeMotion, eyeBlinkAmount, currentOutput);
+        ApplyCustomTexture(effect, previousEyeTextureName, previousEyeTexture,
+                           matrix, column, row, timeMs, speed,
+                           activeEyeMotion, eyeBlinkAmount, previousOutput);
+        const float t = eyeTextureTransition.progress;
+        const float oldWeight = 1.0f - t;
+        currentOutput.red = ClampColor(
+            previousOutput.red * oldWeight + currentOutput.red * t);
+        currentOutput.green = ClampColor(
+            previousOutput.green * oldWeight + currentOutput.green * t);
+        currentOutput.blue = ClampColor(
+            previousOutput.blue * oldWeight + currentOutput.blue * t);
+        currentOutput.alpha = static_cast<uint8_t>(
+            previousOutput.alpha * oldWeight + currentOutput.alpha * t);
+        currentOutput.visible =
+            (previousOutput.visible || currentOutput.visible) &&
+            currentOutput.alpha > 0;
+        output = currentOutput;
+    } else {
+        ApplyCustomTexture(effect, activeEyeTextureName, activeEyeTexture,
+                           matrix, column, row, timeMs, speed,
+                           activeEyeMotion, eyeBlinkAmount, output);
+    }
 
     return true;
 }
