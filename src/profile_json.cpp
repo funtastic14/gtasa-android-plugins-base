@@ -1701,7 +1701,9 @@ bool Serialize(
     json += ",\"enabled\":";
     json += profile.enabled ? "true" : "false";
 
-    json += ",\"nativeLights\":{\"highBeamEnabled\":";
+    json += ",\"nativeLights\":{\"scanMode\":";
+    AppendInt(json, static_cast<int>(profile.nativeLights.scanMode));
+    json += ",\"highBeamEnabled\":";
     json += profile.nativeLights.highBeamEnabled ? "true" : "false";
     json += ",\"highBeamRange\":";
     if (!AppendFloat(json, profile.nativeLights.highBeamRange)) return false;
@@ -1785,7 +1787,11 @@ bool Deserialize(
 
     const JsonValue* nativeLights = Find(root, "nativeLights");
     if (nativeLights != nullptr) {
+        int scanMode = static_cast<int>(result.nativeLights.scanMode);
         if (nativeLights->type != JsonValue::Object ||
+            (Find(*nativeLights, "scanMode") != nullptr &&
+             (!ReadInt(*nativeLights, "scanMode", scanMode) ||
+              scanMode < 0 || scanMode > static_cast<int>(NativeLightScanMode::TextureName))) ||
             !ReadBool(*nativeLights, "highBeamEnabled", result.nativeLights.highBeamEnabled) ||
             !ReadOptionalFloat(*nativeLights, "highBeamRange", result.nativeLights.highBeamRange) ||
             !ReadOptionalFloat(*nativeLights, "highBeamIntensity", result.nativeLights.highBeamIntensity) ||
@@ -1795,6 +1801,7 @@ bool Deserialize(
             !ReadOptionalFloat(*nativeLights, "rgbFlowIntensity", result.nativeLights.rgbFlowIntensity)) {
             return false;
         }
+        result.nativeLights.scanMode = static_cast<NativeLightScanMode>(scanMode);
         if (result.nativeLights.highBeamRange < 10.0f ||
             result.nativeLights.highBeamRange > 500.0f ||
             result.nativeLights.highBeamIntensity < 0.1f ||
