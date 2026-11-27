@@ -651,6 +651,7 @@ static bool RenderMatrixEffect(
             const float centerZ = (top + bottom) * 0.5f;
             const float baseHalfWidth = (right - left) * 0.5f;
             const float baseHalfHeight = (top - bottom) * 0.5f;
+            if (lightVertices.size() < 65000u) {
             if (effect.lightSpreadEnabled)
                 AppendLightGeometry(lightVertices, lightIndices, LedElementShape::Square,
                     centerX, centerZ, baseHalfWidth * 2.8f, baseHalfHeight * 2.8f,
@@ -675,6 +676,7 @@ static bool RenderMatrixEffect(
                     t.y + 0.003f, t, matrix, red, green, blue,
                     ClampColor(105.0f * effect.coronaIntensity * output.intensity *
                         TransitionEngine::Clamp01(alphaCoverage * transitionCoverage)));
+            }
 
             const uint32_t vertexBase = static_cast<uint32_t>(vertices.size());
             CVector local[32];
