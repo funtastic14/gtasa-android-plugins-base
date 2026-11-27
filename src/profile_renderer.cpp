@@ -408,6 +408,11 @@ static bool RenderMatrixEffect(
     if (indices.capacity() < pixelCount * 6)
         indices.reserve(pixelCount * 6);
 
+    // Resolve and decode the selected eye art once per placement, before
+    // entering the per-pixel hot loop. Texture changes may load here, never
+    // during each pixel evaluation.
+    MatrixAnimationEngine::PrepareEffect(effect, motionTimeMs);
+
     for (uint32_t row = 0; row < rows; ++row) {
         for (uint32_t column = 0; column < columns; ++column) {
             MatrixPixelOutput output;
