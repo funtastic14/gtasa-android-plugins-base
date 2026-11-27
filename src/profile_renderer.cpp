@@ -582,8 +582,6 @@ static bool RenderMatrixEffect(
             if (!output.visible || output.intensity <= 0.001f)
                 continue;
 
-            const uint32_t vertexBase = static_cast<uint32_t>(vertices.size());
-
             const float left =
                 t.x - effectiveWidth * 0.5f +
                 static_cast<float>(column) * cellWidth +
@@ -645,6 +643,7 @@ static bool RenderMatrixEffect(
                     ClampColor(105.0f * effect.coronaIntensity * output.intensity *
                         TransitionEngine::Clamp01(alphaCoverage * transitionCoverage)));
 
+            const uint32_t vertexBase = static_cast<uint32_t>(vertices.size());
             CVector local[32];
             RwImVertexIndex shapeIndices[96];
             uint32_t shapeVertexCount = 0;
