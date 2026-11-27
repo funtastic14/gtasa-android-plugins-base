@@ -310,7 +310,7 @@ void AnalyzeEyeSemanticParts(TextureCacheEntry& entry) {
             if (entry.eyeParts.labels[seed] != label) continue;
             componentQueue.clear();
             componentQueue.push_back(seed);
-            entry.eyeParts.labels[seed] = 0;
+            entry.eyeParts.labels[seed] = static_cast<uint8_t>(label | 0x80u);
             EyeComponentBounds component;
             component.minX = entry.width;
             component.minY = entry.height;
@@ -334,16 +334,12 @@ void AnalyzeEyeSemanticParts(TextureCacheEntry& entry) {
                     for (uint32_t nx = x0; nx <= x1; ++nx) {
                         const uint32_t neighbor = ny * entry.width + nx;
                         if (entry.eyeParts.labels[neighbor] == label) {
-                            entry.eyeParts.labels[neighbor] = 0;
+                            entry.eyeParts.labels[neighbor] = static_cast<uint8_t>(label | 0x80u);
                             componentQueue.push_back(neighbor);
                         }
                     }
                 }
             }
-            for (size_t i = 0; i < componentQueue.size(); ++i)
-                entry.eyeParts.labels[componentQueue[i]] = label;
-            // The stack is empty after flood fill; restore the component by
-            // scanning its bounded box. This is bounded to the component ROI.
             component.centerX = component.pixels
                 ? static_cast<float>(component.sumX / component.pixels) : 0.0f;
             component.centerY = component.pixels
@@ -358,31 +354,6 @@ void AnalyzeEyeSemanticParts(TextureCacheEntry& entry) {
                 if (component.pixels > entry.eyeParts.components[label][smallest].pixels)
                     entry.eyeParts.components[label][smallest] = component;
             }
-            // Restore labels by walking the component's bounding rectangle.
-            // Only candidate pixels are rewritten; unrelated classes remain.
-            for (uint32_t ry = component.minY; ry <= component.maxY; ++ry) {
-                for (uint32_t rx = component.minX; rx <= component.maxX; ++rx) {
-                    const size_t ri = static_cast<size_t>(ry) * entry.width + rx;
-                    if (entry.eyeParts.labels[ri] == 0) {
-                        const size_t p = ri * 4u;
-                        const uint8_t rr=entry.pixels[p], gg=entry.pixels[p+1],
-                            bb=entry.pixels[p+2], aa=entry.pixels[p+3];
-                        if (aa >= 24) {
-                            const int hi=std::max(rr,std::max(gg,bb));
-                            const int lo=std::min(rr,std::min(gg,bb));
-                            const int sat=hi-lo, lum=(rr*30+gg*59+bb*11)/100;
-                            const float nx=(static_cast<float>(rx)+0.5f)/entry.width;
-                            const float ny=(static_cast<float>(ry)+0.5f)/entry.height;
-                            uint8_t candidate=0;
-                            if (lum<=48 && ny<0.36f && nx>0.04f && nx<0.96f) candidate=4;
-                            else if (lum<=40 && ny>0.15f && ny<0.90f) candidate=3;
-                            else if (sat>=36 && lum>24 && ny>0.10f && ny<0.94f) candidate=2;
-                            else if (lum>=145 && sat<=70) candidate=1;
-                            if (candidate == label) entry.eyeParts.labels[ri] = label;
-                        }
-                    }
-                }
-            }
         }
         if (entry.eyeParts.componentCount[label] == 2 &&
             entry.eyeParts.components[label][1].pixels >
@@ -391,6 +362,9 @@ void AnalyzeEyeSemanticParts(TextureCacheEntry& entry) {
                       entry.eyeParts.components[label][1]);
         }
     }
+    // Remove the temporary visited bit after all components are measured.
+    for (size_t i = 0; i < entry.eyeParts.labels.size(); ++i)
+        entry.eyeParts.labels[i] &= 0x7Fu;
     for (uint8_t label = 1; label < 5; ++label) {
         const uint32_t n = entry.eyeParts.counts[label];
         if (n) {
