@@ -234,9 +234,23 @@ struct LedTransform {
     float stretchY = 1.0f;
 };
 
+enum class LedElementShape : uint8_t {
+    Square = 0,
+    CircleFilled = 1,
+    CircleOutline = 2,
+    Diamond = 3,
+    Triangle = 4,
+    Hexagon = 5,
+    Octagon = 6,
+    Inherit = 255
+};
+
 // Konfigurasi satu LED/piksel matriks.
 struct LedMatrixPixel {
     bool enabled = true;
+
+    // Per-pixel shape; Inherit uses the effect-level shape for compatibility.
+    LedElementShape elementShape = LedElementShape::Inherit;
 
     // Arah gerakan LED ini, independen dari LED lainnya.
     LedDirection direction = LedDirection::LeftToRight;
@@ -274,16 +288,6 @@ struct LedMatrixConfig {
     // Setiap elemen mewakili satu LED/piksel.
     // Urutan: kiri ke kanan, kemudian baris berikutnya.
     std::vector<LedMatrixPixel> pixels;
-};
-
-enum class LedElementShape : uint8_t {
-    Square = 0,
-    CircleFilled = 1,
-    CircleOutline = 2,
-    Diamond = 3,
-    Triangle = 4,
-    Hexagon = 5,
-    Octagon = 6
 };
 
 // Posisi dan ukuran LED relatif terhadap kendaraan
