@@ -1338,6 +1338,21 @@ static void RenderEditor() {
         changed = true;
     }
 
+    ImGui::Separator();
+    ImGui::Text("Layer Composition");
+    int layerOrder = effect.layerOrder;
+    if (ImGui::SliderInt("Layer Order", &layerOrder, 0, 255)) {
+        effect.layerOrder = static_cast<uint8_t>(layerOrder);
+        changed = true;
+    }
+    const char* blendModes[] = {"Alpha", "Additive"};
+    int blendMode = static_cast<int>(effect.blendMode);
+    if (ImGui::Combo("Layer Blend Mode", &blendMode, blendModes, 2)) {
+        effect.blendMode = static_cast<VLS::LedLayerBlendMode>(blendMode);
+        changed = true;
+    }
+    ImGui::TextWrapped("Lower layer order is drawn first. Alpha overlays preserve normal transparency; Additive layers accumulate light for glow and multi-effect combinations.");
+
     const bool supportsPalette =
         effect.type == VLS::LedEffectType::RunningLED ||
         effect.type == VLS::LedEffectType::RunningText ||
