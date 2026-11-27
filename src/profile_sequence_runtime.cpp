@@ -120,24 +120,48 @@ bool ProfileSequenceRuntime::Update(
         return false;
     }
 
-    const uint32_t elapsedMs =
-        nowMs - m_stepStartTimeMs;
+    // Advance against scheduled step boundaries, not the current frame time.
+    // This keeps the sequence clock stable after a slow frame or brief game hitch.
+    uint32_t advancedSteps = 0;
+    while (advancedSteps < sequence.steps.size()) {
+        if (m_stepIndex >= sequence.steps.size()) {
+            Stop();
+            return false;
+        }
 
-    if (elapsedMs < currentStep.durationMs) {
-        return true;
-    }
+        const EffectSequenceStep& step = sequence.steps[m_stepIndex];
+        if (!IsStepReferenceValid(profile, step)) {
+            Stop();
+            return false;
+        }
 
-    if (m_stepIndex + 1 < sequence.steps.size() || sequence.loop) {
-        m_previousStep = currentStep;
+        const uint32_t elapsedMs = nowMs - m_stepStartTimeMs;
+        if (elapsedMs < step.durationMs)
+            return true;
+
+        const bool hasNext = m_stepIndex + 1 < sequence.steps.size();
+        if (!hasNext && !sequence.loop) {
+            m_running = false;
+            m_finished = true;
+            return false;
+        }
+
+        m_previousStep = step;
         m_hasPreviousStep = true;
-        m_transitionStartTimeMs = nowMs;
-        if (m_stepIndex + 1 < sequence.steps.size())
+        m_transitionStartTimeMs = m_stepStartTimeMs + step.durationMs;
+
+        if (hasNext)
             ++m_stepIndex;
         else
             m_stepIndex = 0;
-        m_stepStartTimeMs = nowMs;
-        return true;
+
+        m_stepStartTimeMs += step.durationMs;
+        ++advancedSteps;
     }
+
+    // If a very long hitch spans multiple full loops, continue catching up on
+    // the next update rather than spending unbounded time in the render thread.
+    return true;
 
     m_running = false;
     m_finished = true;
