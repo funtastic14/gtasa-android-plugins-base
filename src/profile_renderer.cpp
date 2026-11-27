@@ -2,6 +2,7 @@
 #include "profile_renderer.h"
 #include "matrix_animation_engine.h"
 #include "led_motion_engine.h"
+#include "effect_transition_engine.h"
 #include "vehicle_geometry_reader.h"
 
 #include <algorithm>
@@ -353,7 +354,8 @@ static bool RenderMatrixEffect(
     const LedPlacement& placement,
     const LedEffectConfig& effect,
     uint32_t motionTimeMs,
-    const MotionFrameState& motionFrame
+    const MotionFrameState& motionFrame,
+    float alphaCoverage = 1.0f
 ) {
     if (vehicle == nullptr || !effect.matrix.enabled)
         return false;
@@ -466,7 +468,7 @@ static bool RenderMatrixEffect(
             for (uint32_t v = 0; v < 4; ++v) {
                 CVector world = TransformPlacementPoint(local[v], t, matrix);
                 RwIm3DVertex vertex;
-                SetVertex(vertex, world, red, green, blue, output.alpha);
+                SetVertex(vertex, world, red, green, blue, ClampColor(output.alpha * TransitionEngine::Clamp01(alphaCoverage)));
                 vertices.push_back(vertex);
             }
 
@@ -513,13 +515,14 @@ static bool RenderEffect(
     const LedPlacement& placement,
     const LedEffectConfig& effect,
     uint32_t motionTimeMs,
-    const MotionFrameState& motionFrame
+    const MotionFrameState& motionFrame,
+    float alphaCoverage = 1.0f
 ) {
     if (vehicle == nullptr || !effect.enabled)
         return false;
 
     if (effect.matrix.enabled)
-        return RenderMatrixEffect(vehicle, placement, effect, motionTimeMs, motionFrame);
+        return RenderMatrixEffect(vehicle, placement, effect, motionTimeMs, motionFrame, alphaCoverage);
 
     CMatrix* matrix = vehicle->GetMatrix();
     if (matrix == nullptr)
@@ -812,7 +815,7 @@ static bool RenderEffect(
                 red,
                 green,
                 blue,
-                ClampColor(effect.opacity * 255.0f)
+                ClampColor(effect.opacity * 255.0f * TransitionEngine::Clamp01(alphaCoverage))
             );
         }
 
@@ -1113,7 +1116,9 @@ uint32_t ProfileRenderer::RenderVehicleProfile(
     CVehicle* vehicle,
     const VehicleProfile& profile,
     uint32_t frameTimeMs,
-    const EffectSequenceStep* activeStep
+    const EffectSequenceStep* activeStep,
+    const EffectSequenceStep* previousStep,
+    float transitionProgress
 ) {
     if (vehicle == nullptr || !profile.enabled)
         return 0;
@@ -1126,25 +1131,44 @@ uint32_t ProfileRenderer::RenderVehicleProfile(
         if (!placement.enabled || placement.effects.empty())
             continue;
 
-        // A running custom sequence temporarily selects one effect for its
-        // target placement. Other placements keep their normal layer stacks.
-        if (activeStep != nullptr &&
-            activeStep->placementId == placement.id) {
-            if (activeStep->effectIndex >= placement.effects.size())
-                continue;
-            const LedEffectConfig& sequenceEffect =
-                placement.effects[activeStep->effectIndex];
-            if (!sequenceEffect.enabled)
-                continue;
-            const MotionFrameState sequenceFrame = BuildMotionFrameState(
-                sequenceEffect, frameTimeMs,
-                GetPlacementMotionPlayback(placement),
-                placement.animationIntervalMs
+        // During a sequence step change, draw the outgoing effect first
+        // and fade the incoming effect over it. Both use the same frame clock.
+        const bool isOutgoing = previousStep != nullptr &&
+            previousStep->placementId == placement.id &&
+            previousStep->effectIndex < placement.effects.size();
+        const bool isIncoming = activeStep != nullptr &&
+            activeStep->placementId == placement.id &&
+            activeStep->effectIndex < placement.effects.size();
+        if (isOutgoing || isIncoming) {
+            const float incomingCoverage = TransitionEngine::EvaluateIncoming(
+                EffectTransitionMode::Crossfade,
+                EffectTransitionDirection::LeftToRight,
+                transitionProgress, 0.5f, 0.5f, 0, 0, 1, 1, 0
             );
-            if (RenderEffect(
-                    vehicle, placement, sequenceEffect,
-                    frameTimeMs, sequenceFrame))
-                ++rendered;
+            if (isOutgoing) {
+                const LedEffectConfig& outgoing =
+                    placement.effects[previousStep->effectIndex];
+                const MotionFrameState outgoingFrame = BuildMotionFrameState(
+                    outgoing, frameTimeMs,
+                    GetPlacementMotionPlayback(placement),
+                    placement.animationIntervalMs
+                );
+                if (RenderEffect(vehicle, placement, outgoing, frameTimeMs,
+                        outgoingFrame, 1.0f - incomingCoverage))
+                    ++rendered;
+            }
+            if (isIncoming) {
+                const LedEffectConfig& incoming =
+                    placement.effects[activeStep->effectIndex];
+                const MotionFrameState incomingFrame = BuildMotionFrameState(
+                    incoming, frameTimeMs,
+                    GetPlacementMotionPlayback(placement),
+                    placement.animationIntervalMs
+                );
+                if (RenderEffect(vehicle, placement, incoming, frameTimeMs,
+                        incomingFrame, incomingCoverage))
+                    ++rendered;
+            }
             continue;
         }
 

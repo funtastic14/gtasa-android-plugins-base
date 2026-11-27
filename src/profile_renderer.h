@@ -34,7 +34,9 @@ public:
         CVehicle* vehicle,
         const VehicleProfile& profile,
         uint32_t frameTimeMs,
-        const EffectSequenceStep* activeStep = nullptr
+        const EffectSequenceStep* activeStep = nullptr,
+        const EffectSequenceStep* previousStep = nullptr,
+        float transitionProgress = 1.0f
     );
 
     static bool RenderSelectedEffect(

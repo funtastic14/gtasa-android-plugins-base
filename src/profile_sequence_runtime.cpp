@@ -65,6 +65,8 @@ bool ProfileSequenceRuntime::Start(
     m_sequenceIndex = sequenceIndex;
     m_stepIndex = 0;
     m_stepStartTimeMs = nowMs;
+    m_hasPreviousStep = false;
+    m_transitionStartTimeMs = 0;
 
     m_running = true;
     m_finished = false;
@@ -79,6 +81,9 @@ void ProfileSequenceRuntime::Stop() {
     m_sequenceIndex = 0;
     m_stepIndex = 0;
     m_stepStartTimeMs = 0;
+    m_previousStep = EffectSequenceStep{};
+    m_hasPreviousStep = false;
+    m_transitionStartTimeMs = 0;
 }
 
 bool ProfileSequenceRuntime::Update(
@@ -122,17 +127,15 @@ bool ProfileSequenceRuntime::Update(
         return true;
     }
 
-    if (m_stepIndex + 1 < sequence.steps.size()) {
-        ++m_stepIndex;
+    if (m_stepIndex + 1 < sequence.steps.size() || sequence.loop) {
+        m_previousStep = currentStep;
+        m_hasPreviousStep = true;
+        m_transitionStartTimeMs = nowMs;
+        if (m_stepIndex + 1 < sequence.steps.size())
+            ++m_stepIndex;
+        else
+            m_stepIndex = 0;
         m_stepStartTimeMs = nowMs;
-
-        return true;
-    }
-
-    if (sequence.loop) {
-        m_stepIndex = 0;
-        m_stepStartTimeMs = nowMs;
-
         return true;
     }
 
@@ -169,6 +172,29 @@ ProfileSequenceRuntime::GetCurrentStep(
     }
 
     return &step;
+}
+
+const EffectSequenceStep*
+ProfileSequenceRuntime::GetPreviousStep(
+    const VehicleProfile& profile,
+    uint32_t nowMs
+) const {
+    if (!m_running || !m_hasPreviousStep ||
+        GetTransitionProgress(nowMs) >= 1.0f ||
+        m_sequenceIndex >= profile.sequences.size() ||
+        !IsStepReferenceValid(profile, m_previousStep))
+        return nullptr;
+    return &m_previousStep;
+}
+
+float ProfileSequenceRuntime::GetTransitionProgress(uint32_t nowMs) const {
+    if (!m_hasPreviousStep)
+        return 1.0f;
+    const uint32_t elapsed = nowMs - m_transitionStartTimeMs;
+    return elapsed >= TRANSITION_DURATION_MS
+        ? 1.0f
+        : static_cast<float>(elapsed) /
+            static_cast<float>(TRANSITION_DURATION_MS);
 }
 
 bool ProfileSequenceRuntime::IsRunning() const {
