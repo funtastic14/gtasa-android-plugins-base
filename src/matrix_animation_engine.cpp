@@ -564,16 +564,17 @@ void ApplyCustomTexture(
             ? design->irisRadiusX : effect.eyeTextureIrisRadiusX;
         float irisRadiusY = hasDesignMapping
             ? design->irisRadiusY : effect.eyeTextureIrisRadiusY;
-        const bool effectUvCustomized =
+        const bool effectIrisUvCustomized =
             std::fabs(effect.eyeTextureIrisCenterX - 0.50f) > 0.0001f ||
             std::fabs(effect.eyeTextureIrisCenterY - 0.50f) > 0.0001f ||
             std::fabs(effect.eyeTextureIrisRadiusX - 0.25f) > 0.0001f ||
-            std::fabs(effect.eyeTextureIrisRadiusY - 0.30f) > 0.0001f ||
+            std::fabs(effect.eyeTextureIrisRadiusY - 0.30f) > 0.0001f;
+        const bool effectPupilUvCustomized =
             std::fabs(effect.eyeTexturePupilCenterX - 0.50f) > 0.0001f ||
             std::fabs(effect.eyeTexturePupilCenterY - 0.50f) > 0.0001f ||
             std::fabs(effect.eyeTexturePupilRadiusX - 0.10f) > 0.0001f ||
             std::fabs(effect.eyeTexturePupilRadiusY - 0.14f) > 0.0001f;
-        bool hasMapping = hasDesignMapping || effectUvCustomized;
+        bool hasMapping = hasDesignMapping || effectIrisUvCustomized;
         const bool tryAutomaticMapping = !hasMapping;
         // Require evidence for all three nested eye regions before moving
         // anything automatically. A colorful patch alone is not enough:
@@ -701,7 +702,7 @@ void ApplyCustomTexture(
                 ? design->pupilRadiusX : effect.eyeTexturePupilRadiusX;
             float pupilRadiusY = hasDesignMapping
                 ? design->pupilRadiusY : effect.eyeTexturePupilRadiusY;
-            bool hasPupil = (hasDesignMapping || effectUvCustomized) &&
+            bool hasPupil = (hasDesignMapping || effectPupilUvCustomized) &&
                 pupilRadiusX > 0.001f && pupilRadiusY > 0.001f;
             if (!hasPupil) {
                 const uint8_t pupilLabel = static_cast<uint8_t>(EyeSemanticPart::Pupil);
