@@ -977,11 +977,42 @@ static uint32_t RenderNativeLightsBatched(
             const uint16_t sourceIndices[3] = {
                 triangle.a, triangle.b, triangle.c
             };
+
+            // Use each triangle's own geometric normal instead of one
+            // averaged patch normal. Curved lamp housings can contain faces
+            // with different directions; a single average may push some
+            // triangles back into the body and make only part of a lamp show.
+            const GeometryVertex& la = mesh->vehicleSpaceVertices[triangle.a];
+            const GeometryVertex& lb = mesh->vehicleSpaceVertices[triangle.b];
+            const GeometryVertex& lc = mesh->vehicleSpaceVertices[triangle.c];
+            const CVector edge1(lb.x - la.x, lb.y - la.y, lb.z - la.z);
+            const CVector edge2(lc.x - la.x, lc.y - la.y, lc.z - la.z);
+            CVector triangleOutward(
+                edge1.y * edge2.z - edge1.z * edge2.y,
+                edge1.z * edge2.x - edge1.x * edge2.z,
+                edge1.x * edge2.y - edge1.y * edge2.x
+            );
+            const float triangleNormalLength = std::sqrt(
+                DotProduct(triangleOutward, triangleOutward)
+            );
+            if (triangleNormalLength > 0.0001f) {
+                triangleOutward = triangleOutward * (1.0f / triangleNormalLength);
+                const CVector triangleCenter(
+                    (la.x + lb.x + lc.x) / 3.0f,
+                    (la.y + lb.y + lc.y) / 3.0f,
+                    (la.z + lb.z + lc.z) / 3.0f
+                );
+                if (DotProduct(triangleOutward, triangleCenter) < 0.0f)
+                    triangleOutward = triangleOutward * -1.0f;
+            } else {
+                triangleOutward = outward;
+            }
+
             for (uint16_t sourceIndex : sourceIndices) {
                 const GeometryVertex& source = mesh->vertices[sourceIndex];
                 const GeometryVertex& local = mesh->vehicleSpaceVertices[sourceIndex];
                 CVector vehicleLocal(local.x, local.y, local.z);
-                vehicleLocal += outward * NATIVE_RGB_SURFACE_OFFSET;
+                vehicleLocal += triangleOutward * NATIVE_RGB_SURFACE_OFFSET;
                 const CVector world = vehicleMatrix->TransformPoint(vehicleLocal);
 
                 // One complete, fully saturated spectrum spans the lamp;
