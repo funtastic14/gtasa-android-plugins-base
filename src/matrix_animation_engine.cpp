@@ -95,13 +95,20 @@ float EvaluatePanelMotion(
     const StroboWavePanelConfig& panel,
     uint16_t column,
     uint16_t localRow,
+    uint32_t panelIndex,
     uint32_t timeMs,
     const MotionFrameState& frame
 ) {
     float x = (static_cast<float>(column) + 0.5f) /
         static_cast<float>(effect.stroboPanelColumns);
-    float y = (static_cast<float>(localRow) + 0.5f) /
-        static_cast<float>(effect.stroboPanelRows);
+    // All stacked panels share one logical vertical coordinate space.
+    // Physical gap rows are excluded so the animation does not jump at seams.
+    const uint32_t logicalRows =
+        static_cast<uint32_t>(effect.stroboPanelCount) * effect.stroboPanelRows;
+    const uint32_t logicalRow =
+        panelIndex * effect.stroboPanelRows + localRow;
+    float y = (static_cast<float>(logicalRow) + 0.5f) /
+        static_cast<float>(std::max<uint32_t>(1u, logicalRows));
     ApplyPanelDirection(panel.direction, x, y);
 
     float densityX = 1.0f, densityY = 1.0f;
@@ -1709,7 +1716,7 @@ bool MatrixAnimationEngine::EvaluatePixel(
             const float flash = phaseMs < period / 2u ? 1.0f : 0.0f;
             intensity *= flash * EvaluatePanelMotion(
                 effect, panel, column, static_cast<uint16_t>(localRow),
-                timeMs, localMotionFrame
+                panelIndex, timeMs, localMotionFrame
             );
         }
     } else if (effect.type != LedEffectType::StroboEyes &&
