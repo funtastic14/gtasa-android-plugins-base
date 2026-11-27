@@ -1532,13 +1532,10 @@ bool MatrixAnimationEngine::EvaluatePixel(
                 intensity = 0.0f;
             }
         } else {
-            const uint32_t blinkInterval = effect.eyeBlinkIntervalMs < 500
-                ? 500 : effect.eyeBlinkIntervalMs;
-            const float blinkPhase = std::fmod(
-                static_cast<float>(timeMs) * speed,
-                static_cast<float>(blinkInterval)
-            );
-            intensity = blinkPhase < 140.0f ? 0.0f : 1.0f;
+            // Never fall back to a full rectangular LED field when the matrix
+            // is too small to form two recognizable eyes. That old fallback
+            // looked like a static panel behind the eye effect.
+            intensity = 0.0f;
         }
         if (!preserveEyeDetailColor) {
             red = effect.red;
