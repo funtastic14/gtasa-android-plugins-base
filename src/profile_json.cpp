@@ -1473,7 +1473,10 @@ static bool AppendEffect(
 ) {
     if (static_cast<int>(effect.type) < 0 ||
         static_cast<int>(effect.type) >
-            static_cast<int>(LedEffectType::CustomAnimation)) {
+            static_cast<int>(LedEffectType::CustomAnimation) ||
+        static_cast<int>(effect.elementShape) < 0 ||
+        static_cast<int>(effect.elementShape) >
+            static_cast<int>(LedElementShape::Octagon)) {
         return false;
     }
 
