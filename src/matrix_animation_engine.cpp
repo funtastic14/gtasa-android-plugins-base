@@ -3,6 +3,8 @@
 #include "profile_storage.h"
 #include <mod/thirdparty/stb/stb_image.h>
 
+#include <algorithm>
+
 #include <cmath>
 #include <cctype>
 #include <cstddef>
