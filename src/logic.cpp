@@ -1460,6 +1460,34 @@ static void RenderEditor() {
     ImGui::TextWrapped("Changes the physical outline of each LED/pixel. The placement panel remains rectangular.");
 
     ImGui::Separator();
+    ImGui::Text("Per-Effect Lighting (independent for this effect)");
+    changed |= ImGui::Checkbox("Corona##effectLighting", &effect.coronaEnabled);
+    changed |= ImGui::Checkbox("Glow##effectLighting", &effect.glowEnabled);
+    changed |= ImGui::Checkbox("Light Spread##effectLighting", &effect.lightSpreadEnabled);
+    if (effect.coronaEnabled) {
+        float value = effect.coronaIntensity;
+        if (ImGui::SliderFloat("Corona Intensity", &value, 0.0f, 2.0f)) {
+            effect.coronaIntensity = value;
+            changed = true;
+        }
+    }
+    if (effect.glowEnabled) {
+        float value = effect.glowIntensity;
+        if (ImGui::SliderFloat("Glow Intensity", &value, 0.0f, 2.0f)) {
+            effect.glowIntensity = value;
+            changed = true;
+        }
+    }
+    if (effect.lightSpreadEnabled) {
+        float value = effect.lightSpreadIntensity;
+        if (ImGui::SliderFloat("Light Spread Intensity", &value, 0.0f, 2.0f)) {
+            effect.lightSpreadIntensity = value;
+            changed = true;
+        }
+    }
+    ImGui::TextWrapped("Each effect/layer has independent switches. Disabled effects generate no extra lighting geometry.");
+
+    ImGui::Separator();
     ImGui::Text("Layer Composition");
     int layerOrder = effect.layerOrder;
     if (ImGui::SliderInt("Layer Order", &layerOrder, 0, 255)) {
