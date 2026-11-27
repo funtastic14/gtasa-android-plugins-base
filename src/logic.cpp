@@ -1931,6 +1931,10 @@ static void OnRenderEffects() {
                 g_sequenceRuntime.GetPreviousStep(*profile, frameTimeMs);
             const float sequenceTransitionProgress =
                 g_sequenceRuntime.GetTransitionProgress(frameTimeMs);
+            const VLS::EffectTransitionMode sequenceTransitionMode =
+                g_sequenceRuntime.GetTransitionMode(*profile);
+            const VLS::EffectTransitionDirection sequenceTransitionDirection =
+                g_sequenceRuntime.GetTransitionDirection(*profile);
             for (CVehicle* vehicle : g_frameVehicles) {
                 if (vehicle != currentVehicle || !IsVehiclePointerValid(vehicle))
                     continue;
@@ -1939,7 +1943,8 @@ static void OnRenderEffects() {
                 // effects using the same timestamp as the rest of this frame.
                 VLS::ProfileRenderer::RenderVehicleProfile(
                     vehicle, *profile, frameTimeMs, activeSequenceStep,
-                    previousSequenceStep, sequenceTransitionProgress
+                    previousSequenceStep, sequenceTransitionProgress,
+                    sequenceTransitionMode, sequenceTransitionDirection
                 );
             }
         }
