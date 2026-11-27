@@ -998,7 +998,7 @@ static bool ReadEffect(
         }
     }
 
-    if (!ReadInt(value, "motionPattern", motionPattern) || motionPattern < 0 || motionPattern > static_cast<int>(LedMotionPattern::SegmentedCenterExpand)) return false;
+    if (!ReadInt(value, "motionPattern", motionPattern) || motionPattern < 0 || motionPattern > static_cast<int>(LedMotionPattern::CenterAnchoredSideSlider)) return false;
     effect.motionPattern = static_cast<LedMotionPattern>(motionPattern);
     // Migrate profiles saved by the earlier modifier-based UI. A legacy
     // modifier becomes a first-class pattern; diagonal combinations retain
