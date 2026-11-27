@@ -1140,6 +1140,23 @@ uint32_t ProfileRenderer::RenderVehicleProfile(
             activeStep->placementId == placement.id &&
             activeStep->effectIndex < placement.effects.size();
         if (isOutgoing || isIncoming) {
+            // Repeating the same effect in adjacent sequence steps is not a
+            // visual change. Draw it once at full opacity instead of blending
+            // two identical passes, which would otherwise dim alpha layers.
+            if (isOutgoing && isIncoming &&
+                previousStep->effectIndex == activeStep->effectIndex) {
+                const LedEffectConfig& effect =
+                    placement.effects[activeStep->effectIndex];
+                const MotionFrameState frame = BuildMotionFrameState(
+                    effect, frameTimeMs,
+                    GetPlacementMotionPlayback(placement),
+                    placement.animationIntervalMs
+                );
+                if (RenderEffect(vehicle, placement, effect, frameTimeMs, frame))
+                    ++rendered;
+                continue;
+            }
+
             const float incomingCoverage = TransitionEngine::EvaluateIncoming(
                 EffectTransitionMode::Crossfade,
                 EffectTransitionDirection::LeftToRight,
