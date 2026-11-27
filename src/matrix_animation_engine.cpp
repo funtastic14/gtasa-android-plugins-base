@@ -584,7 +584,52 @@ void ApplyCustomTexture(
                 irisRadiusY = std::max(0.015f,
                     static_cast<float>(best->maxY - best->minY + 1u) /
                     (2.0f * static_cast<float>(entry->height)));
-                hasMapping = true;
+
+                // Validate the candidate in this eye half, not merely against
+                // global texture confidence. This prevents one valid eye from
+                // accidentally authorizing a false iris in the other half.
+                bool hasNearbyPupil = false;
+                const uint8_t pupilLabel =
+                    static_cast<uint8_t>(EyeSemanticPart::Pupil);
+                for (uint8_t i = 0;
+                     i < entry->eyeParts.componentCount[pupilLabel]; ++i) {
+                    const EyeComponentBounds& candidate =
+                        entry->eyeParts.components[pupilLabel][i];
+                    if (candidate.pixels < 2u ||
+                        candidate.centerX < halfStart ||
+                        candidate.centerX >= halfEnd)
+                        continue;
+                    const float candidateX =
+                        (candidate.centerX + 0.5f -
+                         static_cast<float>(halfStart)) / halfWidth;
+                    const float candidateY =
+                        (candidate.centerY + 0.5f) /
+                        static_cast<float>(entry->height);
+                    const float dx =
+                        (candidateX - irisCenterX) / irisRadiusX;
+                    const float dy =
+                        (candidateY - irisCenterY) / irisRadiusY;
+                    if (dx * dx + dy * dy < 0.70f) {
+                        hasNearbyPupil = true;
+                        break;
+                    }
+                }
+
+                bool hasScleraInEye = false;
+                const uint8_t scleraLabel =
+                    static_cast<uint8_t>(EyeSemanticPart::Sclera);
+                for (uint8_t i = 0;
+                     i < entry->eyeParts.componentCount[scleraLabel]; ++i) {
+                    const EyeComponentBounds& candidate =
+                        entry->eyeParts.components[scleraLabel][i];
+                    if (candidate.maxX >= halfStart &&
+                        candidate.minX < halfEnd &&
+                        candidate.pixels > 4u) {
+                        hasScleraInEye = true;
+                        break;
+                    }
+                }
+                hasMapping = hasNearbyPupil && hasScleraInEye;
             }
         }
         // Explicit effect defaults remain a fallback only when no per-texture
