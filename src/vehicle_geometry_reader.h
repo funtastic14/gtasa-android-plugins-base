@@ -114,7 +114,8 @@ public:
     static bool Scan(
         CVehicle* vehicle,
         int modelId,
-        GeometryScanStats& stats
+        GeometryScanStats& stats,
+        bool textureNameMode = false
     );
 
     // Advances a bounded CPU-mesh copy on the game thread.
@@ -123,7 +124,8 @@ public:
         CVehicle* vehicle,
         int modelId,
         GeometryScanStats& stats,
-        bool& complete
+        bool& complete,
+        bool textureNameMode = false
     );
 
     // Mengakses mesh kendaraan yang terakhir dipindai.
