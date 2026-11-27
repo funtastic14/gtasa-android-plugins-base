@@ -1099,6 +1099,27 @@ static bool ReadEffect(
         !ReadMatrix(*matrix, effect.matrix)) {
         return false;
     }
+    // Explicit Strobo Wave panel configuration owns its matrix dimensions.
+    // Legacy profiles without this key keep their original matrix untouched.
+    if (effect.type == LedEffectType::StroboWave &&
+        Find(value, "stroboPanelCount") != nullptr) {
+        const uint32_t totalRows =
+            static_cast<uint32_t>(effect.stroboPanelCount) * effect.stroboPanelRows +
+            static_cast<uint32_t>(effect.stroboPanelCount - 1u) * effect.stroboPanelGapRows;
+        const uint32_t totalPixels =
+            static_cast<uint32_t>(effect.stroboPanelColumns) * totalRows;
+        if (totalRows == 0 || totalRows > 256 || totalPixels > MAX_MATRIX_PIXELS)
+            return false;
+        if (!effect.matrix.enabled || effect.matrix.pixels.empty()) {
+            effect.matrix.enabled = true;
+            effect.matrix.columns = effect.stroboPanelColumns;
+            effect.matrix.rows = static_cast<uint16_t>(totalRows);
+            effect.matrix.pixels.clear();
+        } else if (effect.matrix.columns != effect.stroboPanelColumns ||
+                   effect.matrix.rows != totalRows) {
+            return false;
+        }
+    }
     if (!ReadBool(value, "transparentMatrixBackground", effect.transparentMatrixBackground))
         return false;
 
