@@ -1584,14 +1584,41 @@ static void RenderEditor() {
         int canvasRows = effect.matrix.canvasRows;
         int offsetColumn = effect.matrix.canvasOffsetColumn;
         int offsetRow = effect.matrix.canvasOffsetRow;
-        if (ImGui::SliderInt("Canvas Columns", &canvasColumns, 1, 256)) changed = true;
-        if (ImGui::SliderInt("Canvas Rows", &canvasRows, 1, 256)) changed = true;
-        if (ImGui::SliderInt("Region X Offset", &offsetColumn, 0, 255)) changed = true;
-        if (ImGui::SliderInt("Region Y Offset", &offsetRow, 0, 255)) changed = true;
         const int regionColumns = effect.matrix.enabled
             ? static_cast<int>(effect.matrix.columns) : 12;
         const int regionRows = effect.matrix.enabled
             ? static_cast<int>(effect.matrix.rows) : 1;
+
+        // Touch-friendly steppers replace the narrow ImGui sliders on mobile.
+        // Canvas dimensions use +/-; region offsets use directional controls.
+        auto drawCanvasStepper = [&](const char* label, const char* id,
+                                     int& value, int minimum, int maximum,
+                                     const char* decrement,
+                                     const char* increment) {
+            ImGui::PushID(id);
+            ImGui::Text("%s: %d", label, value);
+            if (ImGui::Button(decrement, ImVec2(52.0f, 42.0f))) {
+                value = std::max(minimum, value - 1);
+                changed = true;
+            }
+            ImGui::SameLine();
+            ImGui::Text(" %d ", value);
+            ImGui::SameLine();
+            if (ImGui::Button(increment, ImVec2(52.0f, 42.0f))) {
+                value = std::min(maximum, value + 1);
+                changed = true;
+            }
+            ImGui::PopID();
+        };
+
+        drawCanvasStepper("Canvas Columns", "CanvasColumns",
+                          canvasColumns, regionColumns, 256, "-", "+");
+        drawCanvasStepper("Canvas Rows", "CanvasRows",
+                          canvasRows, regionRows, 256, "-", "+");
+        drawCanvasStepper("Region X Offset", "RegionXOffset",
+                          offsetColumn, 0, 255, "<", ">");
+        drawCanvasStepper("Region Y Offset", "RegionYOffset",
+                          offsetRow, 0, 255, "-", "+");
         canvasColumns = std::max(canvasColumns, regionColumns);
         canvasRows = std::max(canvasRows, regionRows);
         offsetColumn = std::max(0, std::min(offsetColumn, canvasColumns - regionColumns));
