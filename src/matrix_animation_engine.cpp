@@ -70,6 +70,19 @@ void ResolvePanelDensity(
         case LedMotionPattern::MultiLineFlutter:
         case LedMotionPattern::TripleMirrorWave:
         case LedMotionPattern::SegmentedCenterExpand:
+        case LedMotionPattern::AuroraFlow:
+        case LedMotionPattern::Waterfall:
+        case LedMotionPattern::Vortex:
+        case LedMotionPattern::Spiral:
+        case LedMotionPattern::TwinSpiral:
+        case LedMotionPattern::OrbitRing:
+        case LedMotionPattern::TriangleOrbit:
+        case LedMotionPattern::TriangleFanSweep:
+        case LedMotionPattern::DiagonalXCross:
+        case LedMotionPattern::MultiAxisCenterBurst:
+        case LedMotionPattern::Starburst:
+        case LedMotionPattern::ReflectiveWave:
+        case LedMotionPattern::Ripple:
             densityX = std::max(1.0f, static_cast<float>(columns) / 21.0f);
             densityY = std::max(1.0f, static_cast<float>(rows) / 7.0f);
             break;
