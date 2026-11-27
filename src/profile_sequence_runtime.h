@@ -32,6 +32,8 @@ public:
     ) const;
 
     float GetTransitionProgress(uint32_t nowMs) const;
+    EffectTransitionMode GetTransitionMode(const VehicleProfile& profile) const;
+    EffectTransitionDirection GetTransitionDirection(const VehicleProfile& profile) const;
 
     bool IsRunning() const;
     bool IsFinished() const;
