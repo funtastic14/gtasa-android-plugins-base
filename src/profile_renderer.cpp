@@ -1112,7 +1112,8 @@ uint32_t ProfileRenderer::RenderNativeLights(
 uint32_t ProfileRenderer::RenderVehicleProfile(
     CVehicle* vehicle,
     const VehicleProfile& profile,
-    uint32_t frameTimeMs
+    uint32_t frameTimeMs,
+    const EffectSequenceStep* activeStep
 ) {
     if (vehicle == nullptr || !profile.enabled)
         return 0;
@@ -1124,6 +1125,28 @@ uint32_t ProfileRenderer::RenderVehicleProfile(
     for (const LedPlacement& placement : profile.placements) {
         if (!placement.enabled || placement.effects.empty())
             continue;
+
+        // A running custom sequence temporarily selects one effect for its
+        // target placement. Other placements keep their normal layer stacks.
+        if (activeStep != nullptr &&
+            activeStep->placementId == placement.id) {
+            if (activeStep->effectIndex >= placement.effects.size())
+                continue;
+            const LedEffectConfig& sequenceEffect =
+                placement.effects[activeStep->effectIndex];
+            if (!sequenceEffect.enabled)
+                continue;
+            const MotionFrameState sequenceFrame = BuildMotionFrameState(
+                sequenceEffect, frameTimeMs,
+                GetPlacementMotionPlayback(placement),
+                placement.animationIntervalMs
+            );
+            if (RenderEffect(
+                    vehicle, placement, sequenceEffect,
+                    frameTimeMs, sequenceFrame))
+                ++rendered;
+            continue;
+        }
 
         // Every visual layer inside one physical placement samples one
         // controller. Prefer the configured active effect as the motion

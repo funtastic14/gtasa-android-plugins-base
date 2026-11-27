@@ -33,7 +33,8 @@ public:
     static uint32_t RenderVehicleProfile(
         CVehicle* vehicle,
         const VehicleProfile& profile,
-        uint32_t frameTimeMs
+        uint32_t frameTimeMs,
+        const EffectSequenceStep* activeStep = nullptr
     );
 
     static bool RenderSelectedEffect(

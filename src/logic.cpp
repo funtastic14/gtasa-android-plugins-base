@@ -1925,15 +1925,17 @@ static void OnRenderEffects() {
                     g_nativeRgbRenderDiagnosticLogged = true;
                 }
             }
+            const VLS::EffectSequenceStep* activeSequenceStep =
+                g_sequenceRuntime.GetCurrentStep(*profile);
             for (CVehicle* vehicle : g_frameVehicles) {
                 if (vehicle != currentVehicle || !IsVehiclePointerValid(vehicle))
                     continue;
 
-                // Render the complete ordered layer stack for each placement.
-                // RenderSelectedEffect is intentionally reserved for one-off
-                // sequence/editor previews; using it here would silently hide
-                // every non-selected layer during normal gameplay.
-                VLS::ProfileRenderer::RenderVehicleProfile(vehicle, *profile, frameTimeMs);
+                // Render the ordered layer stack, with an active custom
+                // sequence step overriding only its target placement.
+                VLS::ProfileRenderer::RenderVehicleProfile(
+                    vehicle, *profile, frameTimeMs, activeSequenceStep
+                );
             }
         }
     }
