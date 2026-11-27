@@ -422,6 +422,33 @@ static void BuildElementGeometry(
         triangle(0, i + 1, ((i + 1) % 16) + 1);
 }
 
+static void AppendLightGeometry(
+    std::vector<RwIm3DVertex>& vertices,
+    std::vector<RwImVertexIndex>& indices,
+    LedElementShape shape,
+    float centerX, float centerZ, float halfWidth, float halfHeight, float y,
+    const LedTransform& transform, const CMatrix* matrix,
+    uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha
+) {
+    if (alpha == 0 || halfWidth <= 0.0f || halfHeight <= 0.0f ||
+        vertices.size() + 32u > 65536u)
+        return;
+    CVector local[32];
+    RwImVertexIndex localIndices[96];
+    uint32_t vertexCount = 0, indexCount = 0;
+    BuildElementGeometry(shape, centerX, centerZ, halfWidth, halfHeight, y,
+        local, localIndices, vertexCount, indexCount);
+    const uint32_t base = static_cast<uint32_t>(vertices.size());
+    for (uint32_t i = 0; i < vertexCount; ++i) {
+        RwIm3DVertex vertex;
+        SetVertex(vertex, TransformPlacementPoint(local[i], transform, matrix),
+            red, green, blue, alpha);
+        vertices.push_back(vertex);
+    }
+    for (uint32_t i = 0; i < indexCount; ++i)
+        indices.push_back(static_cast<RwImVertexIndex>(base + localIndices[i]));
+}
+
 static MotionPlaybackMode GetPlacementMotionPlayback(const LedPlacement& placement) {
     switch (placement.animationMode) {
     case 1: return MotionPlaybackMode::Automatic;
@@ -587,6 +614,37 @@ static bool RenderMatrixEffect(
                     transitionCoverage = 1.0f - transitionCoverage;
             }
 
+            const float centerX = (left + right) * 0.5f;
+            const float centerZ = (top + bottom) * 0.5f;
+            const float baseHalfWidth = (right - left) * 0.5f;
+            const float baseHalfHeight = (top - bottom) * 0.5f;
+            const uint8_t lightAlpha = ClampColor(output.alpha *
+                TransitionEngine::Clamp01(alphaCoverage * transitionCoverage));
+            if (effect.lightSpreadEnabled)
+                AppendLightGeometry(vertices, indices, LedElementShape::Square,
+                    centerX, centerZ, baseHalfWidth * 2.8f, baseHalfHeight * 2.8f,
+                    t.y + 0.002f, t, matrix, red, green, blue,
+                    ClampColor(35.0f * effect.lightSpreadIntensity * output.intensity *
+                        TransitionEngine::Clamp01(alphaCoverage * transitionCoverage)));
+            if (effect.glowEnabled) {
+                AppendLightGeometry(vertices, indices, LedElementShape::CircleFilled,
+                    centerX, centerZ, baseHalfWidth * 2.0f, baseHalfHeight * 2.0f,
+                    t.y + 0.001f, t, matrix, red, green, blue,
+                    ClampColor(65.0f * effect.glowIntensity * output.intensity *
+                        TransitionEngine::Clamp01(alphaCoverage * transitionCoverage)));
+                AppendLightGeometry(vertices, indices, LedElementShape::CircleFilled,
+                    centerX, centerZ, baseHalfWidth * 1.35f, baseHalfHeight * 1.35f,
+                    t.y + 0.0015f, t, matrix, red, green, blue,
+                    ClampColor(85.0f * effect.glowIntensity * output.intensity *
+                        TransitionEngine::Clamp01(alphaCoverage * transitionCoverage)));
+            }
+            if (effect.coronaEnabled)
+                AppendLightGeometry(vertices, indices, LedElementShape::CircleFilled,
+                    centerX, centerZ, baseHalfWidth * 1.45f, baseHalfHeight * 1.45f,
+                    t.y + 0.003f, t, matrix, red, green, blue,
+                    ClampColor(105.0f * effect.coronaIntensity * output.intensity *
+                        TransitionEngine::Clamp01(alphaCoverage * transitionCoverage)));
+
             CVector local[32];
             RwImVertexIndex shapeIndices[96];
             uint32_t shapeVertexCount = 0;
@@ -619,7 +677,8 @@ static bool RenderMatrixEffect(
     if (vertices.empty() || indices.empty())
         return false;
 
-    RenderStateGuard stateGuard(effect.blendMode);
+    const bool hasLighting = effect.coronaEnabled || effect.glowEnabled || effect.lightSpreadEnabled;
+    RenderStateGuard stateGuard(hasLighting ? LedLayerBlendMode::Additive : effect.blendMode);
 
     const RwUInt32 flags =
         rwIM3D_VERTEXXYZ | rwIM3D_VERTEXRGBA;
@@ -940,6 +999,32 @@ static bool RenderEffect(
         const float right =
             left + segmentWidth * 0.88f;
 
+        const float centerX = (left + right) * 0.5f;
+        const float centerZ = t.z;
+        const float halfWidth = (right - left) * 0.5f;
+        const uint8_t lightAlpha = ClampColor(255.0f * intensity *
+            effect.opacity * alphaCoverage * transitionCoverage);
+        if (effect.lightSpreadEnabled)
+            AppendLightGeometry(vertices, indices, LedElementShape::Square,
+                centerX, centerZ, halfWidth * 2.8f, halfHeight * 2.8f,
+                t.y + 0.002f, t, matrix, red, green, blue,
+                ClampColor(35.0f * effect.lightSpreadIntensity * lightAlpha / 255.0f));
+        if (effect.glowEnabled) {
+            AppendLightGeometry(vertices, indices, LedElementShape::CircleFilled,
+                centerX, centerZ, halfWidth * 2.0f, halfHeight * 2.0f,
+                t.y + 0.001f, t, matrix, red, green, blue,
+                ClampColor(65.0f * effect.glowIntensity * lightAlpha / 255.0f));
+            AppendLightGeometry(vertices, indices, LedElementShape::CircleFilled,
+                centerX, centerZ, halfWidth * 1.35f, halfHeight * 1.35f,
+                t.y + 0.0015f, t, matrix, red, green, blue,
+                ClampColor(85.0f * effect.glowIntensity * lightAlpha / 255.0f));
+        }
+        if (effect.coronaEnabled)
+            AppendLightGeometry(vertices, indices, LedElementShape::CircleFilled,
+                centerX, centerZ, halfWidth * 1.45f, halfHeight * 1.45f,
+                t.y + 0.003f, t, matrix, red, green, blue,
+                ClampColor(105.0f * effect.coronaIntensity * lightAlpha / 255.0f));
+
         CVector local[32];
         RwImVertexIndex shapeIndices[96];
         uint32_t shapeVertexCount = 0;
@@ -975,7 +1060,8 @@ static bool RenderEffect(
             indices.push_back(static_cast<RwImVertexIndex>(base + shapeIndices[i]));
     }
 
-    RenderStateGuard stateGuard(effect.blendMode);
+    const bool hasLighting = effect.coronaEnabled || effect.glowEnabled || effect.lightSpreadEnabled;
+    RenderStateGuard stateGuard(hasLighting ? LedLayerBlendMode::Additive : effect.blendMode);
 
     const RwUInt32 flags =
         rwIM3D_VERTEXXYZ | rwIM3D_VERTEXRGBA;
