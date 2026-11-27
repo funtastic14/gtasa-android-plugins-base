@@ -427,7 +427,7 @@ static void AppendLightGeometry(
     std::vector<RwImVertexIndex>& indices,
     LedElementShape shape,
     float centerX, float centerZ, float halfWidth, float halfHeight, float y,
-    const LedTransform& transform, const CMatrix* matrix,
+    const LedTransform& transform, CMatrix* matrix,
     uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha
 ) {
     if (alpha == 0 || halfWidth <= 0.0f || halfHeight <= 0.0f ||
@@ -616,8 +616,6 @@ static bool RenderMatrixEffect(
             const float centerZ = (top + bottom) * 0.5f;
             const float baseHalfWidth = (right - left) * 0.5f;
             const float baseHalfHeight = (top - bottom) * 0.5f;
-            const uint8_t lightAlpha = ClampColor(output.alpha *
-                TransitionEngine::Clamp01(alphaCoverage * transitionCoverage));
             if (effect.lightSpreadEnabled)
                 AppendLightGeometry(vertices, indices, LedElementShape::Square,
                     centerX, centerZ, baseHalfWidth * 2.8f, baseHalfHeight * 2.8f,
