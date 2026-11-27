@@ -1465,6 +1465,7 @@ static void RenderEditor() {
         changed = true;
     }
     ImGui::TextWrapped("Lower layer order is drawn first. Alpha overlays preserve normal transparency; Additive layers accumulate light for glow and multi-effect combinations.");
+    ImGui::TextWrapped("Each enabled layer now runs its own selected motion pattern and timing independently. Select another effect in this placement to configure its motion.");
 
     const bool supportsPalette =
         effect.type == VLS::LedEffectType::RunningLED ||
@@ -1757,6 +1758,21 @@ static void RenderEditor() {
                 "Pixel Enabled",
                 &pixel.enabled
             );
+
+            static const char* pixelShapeNames[] = {
+                "Use Effect Shape", "Square", "Circle Filled",
+                "Circle Outline", "Diamond", "Triangle", "Hexagon", "Octagon"
+            };
+            int pixelShapeIndex = pixel.elementShape == VLS::LedElementShape::Inherit
+                ? 0 : static_cast<int>(pixel.elementShape) + 1;
+            if (ImGui::Combo("Pixel Element Shape", &pixelShapeIndex,
+                    pixelShapeNames, 8)) {
+                pixel.elementShape = pixelShapeIndex == 0
+                    ? VLS::LedElementShape::Inherit
+                    : static_cast<VLS::LedElementShape>(pixelShapeIndex - 1);
+                changed = true;
+            }
+            ImGui::TextWrapped("Each matrix cell can override the effect shape, allowing circles, squares and other geometry in one pattern.");
 
             int directionIndex =
                 GetDirectionIndex(pixel.direction);
