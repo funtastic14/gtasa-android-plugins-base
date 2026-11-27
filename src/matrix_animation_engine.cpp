@@ -371,69 +371,82 @@ void ApplyCustomTexture(
     float v = (static_cast<float>(row) + 0.5f) /
         static_cast<float>(matrix.rows);
     if (effect.type == LedEffectType::StroboEyes) {
-        // The texture canvas is split into left/right eye regions. Each half
-        // receives the same gaze vector; blink compresses the source vertically.
+        // Keep the authored eye artwork fixed. Only a calibrated iris region
+        // (including its pupil) is translated; the complete texture is never
+        // scaled, mirrored, or shifted to simulate gaze.
         const bool leftEye = column < matrix.columns / 2;
-        float localU = leftEye ? u * 2.0f : (u - 0.5f) * 2.0f;
-        float gazeX = 0.0f;
-        float gazeY = 0.0f;
-        ResolveEyeGaze(effect, timeMs, speed, eyeMotion, gazeX, gazeY);
-        // Use profile metadata to move the iris and pupil inside the
-        // stationary sclera. If the art is flattened, the user can tune these
-        // normalized regions without supplying extra animation-frame images.
-        float sampleLocalU = localU;
-        float sampleV = v;
+        const float localU = leftEye ? u * 2.0f : (u - 0.5f) * 2.0f;
         const float irisCenterX = design ? design->irisCenterX : effect.eyeTextureIrisCenterX;
         const float irisCenterY = design ? design->irisCenterY : effect.eyeTextureIrisCenterY;
         const float irisRadiusX = design ? design->irisRadiusX : effect.eyeTextureIrisRadiusX;
         const float irisRadiusY = design ? design->irisRadiusY : effect.eyeTextureIrisRadiusY;
-        const float pupilCenterX = design ? design->pupilCenterX : effect.eyeTexturePupilCenterX;
-        const float pupilCenterY = design ? design->pupilCenterY : effect.eyeTexturePupilCenterY;
-        const float pupilRadiusX = design ? design->pupilRadiusX : effect.eyeTexturePupilRadiusX;
-        const float pupilRadiusY = design ? design->pupilRadiusY : effect.eyeTexturePupilRadiusY;
-        if (design != nullptr && !design->mappingConfigured) {
-            // Without semantic UV metadata, deform the complete eye artwork
-            // conservatively instead of guessing where iris/pupil boundaries are.
-            sampleLocalU = Clamp01(localU - gazeX * 0.16f);
-            sampleV = Clamp01(v - gazeY * 0.16f);
-        } else {
-            const float pupilDx = (localU - pupilCenterX) / pupilRadiusX;
-            const float pupilDy = (v - pupilCenterY) / pupilRadiusY;
-            const bool insidePupil = pupilDx * pupilDx + pupilDy * pupilDy <= 1.0f;
-            const float irisDx = (localU - irisCenterX) / irisRadiusX;
-            const float irisDy = (v - irisCenterY) / irisRadiusY;
-            const bool insideIris = irisDx * irisDx + irisDy * irisDy <= 1.0f;
+        const bool hasMapping = design == nullptr || design->mappingConfigured;
 
-            if (insidePupil) {
-                sampleLocalU -= gazeX * pupilRadiusX;
-                sampleV -= gazeY * pupilRadiusY;
-                sampleLocalU = std::max(
-                    pupilCenterX - pupilRadiusX,
-                    std::min(pupilCenterX + pupilRadiusX, sampleLocalU)
+        if (hasMapping && irisRadiusX > 0.001f && irisRadiusY > 0.001f) {
+            float gazeX = 0.0f;
+            float gazeY = 0.0f;
+            ResolveEyeGaze(effect, timeMs, speed, eyeMotion, gazeX, gazeY);
+
+            // One calibrated iris mask moves as a single layer. The pupil is
+            // carried by the iris artwork, so it cannot drift independently.
+            const float moveX = gazeX * irisRadiusX * 0.82f;
+            const float moveY = gazeY * irisRadiusY * 0.82f;
+            const float sourceDx = (localU - irisCenterX) / irisRadiusX;
+            const float sourceDy = (v - irisCenterY) / irisRadiusY;
+            const float destinationDx =
+                (localU - irisCenterX - moveX) / irisRadiusX;
+            const float destinationDy =
+                (v - irisCenterY - moveY) / irisRadiusY;
+            const bool inSourceIris =
+                sourceDx * sourceDx + sourceDy * sourceDy <= 1.0f;
+            const bool inDestinationIris =
+                destinationDx * destinationDx +
+                destinationDy * destinationDy <= 1.0f;
+
+            float sampleLocalU = localU;
+            float sampleV = v;
+            if (inDestinationIris) {
+                // Inverse translation samples the original iris at its new
+                // location without stretching or reversing its texture.
+                sampleLocalU = localU - moveX;
+                sampleV = v - moveY;
+            } else if (inSourceIris) {
+                // Reveal a nearby sclera sample where the iris used to be.
+                // This is a conservative patch for flattened art, not a
+                // claim of perfect layer separation or arbitrary inpainting.
+                const float length = std::sqrt(
+                    sourceDx * sourceDx + sourceDy * sourceDy
                 );
-                sampleV = std::max(
-                    pupilCenterY - pupilRadiusY,
-                    std::min(pupilCenterY + pupilRadiusY, sampleV)
-                );
-            } else if (insideIris) {
-                sampleLocalU -= gazeX * irisRadiusX * 0.82f;
-                sampleV -= gazeY * irisRadiusY * 0.82f;
-                sampleLocalU = std::max(
-                    irisCenterX - irisRadiusX,
-                    std::min(irisCenterX + irisRadiusX, sampleLocalU)
-                );
-                sampleV = std::max(
-                    irisCenterY - irisRadiusY,
-                    std::min(irisCenterY + irisRadiusY, sampleV)
-                );
+                const float scale = length > 0.0001f
+                    ? 1.06f / length : 1.06f;
+                sampleLocalU = irisCenterX + sourceDx * scale * irisRadiusX;
+                sampleV = irisCenterY + sourceDy * scale * irisRadiusY;
             }
+            sampleLocalU = Clamp01(sampleLocalU);
+            sampleV = Clamp01(sampleV);
+            u = leftEye
+                ? sampleLocalU * 0.5f
+                : 0.5f + sampleLocalU * 0.5f;
+            v = sampleV;
         }
 
-        localU = Clamp01(sampleLocalU);
-        u = leftEye ? localU * 0.5f : 0.5f + localU * 0.5f;
-        v = 0.5f + (sampleV - 0.5f) *
-            (1.0f - Clamp01(blinkAmount) * 0.92f);
-        v = Clamp01(v);
+        // Blink/wink is a closing aperture, not vertical UV compression.
+        // A curved slit remains at closure and the source artwork keeps its
+        // original proportions throughout the animation.
+        const float close = Clamp01(blinkAmount);
+        if (close > 0.001f) {
+            const float eyeX = (localU - 0.5f) * 2.0f;
+            const float curve = 0.72f + 0.28f * std::sqrt(
+                std::max(0.0f, 1.0f - eyeX * eyeX)
+            );
+            const float halfOpening =
+                0.5f * (1.0f - close * 0.96f) * curve;
+            if (std::fabs(v - 0.5f) > halfOpening) {
+                output.visible = false;
+                output.alpha = 0;
+                return;
+            }
+        }
     }
 
     // Bilinear filtering prevents visible stepping as the static artwork moves.
