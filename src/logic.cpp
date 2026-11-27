@@ -1829,6 +1829,7 @@ static void OnRenderEffects() {
                         "Front patches: %u\n"
                         "Rear patches: %u\n"
                         "Rendered patches: %u\n"
+                        "Unclassified side patches: %u\n"
                         "Side disabled: %u\n"
                         "Missing mesh: %u\n"
                         "Invalid geometry: %u\n"
@@ -1845,6 +1846,7 @@ static void OnRenderEffects() {
                         static_cast<unsigned int>(frontPatches),
                         static_cast<unsigned int>(rearPatches),
                         static_cast<unsigned int>(renderedPatches),
+                        static_cast<unsigned int>(nativeStats.unclassifiedSidePatches),
                         static_cast<unsigned int>(nativeStats.sideDisabled),
                         static_cast<unsigned int>(nativeStats.missingMesh),
                         static_cast<unsigned int>(nativeStats.invalidGeometry),
@@ -1870,11 +1872,12 @@ static void OnRenderEffects() {
                         );
                     }
                     logger->Info(
-                        "VLS native RGB render: patches=%u front=%u rear=%u rendered=%u sideOff=%u noMesh=%u badGeo=%u noMatrix=%u empty=%u transformFail=%u drawFail=%u verts=%u indices=%u triangles=%u alpha=%u",
+                        "VLS native RGB render: patches=%u front=%u rear=%u rendered=%u sideUnknown=%u sideOff=%u noMesh=%u badGeo=%u noMatrix=%u empty=%u transformFail=%u drawFail=%u verts=%u indices=%u triangles=%u alpha=%u",
                         static_cast<unsigned int>(lightingPatches),
                         static_cast<unsigned int>(frontPatches),
                         static_cast<unsigned int>(rearPatches),
                         static_cast<unsigned int>(renderedPatches),
+                        static_cast<unsigned int>(nativeStats.unclassifiedSidePatches),
                         static_cast<unsigned int>(nativeStats.sideDisabled),
                         static_cast<unsigned int>(nativeStats.missingMesh),
                         static_cast<unsigned int>(nativeStats.invalidGeometry),
