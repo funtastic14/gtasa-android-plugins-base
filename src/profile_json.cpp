@@ -1906,6 +1906,8 @@ bool Serialize(
     json += profile.nativeLights.highBeamEnabled ? "true" : "false";
     json += ",\"highBeamRange\":";
     if (!AppendFloat(json, profile.nativeLights.highBeamRange)) return false;
+    json += ",\"highBeamWidthDegrees\":";
+    if (!AppendFloat(json, profile.nativeLights.highBeamWidthDegrees)) return false;
     json += ",\"highBeamIntensity\":";
     if (!AppendFloat(json, profile.nativeLights.highBeamIntensity)) return false;
     json += ",\"rgbHeadlightsEnabled\":";
@@ -1996,6 +1998,7 @@ bool Deserialize(
               scanMode < 0 || scanMode > static_cast<int>(NativeLightScanMode::TextureName))) ||
             !ReadBool(*nativeLights, "highBeamEnabled", result.nativeLights.highBeamEnabled) ||
             !ReadOptionalFloat(*nativeLights, "highBeamRange", result.nativeLights.highBeamRange) ||
+            !ReadOptionalFloat(*nativeLights, "highBeamWidthDegrees", result.nativeLights.highBeamWidthDegrees) ||
             !ReadOptionalFloat(*nativeLights, "highBeamIntensity", result.nativeLights.highBeamIntensity) ||
             !ReadBool(*nativeLights, "rgbHeadlightsEnabled", result.nativeLights.rgbHeadlightsEnabled) ||
             !ReadBool(*nativeLights, "rgbTaillightsEnabled", result.nativeLights.rgbTaillightsEnabled) ||
@@ -2010,6 +2013,8 @@ bool Deserialize(
         result.nativeLights.blendMode = static_cast<LedLayerBlendMode>(rgbBlendMode);
         if (result.nativeLights.highBeamRange < 10.0f ||
             result.nativeLights.highBeamRange > 500.0f ||
+            result.nativeLights.highBeamWidthDegrees < 5.0f ||
+            result.nativeLights.highBeamWidthDegrees > 45.0f ||
             result.nativeLights.highBeamIntensity < 0.1f ||
             result.nativeLights.highBeamIntensity > 4.0f ||
             result.nativeLights.rgbFlowSpeed < 0.1f ||
