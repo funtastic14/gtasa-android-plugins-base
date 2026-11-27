@@ -1462,6 +1462,35 @@ static void RenderEditor() {
         }
     }
 
+    // Shared logical canvas is independent of Matrix mode. Strip-based
+    // Running LED, RGB and Strobo Wave can therefore join the same field.
+    ImGui::Separator();
+    ImGui::Text("Shared Animation Canvas");
+    changed |= ImGui::Checkbox("Use Shared Canvas", &effect.matrix.canvasEnabled);
+    if (effect.matrix.canvasEnabled) {
+        int canvasColumns = effect.matrix.canvasColumns;
+        int canvasRows = effect.matrix.canvasRows;
+        int offsetColumn = effect.matrix.canvasOffsetColumn;
+        int offsetRow = effect.matrix.canvasOffsetRow;
+        if (ImGui::SliderInt("Canvas Columns", &canvasColumns, 1, 256)) changed = true;
+        if (ImGui::SliderInt("Canvas Rows", &canvasRows, 1, 256)) changed = true;
+        if (ImGui::SliderInt("Region X Offset", &offsetColumn, 0, 255)) changed = true;
+        if (ImGui::SliderInt("Region Y Offset", &offsetRow, 0, 255)) changed = true;
+        const int regionColumns = effect.matrix.enabled
+            ? static_cast<int>(effect.matrix.columns) : 12;
+        const int regionRows = effect.matrix.enabled
+            ? static_cast<int>(effect.matrix.rows) : 1;
+        canvasColumns = std::max(canvasColumns, regionColumns);
+        canvasRows = std::max(canvasRows, regionRows);
+        offsetColumn = std::max(0, std::min(offsetColumn, canvasColumns - regionColumns));
+        offsetRow = std::max(0, std::min(offsetRow, canvasRows - regionRows));
+        effect.matrix.canvasColumns = static_cast<uint16_t>(canvasColumns);
+        effect.matrix.canvasRows = static_cast<uint16_t>(canvasRows);
+        effect.matrix.canvasOffsetColumn = static_cast<uint16_t>(offsetColumn);
+        effect.matrix.canvasOffsetRow = static_cast<uint16_t>(offsetRow);
+        ImGui::TextWrapped("Use identical canvas dimensions on every participating region. Set each region's X/Y offset. Strip effects use a 12x1 local region; matrix effects use their configured columns and rows. All regions sample one continuous animation field.");
+    }
+
     // -----------------------------------------------------
     // Matrix Configuration
     // -----------------------------------------------------
@@ -1523,31 +1552,6 @@ static void RenderEditor() {
                 g_selectedPixel = 0;
                 changed = true;
             }
-        }
-
-        // Shared Canvas Composer: map several physical LED placements into
-        // one logical matrix so a single shape can cross region boundaries.
-        ImGui::Separator();
-        ImGui::Text("Shared Matrix Canvas");
-        changed |= ImGui::Checkbox("Use Shared Canvas", &effect.matrix.canvasEnabled);
-        if (effect.matrix.canvasEnabled) {
-            int canvasColumns = effect.matrix.canvasColumns;
-            int canvasRows = effect.matrix.canvasRows;
-            int offsetColumn = effect.matrix.canvasOffsetColumn;
-            int offsetRow = effect.matrix.canvasOffsetRow;
-            if (ImGui::SliderInt("Canvas Columns", &canvasColumns, 1, 256)) changed = true;
-            if (ImGui::SliderInt("Canvas Rows", &canvasRows, 1, 256)) changed = true;
-            if (ImGui::SliderInt("Region X Offset", &offsetColumn, 0, 255)) changed = true;
-            if (ImGui::SliderInt("Region Y Offset", &offsetRow, 0, 255)) changed = true;
-            canvasColumns = std::max(canvasColumns, static_cast<int>(effect.matrix.columns));
-            canvasRows = std::max(canvasRows, static_cast<int>(effect.matrix.rows));
-            offsetColumn = std::max(0, std::min(offsetColumn, canvasColumns - effect.matrix.columns));
-            offsetRow = std::max(0, std::min(offsetRow, canvasRows - effect.matrix.rows));
-            effect.matrix.canvasColumns = static_cast<uint16_t>(canvasColumns);
-            effect.matrix.canvasRows = static_cast<uint16_t>(canvasRows);
-            effect.matrix.canvasOffsetColumn = static_cast<uint16_t>(offsetColumn);
-            effect.matrix.canvasOffsetRow = static_cast<uint16_t>(offsetRow);
-            ImGui::TextWrapped("Set the same Canvas Columns/Rows on every region. Change X/Y Offset for each placement. Example: three 12x4 regions can use a 36x4 canvas with offsets 0, 12 and 24. Motion is evaluated across the full canvas; physical gaps remain empty.");
         }
 
         if (SyncMatrixPixels(effect)) {
