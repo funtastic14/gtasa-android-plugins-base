@@ -596,6 +596,66 @@ inline float EvaluateMotionIntensity(
         const float outline = clamp01(1.0f - nearest * 34.0f);
         return 0.025f + 0.975f * outline;
     }
+    case LedMotionPattern::MultiLineFlutter: {
+        // Several staggered horizontal luminous ribbons flutter vertically.
+        const float rowPhase = static_cast<float>(row) * 0.92f;
+        const float crest = 0.5f + 0.34f * std::sin(wavePhase * 1.25f + rowPhase);
+        const float lane = std::fabs(y - crest);
+        const float ribbon = clamp01(1.0f - lane * 18.0f);
+        const float shimmer = 0.72f + 0.28f * std::sin(x * PI2 * 2.0f - wavePhase + rowPhase);
+        return 0.025f + 0.975f * ribbon * shimmer;
+    }
+    case LedMotionPattern::TriangleFanSweep: {
+        // A triangular fan grows from the top apex toward a broad lower edge.
+        const float sweep = fract(phase);
+        const float halfWidth = 0.04f + y * 0.46f;
+        const float sideDistance = std::fabs(x - 0.5f);
+        const float inside = sideDistance <= halfWidth ? 1.0f : 0.0f;
+        const float front = clamp01(1.0f - std::fabs(y - sweep) * 16.0f);
+        const float edge = clamp01(1.0f - std::fabs(sideDistance - halfWidth) * 22.0f);
+        return 0.025f + 0.975f * std::max(front * inside, edge * (0.35f + 0.65f * front));
+    }
+    case LedMotionPattern::DiagonalXCross: {
+        // Opposing diagonal fronts cross through the canvas center.
+        const float a = std::fabs((x + y) - (0.35f + phase * 1.3f));
+        const float b = std::fabs((x - y) - (-0.65f + phase * 1.3f));
+        const float frontA = clamp01(1.0f - a * 13.0f);
+        const float frontB = clamp01(1.0f - b * 13.0f);
+        return 0.025f + 0.975f * std::max(frontA, frontB);
+    }
+    case LedMotionPattern::MultiAxisCenterBurst: {
+        // A square center core emits simultaneous horizontal and vertical rays.
+        const float travel = fract(phase);
+        const float dxAbs = std::fabs(dx);
+        const float dyAbs = std::fabs(dy);
+        const float radial = std::max(dxAbs, dyAbs) * 2.0f;
+        const float front = clamp01(1.0f - std::fabs(radial - travel) * 20.0f);
+        const float axis = std::max(
+            clamp01(1.0f - dyAbs * 20.0f),
+            clamp01(1.0f - dxAbs * 20.0f));
+        const float core = clamp01(1.0f - radial * 12.0f);
+        const float pulse = 0.65f + 0.35f * std::sin(wavePhase * 2.0f);
+        return 0.025f + 0.975f * std::max(core, front * axis * pulse);
+    }
+    case LedMotionPattern::TripleMirrorWave: {
+        // Three mirrored wave bands use staggered phase offsets per row.
+        const float rowBand = static_cast<float>(row % 3u) * 0.72f;
+        const float mirrorX = 1.0f - std::fabs(x - 0.5f) * 2.0f;
+        const float wave = 0.5f + 0.5f * std::sin(
+            mirrorX * PI2 * 1.5f - wavePhase + rowBand);
+        const float envelope = 0.58f + 0.42f * std::sin(y * PI2 * 1.5f + rowBand);
+        return 0.025f + 0.975f * wave * envelope;
+    }
+    case LedMotionPattern::SegmentedCenterExpand: {
+        // Rectangular segments expand from the center toward both horizontal edges.
+        const float distance = std::fabs(x - 0.5f) * 2.0f;
+        const float frontPosition = fract(phase);
+        const float front = clamp01(1.0f - std::fabs(distance - frontPosition) * 24.0f);
+        const float rowGate = (row % 2u) == 0u ? 1.0f : 0.72f;
+        const float segment = (static_cast<uint16_t>(std::floor(x * 8.0f)) % 2u) == 0u
+            ? 1.0f : 0.58f;
+        return 0.025f + 0.975f * front * rowGate * segment;
+    }
     case LedMotionPattern::ArrowRight:
     case LedMotionPattern::ArrowLeft:
     case LedMotionPattern::ArrowUp:
