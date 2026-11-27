@@ -46,6 +46,10 @@ void VehicleLightEngine::AddHighBeam(
     // center beam. Six lights are still a bounded, allocation-free update.
     const float rayOffsets[3] = {-halfSpread, 0.0f, halfSpread};
     const float rayEnergy = intensity * 0.65f;
+    // GTA SA keeps a small fixed point-light pool. Avoid overrunning it when
+    // several profile-enabled vehicles request high beams in the same frame.
+    if (CPointLights::NumLights >= 26)
+        return;
     for (int side = -1; side <= 1; side += 2) {
         const CVector position = base + right * (0.55f * side);
         for (int ray = 0; ray < 3; ++ray) {
