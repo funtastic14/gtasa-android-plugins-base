@@ -405,21 +405,33 @@ static void BuildElementGeometry(
         return;
     }
     if (shape == LedElementShape::CircleOutline) {
-        for (uint32_t i = 0; i < 16; ++i) add(unitX[i], unitZ[i]);
-        for (uint32_t i = 0; i < 16; ++i)
-            add(unitX[i] * 0.68f, unitZ[i] * 0.68f);
-        for (uint32_t i = 0; i < 16; ++i) {
-            const uint32_t next = (i + 1) % 16;
-            triangle(i, next, 16 + next);
-            triangle(i, 16 + next, 16 + i);
+        // Eight segments keep round pixels readable while halving the vertex
+        // budget. Dense 64x64 matrices can then remain inside RenderWare's
+        // 16-bit index range instead of losing the complete effect.
+        constexpr uint32_t segments = 8;
+        for (uint32_t i = 0; i < segments; ++i) {
+            const uint32_t source = i * 2u;
+            add(unitX[source], unitZ[source]);
+        }
+        for (uint32_t i = 0; i < segments; ++i) {
+            const uint32_t source = i * 2u;
+            add(unitX[source] * 0.68f, unitZ[source] * 0.68f);
+        }
+        for (uint32_t i = 0; i < segments; ++i) {
+            const uint32_t next = (i + 1u) % segments;
+            triangle(i, next, segments + next);
+            triangle(i, segments + next, segments + i);
         }
         return;
     }
-    // Filled circle (16-sided disc).
+    // Eight-sided filled disc: sufficient at LED-cell scale and bounded.
     add(0.0f, 0.0f);
-    for (uint32_t i = 0; i < 16; ++i) add(unitX[i], unitZ[i]);
-    for (uint32_t i = 0; i < 16; ++i)
-        triangle(0, i + 1, ((i + 1) % 16) + 1);
+    for (uint32_t i = 0; i < 8; ++i) {
+        const uint32_t source = i * 2u;
+        add(unitX[source], unitZ[source]);
+    }
+    for (uint32_t i = 0; i < 8; ++i)
+        triangle(0, i + 1u, ((i + 1u) % 8u) + 1u);
 }
 
 static void AppendLightGeometry(
