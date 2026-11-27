@@ -678,17 +678,80 @@ void ApplyCustomTexture(
 
             float sampleLocalU = localU;
             float sampleV = v;
+            // A flattened PNG has no hidden layer behind the iris. When the
+            // iris moves, sampling a fixed-radius ring can land on another
+            // iris-colored pixel and leave a second, stationary iris behind.
+            // Prefer a nearby pixel already classified as sclera. This lookup
+            // is bounded to eight probes and runs only for pixels in the old
+            // iris footprint; no per-frame buffer or allocation is needed.
+            const auto findSemanticRingSample = [&](
+                uint8_t targetLabel,
+                float centerX,
+                float centerY,
+                float directionX,
+                float directionY,
+                float radiusX,
+                float radiusY,
+                float& resultU,
+                float& resultV
+            ) {
+                const float directionLength = std::sqrt(
+                    directionX * directionX + directionY * directionY);
+                if (directionLength < 0.0001f ||
+                    entry->eyeParts.labels.empty())
+                    return false;
+                directionX /= directionLength;
+                directionY /= directionLength;
+                for (uint8_t probe = 0; probe < 8; ++probe) {
+                    const float scale = 1.10f + 0.16f * probe;
+                    const float candidateU =
+                        centerX + directionX * scale * radiusX;
+                    const float candidateV =
+                        centerY + directionY * scale * radiusY;
+                    if (candidateU <= 0.0f || candidateU >= 1.0f ||
+                        candidateV <= 0.0f || candidateV >= 1.0f)
+                        continue;
+                    const float fullU = !pairedEyes ? candidateU :
+                        (leftEye ? candidateU * 0.5f :
+                            0.5f + candidateU * 0.5f);
+                    const uint32_t px = std::min<uint32_t>(
+                        entry->width - 1u,
+                        static_cast<uint32_t>(fullU * entry->width));
+                    const uint32_t py = std::min<uint32_t>(
+                        entry->height - 1u,
+                        static_cast<uint32_t>(candidateV * entry->height));
+                    const size_t labelIndex =
+                        static_cast<size_t>(py) * entry->width + px;
+                    if (labelIndex < entry->eyeParts.labels.size() &&
+                        entry->eyeParts.labels[labelIndex] == targetLabel) {
+                        resultU = candidateU;
+                        resultV = candidateV;
+                        return true;
+                    }
+                }
+                return false;
+            };
             if (inDestinationIris) {
                 sampleLocalU = localU - irisMoveX;
                 sampleV = v - irisMoveY;
             } else if (inSourceIris) {
-                // Approximate the exposed sclera from the nearest clean ring.
-                // The original flattened pixels contain no hidden background.
-                const float radius = std::sqrt(
-                    sourceDx * sourceDx + sourceDy * sourceDy);
-                const float scale = radius > 0.0001f ? 1.18f / radius : 1.18f;
-                sampleLocalU = irisCenterX + sourceDx * scale * irisRadiusX;
-                sampleV = irisCenterY + sourceDy * scale * irisRadiusY;
+                // Reconstruct the exposed sclera from a classified clean
+                // sample, falling back to the old radial estimate if semantic
+                // detection is inconclusive for this particular texture.
+                if (!findSemanticRingSample(
+                        static_cast<uint8_t>(EyeSemanticPart::Sclera),
+                        irisCenterX, irisCenterY, sourceDx, sourceDy,
+                        irisRadiusX, irisRadiusY,
+                        sampleLocalU, sampleV)) {
+                    const float radius = std::sqrt(
+                        sourceDx * sourceDx + sourceDy * sourceDy);
+                    const float scale = radius > 0.0001f
+                        ? 1.18f / radius : 1.18f;
+                    sampleLocalU =
+                        irisCenterX + sourceDx * scale * irisRadiusX;
+                    sampleV =
+                        irisCenterY + sourceDy * scale * irisRadiusY;
+                }
             }
 
             // Find the pupil component belonging to this eye. Its movement is
