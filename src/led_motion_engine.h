@@ -1,5 +1,7 @@
 #pragma once
 
+#include "effect_transition_engine.h"
+
 #include "vehicle_profile.h"
 
 #include <algorithm>
@@ -128,7 +130,7 @@ inline MotionFrameState BuildMotionFrameState(
                 static_cast<float>(transitionMs);
             // Smooth Step avoids the abrupt brightness/color discontinuity
             // at either end of the transition.
-            state.transitionProgress = p * p * (3.0f - 2.0f * p);
+            state.transitionProgress = TransitionEngine::SmoothStep(p);
         }
     }
     return state;
