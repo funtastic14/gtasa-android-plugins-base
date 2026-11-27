@@ -671,18 +671,24 @@ inline float EvaluateMotionIntensity(
         } else if (pattern == LedMotionPattern::AccumulateRightToLeft) {
             isSettled = column >= safeColumns - settled;
             isHead = settled < safeColumns && column == safeColumns - settled - 1u;
+        } else if (pattern == LedMotionPattern::AccumulateCenterOut) {
+            // Measure from the center between the two middle cells on even grids.
+            const uint16_t centerDistance2 = static_cast<uint16_t>(
+                std::abs(static_cast<int>(2u * column + 1u) -
+                         static_cast<int>(safeColumns)));
+            const uint16_t maxDistance2 = safeColumns;
+            const uint16_t reach2 = static_cast<uint16_t>(
+                std::min<float>(maxDistance2, std::floor(scaled)));
+            isSettled = centerDistance2 <= reach2;
+            isHead = centerDistance2 == reach2 + 1u;
         } else {
-            const uint16_t center = safeColumns / 2u;
-            const uint16_t distance = column > center
-                ? column - center : center - column;
-            const uint16_t maxDistance = std::max<uint16_t>(1u, safeColumns - center);
+            // Symmetric edge-in motion: both outermost cells start together.
+            const uint16_t edgeDistance = std::min<uint16_t>(
+                column, static_cast<uint16_t>(safeColumns - 1u - column));
             const uint16_t reach = static_cast<uint16_t>(
-                std::min<float>(maxDistance, std::floor(scaled * 0.5f)));
-            isSettled = pattern == LedMotionPattern::AccumulateCenterOut
-                ? distance <= reach
-                : distance >= maxDistance - reach;
-            const uint16_t nextDistance = reach + 1u;
-            isHead = nextDistance < maxDistance && distance == nextDistance;
+                std::min<float>((safeColumns + 1u) / 2u, std::floor(scaled * 0.5f)));
+            isSettled = edgeDistance < reach;
+            isHead = edgeDistance == reach;
         }
         if (isSettled)
             return 1.0f;
