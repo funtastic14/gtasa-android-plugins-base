@@ -51,7 +51,7 @@ private:
     EffectSequenceStep m_previousStep{};
     bool m_hasPreviousStep = false;
     uint32_t m_transitionStartTimeMs = 0;
-    static constexpr uint32_t TRANSITION_DURATION_MS = 250;
+    static constexpr uint32_t TRANSITION_DURATION_MS = 600;
 };
 
 } // namespace VLS
