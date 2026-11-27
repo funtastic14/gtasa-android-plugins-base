@@ -1913,15 +1913,14 @@ static void OnRenderEffects() {
                 }
             }
             for (CVehicle* vehicle : g_frameVehicles) {
-                if (vehicle != currentVehicle || !IsVehiclePointerValid(vehicle)) continue;
-                for (const VLS::LedPlacement& led : profile->placements) {
-                    if (!led.enabled || led.effects.empty()) continue;
-                    const uint32_t selected = led.activeEffectIndex < led.effects.size()
-                        ? led.activeEffectIndex : 0u;
-                    VLS::ProfileRenderer::RenderSelectedEffect(
-                        vehicle, *profile, led.id, selected
-                    );
-                }
+                if (vehicle != currentVehicle || !IsVehiclePointerValid(vehicle))
+                    continue;
+
+                // Render the complete ordered layer stack for each placement.
+                // RenderSelectedEffect is intentionally reserved for one-off
+                // sequence/editor previews; using it here would silently hide
+                // every non-selected layer during normal gameplay.
+                VLS::ProfileRenderer::RenderVehicleProfile(vehicle, *profile);
             }
         }
     }
