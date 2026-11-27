@@ -376,6 +376,7 @@ void ApplyCustomTexture(
         // scaled, mirrored, or shifted to simulate gaze.
         const bool leftEye = column < matrix.columns / 2;
         const float localU = leftEye ? u * 2.0f : (u - 0.5f) * 2.0f;
+        const float eyeV = v;
         const float irisCenterX = design ? design->irisCenterX : effect.eyeTextureIrisCenterX;
         const float irisCenterY = design ? design->irisCenterY : effect.eyeTextureIrisCenterY;
         const float irisRadiusX = design ? design->irisRadiusX : effect.eyeTextureIrisRadiusX;
@@ -441,7 +442,7 @@ void ApplyCustomTexture(
             );
             const float halfOpening =
                 0.5f * (1.0f - close * 0.96f) * curve;
-            if (std::fabs(v - 0.5f) > halfOpening) {
+            if (std::fabs(eyeV - 0.5f) > halfOpening) {
                 output.visible = false;
                 output.alpha = 0;
                 return;
