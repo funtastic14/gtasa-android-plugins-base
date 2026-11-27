@@ -469,6 +469,7 @@ struct NativeVehicleLightConfig {
     NativeLightScanMode scanMode = NativeLightScanMode::ModelId;
     bool highBeamEnabled = false;
     float highBeamRange = 500.0f;
+    float highBeamWidthDegrees = 18.0f;
     float highBeamIntensity = 1.25f;
     bool rgbHeadlightsEnabled = false;
     bool rgbTaillightsEnabled = false;
