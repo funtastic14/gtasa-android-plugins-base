@@ -1032,8 +1032,14 @@ static uint32_t RenderNativeLightsBatched(
             }
             patchAdded = true;
         }
-        if (patchAdded)
+        if (patchAdded) {
             ++batchPatchCount;
+        } else if (stats != nullptr) {
+            // Count lighting patches that passed material/side filtering but
+            // produced no valid triangle output. This keeps the on-device
+            // diagnostic useful when a material group is empty or malformed.
+            ++stats->emptyTriangleOutput;
+        }
     }
 
     flushBatch();
