@@ -240,6 +240,109 @@ bool IsCustomTextureReady(const std::string& textureName) {
     return false;
 }
 
+TextureCacheEntry* GetOrLoadCustomTexture(
+    const std::string& textureName,
+    uint32_t timeMs
+) {
+    if (textureName.empty())
+        return nullptr;
+        TextureCacheEntry* entry = nullptr;
+        for (size_t i = 0; i < 2; ++i) {
+            if (g_eyeTextureCache[i].name == textureName) {
+                entry = &g_eyeTextureCache[i];
+                // A missing/temporarily unreadable file is not retried per pixel.
+                // Retry at most once every 3 seconds so adding a texture at runtime
+                // can recover without causing repeated filesystem reads.
+                if (!entry->valid && timeMs - entry->lastAttemptMs >= 3000u) {
+                    entry->name.clear();
+                    entry = nullptr;
+                } else {
+                    break;
+                }
+            }
+        }
+        if (entry == nullptr) {
+            entry = &g_eyeTextureCache[g_nextEyeTextureSlot++ % 2u];
+            entry->name = textureName;
+            entry->valid = false;
+            entry->width = entry->height = 0;
+            entry->pixels.clear();
+            entry->lastAttemptMs = timeMs;
+    
+            std::string data, token;
+            if (ProfileStorage::LoadTexturePng(textureName, data) &&
+                !data.empty() && data.size() <= static_cast<size_t>(0x7fffffff)) {
+                const stbi_uc* encoded =
+                    reinterpret_cast<const stbi_uc*>(data.data());
+                const int encodedSize = static_cast<int>(data.size());
+                int w = 0, h = 0;
+                // Reject oversized images before asking stb_image to allocate
+                // the decoded bitmap, keeping peak memory bounded on Android.
+                if (stbi_info_from_memory(encoded, encodedSize, &w, &h, nullptr) &&
+                    w > 0 && w <= 1024 && h > 0 && h <= 1024) {
+                    stbi_uc* decoded = stbi_load_from_memory(
+                        encoded, encodedSize, &w, &h, nullptr, STBI_rgb_alpha
+                    );
+                    if (decoded != nullptr) {
+                        const size_t decodedBytes =
+                            static_cast<size_t>(w) * static_cast<size_t>(h) * 4u;
+                        entry->pixels.resize(decodedBytes);
+                        std::memcpy(entry->pixels.data(), decoded, decodedBytes);
+                        entry->width = static_cast<uint16_t>(w);
+                        entry->height = static_cast<uint16_t>(h);
+                        entry->valid = true;
+                        stbi_image_free(decoded);
+                    }
+                }
+            }
+            if (!entry->valid &&
+                ProfileStorage::LoadTexturePpm(textureName, data)) {
+                size_t pos = 0;
+                if (ReadPpmToken(data, pos, token) && token == "P3" &&
+                    ReadPpmToken(data, pos, token)) {
+                    const int w = std::atoi(token.c_str());
+                    if (ReadPpmToken(data, pos, token)) {
+                        const int h = std::atoi(token.c_str());
+                        if (ReadPpmToken(data, pos, token)) {
+                            const int maxValue = std::atoi(token.c_str());
+                            if (w > 0 && w <= 1024 && h > 0 && h <= 1024 &&
+                                maxValue > 0 && maxValue <= 255) {
+                                const size_t pixelCount =
+                                    static_cast<size_t>(w) * static_cast<size_t>(h);
+                                entry->pixels.assign(pixelCount * 4u, 0);
+                                bool ok = true;
+                                for (size_t i = 0; i < pixelCount * 3u; ++i) {
+                                    if (!ReadPpmToken(data, pos, token)) {
+                                        ok = false;
+                                        break;
+                                    }
+                                    const int value = std::atoi(token.c_str());
+                                    if (value < 0 || value > maxValue) {
+                                        ok = false;
+                                        break;
+                                    }
+                                    entry->pixels[(i / 3u) * 4u + (i % 3u)] =
+                                        static_cast<uint8_t>((value * 255) / maxValue);
+                                }
+                                if (ok) {
+                                    for (size_t i = 0; i < pixelCount; ++i)
+                                        entry->pixels[i * 4u + 3u] = 255;
+                                    entry->width = static_cast<uint16_t>(w);
+                                    entry->height = static_cast<uint16_t>(h);
+                                    entry->valid = true;
+                                } else {
+                                    entry->pixels.clear();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    
+        return entry;
+}
+
 void ApplyCustomTexture(
     const LedEffectConfig& effect,
     const std::string& textureName,
@@ -260,101 +363,8 @@ void ApplyCustomTexture(
     // Two bounded decoded-image slots cap resident RGBA texture memory at
     // 8 MiB (1024x1024x4 bytes per image). Image decoding/allocation happens
     // only when a texture is first encountered, never in the sampling loop.
-    TextureCacheEntry* entry = nullptr;
-    for (size_t i = 0; i < 2; ++i) {
-        if (g_eyeTextureCache[i].name == textureName) {
-            entry = &g_eyeTextureCache[i];
-            // A missing/temporarily unreadable file is not retried per pixel.
-            // Retry at most once every 3 seconds so adding a texture at runtime
-            // can recover without causing repeated filesystem reads.
-            if (!entry->valid && timeMs - entry->lastAttemptMs >= 3000u) {
-                entry->name.clear();
-                entry = nullptr;
-            } else {
-                break;
-            }
-        }
-    }
-    if (entry == nullptr) {
-        entry = &g_eyeTextureCache[g_nextEyeTextureSlot++ % 2u];
-        entry->name = textureName;
-        entry->valid = false;
-        entry->width = entry->height = 0;
-        entry->pixels.clear();
-        entry->lastAttemptMs = timeMs;
-
-        std::string data, token;
-        if (ProfileStorage::LoadTexturePng(textureName, data) &&
-            !data.empty() && data.size() <= static_cast<size_t>(0x7fffffff)) {
-            const stbi_uc* encoded =
-                reinterpret_cast<const stbi_uc*>(data.data());
-            const int encodedSize = static_cast<int>(data.size());
-            int w = 0, h = 0;
-            // Reject oversized images before asking stb_image to allocate
-            // the decoded bitmap, keeping peak memory bounded on Android.
-            if (stbi_info_from_memory(encoded, encodedSize, &w, &h, nullptr) &&
-                w > 0 && w <= 1024 && h > 0 && h <= 1024) {
-                stbi_uc* decoded = stbi_load_from_memory(
-                    encoded, encodedSize, &w, &h, nullptr, STBI_rgb_alpha
-                );
-                if (decoded != nullptr) {
-                    const size_t decodedBytes =
-                        static_cast<size_t>(w) * static_cast<size_t>(h) * 4u;
-                    entry->pixels.resize(decodedBytes);
-                    std::memcpy(entry->pixels.data(), decoded, decodedBytes);
-                    entry->width = static_cast<uint16_t>(w);
-                    entry->height = static_cast<uint16_t>(h);
-                    entry->valid = true;
-                    stbi_image_free(decoded);
-                }
-            }
-        }
-        if (!entry->valid &&
-            ProfileStorage::LoadTexturePpm(textureName, data)) {
-            size_t pos = 0;
-            if (ReadPpmToken(data, pos, token) && token == "P3" &&
-                ReadPpmToken(data, pos, token)) {
-                const int w = std::atoi(token.c_str());
-                if (ReadPpmToken(data, pos, token)) {
-                    const int h = std::atoi(token.c_str());
-                    if (ReadPpmToken(data, pos, token)) {
-                        const int maxValue = std::atoi(token.c_str());
-                        if (w > 0 && w <= 1024 && h > 0 && h <= 1024 &&
-                            maxValue > 0 && maxValue <= 255) {
-                            const size_t pixelCount =
-                                static_cast<size_t>(w) * static_cast<size_t>(h);
-                            entry->pixels.assign(pixelCount * 4u, 0);
-                            bool ok = true;
-                            for (size_t i = 0; i < pixelCount * 3u; ++i) {
-                                if (!ReadPpmToken(data, pos, token)) {
-                                    ok = false;
-                                    break;
-                                }
-                                const int value = std::atoi(token.c_str());
-                                if (value < 0 || value > maxValue) {
-                                    ok = false;
-                                    break;
-                                }
-                                entry->pixels[(i / 3u) * 4u + (i % 3u)] =
-                                    static_cast<uint8_t>((value * 255) / maxValue);
-                            }
-                            if (ok) {
-                                for (size_t i = 0; i < pixelCount; ++i)
-                                    entry->pixels[i * 4u + 3u] = 255;
-                                entry->width = static_cast<uint16_t>(w);
-                                entry->height = static_cast<uint16_t>(h);
-                                entry->valid = true;
-                            } else {
-                                entry->pixels.clear();
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    if (!entry->valid)
+    TextureCacheEntry* entry = GetOrLoadCustomTexture(textureName, timeMs);
+    if (entry == nullptr || !entry->valid)
         return;
     float u = (static_cast<float>(column) + 0.5f) /
         static_cast<float>(matrix.columns);
