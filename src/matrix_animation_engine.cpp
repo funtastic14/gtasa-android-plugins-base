@@ -699,6 +699,19 @@ float GetDirectionalPosition(
 
 } // namespace
 
+void MatrixAnimationEngine::PrepareEffect(
+    const LedEffectConfig& effect,
+    uint32_t timeMs
+) {
+    if (effect.type != LedEffectType::StroboEyes)
+        return;
+    const EyeTextureDesign* design = ResolveEyeTextureDesign(effect, timeMs);
+    const std::string& textureName = design != nullptr
+        ? design->textureName : effect.textureName;
+    if (!textureName.empty())
+        GetOrLoadCustomTexture(textureName, timeMs);
+}
+
 bool MatrixAnimationEngine::EvaluatePixel(
     const LedEffectConfig& effect,
     uint16_t column,
