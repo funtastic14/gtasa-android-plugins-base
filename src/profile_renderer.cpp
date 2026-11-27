@@ -723,10 +723,14 @@ static bool RenderEffect(
     const float segmentWidth = effectiveWidth / SEGMENTS;
     const float halfHeight = effectiveHeight * 0.5f;
 
-    RwIm3DVertex vertices[SEGMENTS * 4];
-    RwImVertexIndex indices[SEGMENTS * 6];
-
-    uint32_t indexCount = 0;
+    // Reuse bounded buffers; non-square shapes can require up to 32 vertices
+    // and 96 indices per LED (circle outline).
+    static std::vector<RwIm3DVertex> vertices;
+    static std::vector<RwImVertexIndex> indices;
+    vertices.clear();
+    indices.clear();
+    if (vertices.capacity() < SEGMENTS * 32) vertices.reserve(SEGMENTS * 32);
+    if (indices.capacity() < SEGMENTS * 96) indices.reserve(SEGMENTS * 96);
 
     const bool strobeOn = motionFrame.phase < 0.5f;
 
@@ -921,14 +925,17 @@ static bool RenderEffect(
         const float right =
             left + segmentWidth * 0.88f;
 
-        CVector local[4];
-
-        local[0] = {left,  t.y, t.z - halfHeight};
-        local[1] = {right, t.y, t.z - halfHeight};
-        local[2] = {right, t.y, t.z + halfHeight};
-        local[3] = {left,  t.y, t.z + halfHeight};
-
-        for (uint32_t v = 0; v < 4; ++v) {
+        CVector local[32];
+        RwImVertexIndex shapeIndices[96];
+        uint32_t shapeVertexCount = 0;
+        uint32_t shapeIndexCount = 0;
+        BuildElementGeometry(effect.elementShape,
+            (left + right) * 0.5f, t.z,
+            (right - left) * 0.5f, halfHeight, t.y,
+            local, shapeIndices, shapeVertexCount, shapeIndexCount);
+        const RwImVertexIndex base =
+            static_cast<RwImVertexIndex>(vertices.size());
+        for (uint32_t v = 0; v < shapeVertexCount; ++v) {
             CVector world;
             if (projectToWindshield) {
                 CVector vehicleLocal = TransformPlacementLocalPoint(local[v], t);
@@ -943,27 +950,14 @@ static bool RenderEffect(
                 // Preserve the previously working placement path as fallback.
                 world = TransformPlacementPoint(local[v], t, matrix);
             }
-
-            SetVertex(
-                vertices[i * 4 + v],
-                world,
-                red,
-                green,
-                blue,
-                ClampColor(effect.opacity * 255.0f * TransitionEngine::Clamp01(alphaCoverage * transitionCoverage))
-            );
+            RwIm3DVertex vertex;
+            SetVertex(vertex, world, red, green, blue,
+                ClampColor(effect.opacity * 255.0f *
+                    TransitionEngine::Clamp01(alphaCoverage * transitionCoverage)));
+            vertices.push_back(vertex);
         }
-
-        const RwImVertexIndex base =
-            static_cast<RwImVertexIndex>(i * 4);
-
-        indices[indexCount++] = base;
-        indices[indexCount++] = base + 1;
-        indices[indexCount++] = base + 2;
-
-        indices[indexCount++] = base;
-        indices[indexCount++] = base + 2;
-        indices[indexCount++] = base + 3;
+        for (uint32_t i = 0; i < shapeIndexCount; ++i)
+            indices.push_back(static_cast<RwImVertexIndex>(base + shapeIndices[i]));
     }
 
     RenderStateGuard stateGuard(effect.blendMode);
@@ -972,8 +966,8 @@ static bool RenderEffect(
         rwIM3D_VERTEXXYZ | rwIM3D_VERTEXRGBA;
 
     if (RwIm3DTransform(
-            vertices,
-            SEGMENTS * 4,
+            vertices.data(),
+            static_cast<RwUInt32>(vertices.size()),
             nullptr,
             flags
         ) == nullptr)
