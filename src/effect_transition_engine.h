@@ -72,9 +72,9 @@ public:
             if (direction == EffectTransitionDirection::RightToLeft)
                 position = 1.0f - x;
             else if (direction == EffectTransitionDirection::TopToBottom)
-                position = 1.0f - y;
-            else if (direction == EffectTransitionDirection::BottomToTop)
                 position = y;
+            else if (direction == EffectTransitionDirection::BottomToTop)
+                position = 1.0f - y;
             else if (direction == EffectTransitionDirection::CenterOut)
                 position = std::fabs(x - 0.5f) * 2.0f;
             else if (direction == EffectTransitionDirection::EdgeToCenter)
@@ -83,9 +83,12 @@ public:
         }
 
         case EffectTransitionMode::Shutter: {
-            const float axis = (direction == EffectTransitionDirection::TopToBottom ||
-                                direction == EffectTransitionDirection::BottomToTop)
+            float axis = (direction == EffectTransitionDirection::TopToBottom ||
+                          direction == EffectTransitionDirection::BottomToTop)
                 ? y : x;
+            if (direction == EffectTransitionDirection::RightToLeft ||
+                direction == EffectTransitionDirection::BottomToTop)
+                axis = 1.0f - axis;
             const float opening = direction == EffectTransitionDirection::CenterOut
                 ? std::fabs(axis - 0.5f) * 2.0f
                 : (direction == EffectTransitionDirection::EdgeToCenter
@@ -101,9 +104,9 @@ public:
             const float dx = x - 0.5f;
             const float dy = y - 0.5f;
             const float radius = std::sqrt(dx * dx + dy * dy) * 1.41421356f;
-            const float radialProgress = direction == EffectTransitionDirection::EdgeToCenter
-                ? 1.0f - p : p;
-            return SmoothStep((radialProgress - radius + edge) / (2.0f * edge));
+            if (direction == EffectTransitionDirection::EdgeToCenter)
+                return SmoothStep((radius - (1.0f - p) + edge) / (2.0f * edge));
+            return SmoothStep((p - radius + edge) / (2.0f * edge));
         }
 
         case EffectTransitionMode::PixelDissolve: {
