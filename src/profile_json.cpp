@@ -2038,7 +2038,10 @@ bool Deserialize(
         }
         result.nativeLights.scanMode = static_cast<NativeLightScanMode>(scanMode);
         result.nativeLights.blendMode = static_cast<LedLayerBlendMode>(rgbBlendMode);
-        if (result.nativeLights.highBeamRange < 10.0f ||
+        if (!std::isfinite(result.nativeLights.highBeamRange) ||
+            !std::isfinite(result.nativeLights.highBeamWidthDegrees) ||
+            !std::isfinite(result.nativeLights.highBeamIntensity) ||
+            result.nativeLights.highBeamRange < 10.0f ||
             result.nativeLights.highBeamRange > 500.0f ||
             result.nativeLights.highBeamWidthDegrees < 5.0f ||
             result.nativeLights.highBeamWidthDegrees > 45.0f ||
