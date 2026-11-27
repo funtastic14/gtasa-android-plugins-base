@@ -203,6 +203,22 @@ float ProfileSequenceRuntime::GetTransitionProgress(uint32_t nowMs) const {
             static_cast<float>(TRANSITION_DURATION_MS);
 }
 
+EffectTransitionMode ProfileSequenceRuntime::GetTransitionMode(
+    const VehicleProfile& profile
+) const {
+    if (m_sequenceIndex >= profile.sequences.size())
+        return EffectTransitionMode::Crossfade;
+    return profile.sequences[m_sequenceIndex].transitionMode;
+}
+
+EffectTransitionDirection ProfileSequenceRuntime::GetTransitionDirection(
+    const VehicleProfile& profile
+) const {
+    if (m_sequenceIndex >= profile.sequences.size())
+        return EffectTransitionDirection::LeftToRight;
+    return profile.sequences[m_sequenceIndex].transitionDirection;
+}
+
 bool ProfileSequenceRuntime::IsRunning() const {
     return m_running;
 }
