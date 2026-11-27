@@ -1691,6 +1691,7 @@ bool MatrixAnimationEngine::EvaluatePixel(
         static_cast<uint32_t>(effect.stroboPanelCount - 1u) * effect.stroboPanelGapRows;
     const bool hasConfiguredPanelStack =
         effect.type == LedEffectType::StroboWave &&
+        effect.stroboPanelStackEnabled &&
         effect.stroboPanelCount >= 3 && effect.stroboPanelCount <= 7 &&
         matrix.columns >= effect.stroboPanelColumns &&
         matrix.rows >= requiredPanelRows;
