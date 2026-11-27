@@ -25,6 +25,99 @@ float Clamp01(float value) {
     return value;
 }
 
+float Wrap01(float value) {
+    return value - std::floor(value);
+}
+
+void ApplyPanelDirection(
+    LedColorDirection direction,
+    float& x,
+    float& y
+) {
+    const float oldX = x;
+    const float oldY = y;
+    switch (direction) {
+    case LedColorDirection::RightToLeft: x = 1.0f - oldX; break;
+    case LedColorDirection::TopToBottom: x = oldY; y = 1.0f - oldX; break;
+    case LedColorDirection::BottomToTop: x = 1.0f - oldY; y = oldX; break;
+    case LedColorDirection::DiagonalDown: x = (oldX + oldY) * 0.5f; break;
+    case LedColorDirection::DiagonalUp: x = (oldX + 1.0f - oldY) * 0.5f; break;
+    case LedColorDirection::CenterOut: x = std::fabs(oldX - 0.5f) * 2.0f; break;
+    case LedColorDirection::EdgeToCenter: x = 1.0f - std::fabs(oldX - 0.5f) * 2.0f; break;
+    case LedColorDirection::LeftToRight:
+    default: break;
+    }
+}
+
+void ResolvePanelDensity(
+    const StroboWavePanelConfig& panel,
+    uint16_t columns,
+    uint16_t rows,
+    float& densityX,
+    float& densityY
+) {
+    densityX = 1.0f;
+    densityY = 1.0f;
+    switch (panel.densityMode) {
+    case MotionDensityMode::Adaptive:
+        // Detail-heavy patterns benefit from more samples on larger panels;
+        // broad sweeps and line patterns retain breathing room.
+        switch (panel.motionPattern) {
+        case LedMotionPattern::Sparkle:
+        case LedMotionPattern::FlameFlicker:
+        case LedMotionPattern::MeteorShower:
+        case LedMotionPattern::CometChase:
+        case LedMotionPattern::MultiLineFlutter:
+        case LedMotionPattern::TripleMirrorWave:
+        case LedMotionPattern::SegmentedCenterExpand:
+            densityX = std::max(1.0f, static_cast<float>(columns) / 21.0f);
+            densityY = std::max(1.0f, static_cast<float>(rows) / 7.0f);
+            break;
+        default:
+            break;
+        }
+        break;
+    case MotionDensityMode::Fixed:
+        break;
+    case MotionDensityMode::Scalable:
+        densityX = std::max(0.25f, static_cast<float>(columns) / 21.0f);
+        densityY = std::max(0.25f, static_cast<float>(rows) / 7.0f);
+        break;
+    case MotionDensityMode::Custom:
+        densityX = panel.densityX;
+        densityY = panel.densityY;
+        break;
+    }
+}
+
+float EvaluatePanelMotion(
+    const LedEffectConfig& effect,
+    const StroboWavePanelConfig& panel,
+    uint16_t column,
+    uint16_t localRow,
+    uint32_t timeMs,
+    const MotionFrameState& frame
+) {
+    float x = (static_cast<float>(column) + 0.5f) /
+        static_cast<float>(effect.stroboPanelColumns);
+    float y = (static_cast<float>(localRow) + 0.5f) /
+        static_cast<float>(effect.stroboPanelRows);
+    ApplyPanelDirection(panel.direction, x, y);
+
+    float densityX = 1.0f, densityY = 1.0f;
+    ResolvePanelDensity(panel, effect.stroboPanelColumns,
+        effect.stroboPanelRows, densityX, densityY);
+    x = Clamp01((x - 0.5f) * densityX + 0.5f);
+    y = Clamp01((y - 0.5f) * densityY + 0.5f);
+
+    const float phase = Wrap01(frame.phase + panel.phaseOffset);
+    return EvaluateMotionIntensity(
+        panel.motionPattern, x, y, phase,
+        column, localRow,
+        effect.stroboPanelColumns, effect.stroboPanelRows
+    );
+}
+
 uint8_t ClampColor(float value) {
     if (value < 0.0f) value = 0.0f;
     if (value > 255.0f) value = 255.0f;
@@ -1313,9 +1406,14 @@ bool MatrixAnimationEngine::EvaluatePixel(
         break;
 
     case LedEffectType::StroboWave: {
-        // Keep the strobe cadence, but remove its hidden LTR spatial head.
-        const bool flashOn = localMotionFrame.phase < 0.5f;
-        intensity = flashOn ? 1.0f : 0.0f;
+        const uint32_t period = std::max<uint32_t>(100u,
+            std::min<uint32_t>(5000u, effect.stroboFlashPeriodMs));
+        const float offset = effect.stroboPanels[0].phaseOffset;
+        const int64_t shifted = static_cast<int64_t>(timeMs) +
+            static_cast<int64_t>(offset * static_cast<float>(period));
+        const uint32_t phaseMs = static_cast<uint32_t>(
+            (shifted % static_cast<int64_t>(period) + period) % period);
+        intensity = phaseMs < period / 2u ? 1.0f : 0.0f;
         break;
     }
 
@@ -1588,12 +1686,35 @@ bool MatrixAnimationEngine::EvaluatePixel(
         effect.type == LedEffectType::RunningText
             ? effect.motionPattern
             : localMotionFrame.pattern;
-    if (effect.type != LedEffectType::StroboEyes &&
+    if (effect.type == LedEffectType::StroboWave) {
+        const uint32_t stride = static_cast<uint32_t>(effect.stroboPanelRows) +
+            effect.stroboPanelGapRows;
+        const uint32_t panelIndex = stride == 0 ? 99u : row / stride;
+        const uint32_t localRow = stride == 0 ? 0u : row % stride;
+        if (panelIndex >= effect.stroboPanelCount ||
+            panelIndex >= effect.stroboPanels.size() ||
+            localRow >= effect.stroboPanelRows ||
+            column >= effect.stroboPanelColumns ||
+            !effect.stroboPanels[panelIndex].enabled) {
+            intensity = 0.0f;
+        } else {
+            const StroboWavePanelConfig& panel = effect.stroboPanels[panelIndex];
+            const uint32_t period = std::max<uint32_t>(100u,
+                std::min<uint32_t>(5000u, effect.stroboFlashPeriodMs));
+            const int64_t shifted = static_cast<int64_t>(timeMs) +
+                static_cast<int64_t>(panel.phaseOffset * static_cast<float>(period));
+            const uint32_t phaseMs = static_cast<uint32_t>(
+                (shifted % static_cast<int64_t>(period) + period) % period);
+            const float flash = phaseMs < period / 2u ? 1.0f : 0.0f;
+            intensity *= flash * EvaluatePanelMotion(
+                effect, panel, column, static_cast<uint16_t>(localRow),
+                timeMs, localMotionFrame
+            );
+        }
+    } else if (effect.type != LedEffectType::StroboEyes &&
         (effect.type != LedEffectType::RunningText ||
          activePattern == LedMotionPattern::LaserWrite ||
          activePattern == LedMotionPattern::LaserWeld)) {
-        // Use the frame snapshot's master phase. A per-pixel speed multiplier
-        // remains available for custom matrix pixels without reselecting patterns.
         const float phase = localMotionFrame.phase;
         const bool verticalText =
             effect.textMotion == RunningTextMotion::ScrollUp ||
