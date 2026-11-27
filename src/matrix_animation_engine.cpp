@@ -570,16 +570,14 @@ void ApplyCustomTexture(
             float gazeY = 0.0f;
             ResolveEyeGaze(effect, timeMs, speed, eyeMotion, gazeX, gazeY);
 
-            // One calibrated iris mask moves as a single layer. The pupil is
-            // carried by the iris artwork, so it cannot drift independently.
-            const float moveX = gazeX * irisRadiusX * 0.82f;
-            const float moveY = gazeY * irisRadiusY * 0.82f;
+            const float irisMoveX = gazeX * irisRadiusX * 0.68f;
+            const float irisMoveY = gazeY * irisRadiusY * 0.68f;
             const float sourceDx = (localU - irisCenterX) / irisRadiusX;
             const float sourceDy = (v - irisCenterY) / irisRadiusY;
             const float destinationDx =
-                (localU - irisCenterX - moveX) / irisRadiusX;
+                (localU - irisCenterX - irisMoveX) / irisRadiusX;
             const float destinationDy =
-                (v - irisCenterY - moveY) / irisRadiusY;
+                (v - irisCenterY - irisMoveY) / irisRadiusY;
             const bool inSourceIris =
                 sourceDx * sourceDx + sourceDy * sourceDy <= 1.0f;
             const bool inDestinationIris =
@@ -589,22 +587,88 @@ void ApplyCustomTexture(
             float sampleLocalU = localU;
             float sampleV = v;
             if (inDestinationIris) {
-                // Inverse translation samples the original iris at its new
-                // location without stretching or reversing its texture.
-                sampleLocalU = localU - moveX;
-                sampleV = v - moveY;
+                sampleLocalU = localU - irisMoveX;
+                sampleV = v - irisMoveY;
             } else if (inSourceIris) {
-                // Reveal a nearby sclera sample where the iris used to be.
-                // This is a conservative patch for flattened art, not a
-                // claim of perfect layer separation or arbitrary inpainting.
-                const float length = std::sqrt(
-                    sourceDx * sourceDx + sourceDy * sourceDy
-                );
-                const float scale = length > 0.0001f
-                    ? 1.06f / length : 1.06f;
+                // Approximate the exposed sclera from the nearest clean ring.
+                // The original flattened pixels contain no hidden background.
+                const float radius = std::sqrt(
+                    sourceDx * sourceDx + sourceDy * sourceDy);
+                const float scale = radius > 0.0001f ? 1.045f / radius : 1.045f;
                 sampleLocalU = irisCenterX + sourceDx * scale * irisRadiusX;
                 sampleV = irisCenterY + sourceDy * scale * irisRadiusY;
             }
+
+            // Find the pupil component belonging to this eye. Its movement is
+            // a second transform layered over the iris, not a whole-texture
+            // zoom or a mirror operation.
+            float pupilCenterX = design ? design->pupilCenterX : irisCenterX;
+            float pupilCenterY = design ? design->pupilCenterY : irisCenterY;
+            float pupilRadiusX = design ? design->pupilRadiusX : 0.0f;
+            float pupilRadiusY = design ? design->pupilRadiusY : 0.0f;
+            bool hasPupil = design != nullptr && design->mappingConfigured &&
+                pupilRadiusX > 0.001f && pupilRadiusY > 0.001f;
+            if (!hasPupil) {
+                const uint8_t pupilLabel = static_cast<uint8_t>(EyeSemanticPart::Pupil);
+                const uint32_t halfStart = leftEye ? 0u : entry->width / 2u;
+                const uint32_t halfEnd = leftEye ? entry->width / 2u : entry->width;
+                const float halfWidth = static_cast<float>(std::max<uint32_t>(1u, halfEnd-halfStart));
+                const EyeComponentBounds* bestPupil = nullptr;
+                float bestDistance = 1000000.0f;
+                for (uint8_t i = 0; i < entry->eyeParts.componentCount[pupilLabel]; ++i) {
+                    const EyeComponentBounds& candidate = entry->eyeParts.components[pupilLabel][i];
+                    if (candidate.centerX < halfStart || candidate.centerX >= halfEnd)
+                        continue;
+                    const float cx = (candidate.centerX + 0.5f - halfStart) / halfWidth;
+                    const float cy = (candidate.centerY + 0.5f) / entry->height;
+                    const float dx = (cx - irisCenterX) / irisRadiusX;
+                    const float dy = (cy - irisCenterY) / irisRadiusY;
+                    const float distance = dx * dx + dy * dy;
+                    if (distance < 0.70f && distance < bestDistance) {
+                        bestDistance = distance;
+                        bestPupil = &candidate;
+                    }
+                }
+                if (bestPupil != nullptr && bestPupil->pixels >= 2u) {
+                    pupilCenterX = (bestPupil->centerX + 0.5f - halfStart) / halfWidth;
+                    pupilCenterY = (bestPupil->centerY + 0.5f) / entry->height;
+                    pupilRadiusX = std::max(0.008f,
+                        static_cast<float>(bestPupil->maxX-bestPupil->minX+1u) /
+                        (2.0f * halfWidth));
+                    pupilRadiusY = std::max(0.008f,
+                        static_cast<float>(bestPupil->maxY-bestPupil->minY+1u) /
+                        (2.0f * entry->height));
+                    hasPupil = true;
+                }
+            }
+
+            if (hasPupil) {
+                // The iris follows 68% of the gaze vector; the pupil receives
+                // the remaining 32%, allowing a distinct pupil-in-iris shift.
+                const float pupilExtraX = gazeX * irisRadiusX * 0.32f;
+                const float pupilExtraY = gazeY * irisRadiusY * 0.32f;
+                const float pupilDestX = pupilCenterX + irisMoveX + pupilExtraX;
+                const float pupilDestY = pupilCenterY + irisMoveY + pupilExtraY;
+                const float pdx = (localU - pupilDestX) / pupilRadiusX;
+                const float pdy = (v - pupilDestY) / pupilRadiusY;
+                const bool inDestinationPupil = pdx*pdx + pdy*pdy <= 1.0f;
+                const float sourcePdx = (localU - (pupilCenterX + irisMoveX)) / pupilRadiusX;
+                const float sourcePdy = (v - (pupilCenterY + irisMoveY)) / pupilRadiusY;
+                const bool inOldPupil = sourcePdx*sourcePdx + sourcePdy*sourcePdy <= 1.0f;
+                if (inDestinationPupil) {
+                    sampleLocalU = localU - irisMoveX - pupilExtraX;
+                    sampleV = v - irisMoveY - pupilExtraY;
+                } else if (inOldPupil) {
+                    // Reveal nearby iris color where the pupil used to be.
+                    const float radius = std::sqrt(sourcePdx*sourcePdx + sourcePdy*sourcePdy);
+                    const float scale = radius > 0.0001f ? 1.06f/radius : 1.06f;
+                    sampleLocalU = pupilCenterX + irisMoveX +
+                        sourcePdx * scale * pupilRadiusX - irisMoveX;
+                    sampleV = pupilCenterY + irisMoveY +
+                        sourcePdy * scale * pupilRadiusY - irisMoveY;
+                }
+            }
+
             sampleLocalU = Clamp01(sampleLocalU);
             sampleV = Clamp01(sampleV);
             u = leftEye
