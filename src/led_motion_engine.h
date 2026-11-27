@@ -46,7 +46,7 @@ inline LedMotionPattern ResolveMotionPattern(
         return effect.motionPattern;
     const uint32_t interval = intervalMs < 500 ? 500 : intervalMs;
     const uint32_t step = timeMs / interval;
-    const uint32_t count = static_cast<uint32_t>(LedMotionPattern::TriangleOrbit) + 1u;
+    const uint32_t count = static_cast<uint32_t>(LedMotionPattern::SegmentedCenterExpand) + 1u;
     if (playback == MotionPlaybackMode::Sequential)
         return static_cast<LedMotionPattern>(step % count);
     if (playback == MotionPlaybackMode::Automatic) {
@@ -80,7 +80,10 @@ inline LedMotionPattern ResolveMotionPattern(
             LedMotionPattern::CircleExpand, LedMotionPattern::CircleCollapse,
             LedMotionPattern::TriangleConverge, LedMotionPattern::TriangleOrbit,
             LedMotionPattern::RightToLeft, LedMotionPattern::EdgeToCenter,
-            LedMotionPattern::ZoomOut, LedMotionPattern::Flow
+            LedMotionPattern::ZoomOut, LedMotionPattern::Flow,
+            LedMotionPattern::MultiLineFlutter, LedMotionPattern::TriangleFanSweep,
+            LedMotionPattern::DiagonalXCross, LedMotionPattern::MultiAxisCenterBurst,
+            LedMotionPattern::TripleMirrorWave, LedMotionPattern::SegmentedCenterExpand
         };
         const uint32_t size = static_cast<uint32_t>(sizeof(automaticOrder) / sizeof(automaticOrder[0]));
         return automaticOrder[step % size];
