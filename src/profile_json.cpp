@@ -777,6 +777,62 @@ static bool ReadEffect(
         return false;
     }
 
+    if (Find(value, "stroboPanelCount")) {
+        if (!ReadUInt8(value, "stroboPanelCount", effect.stroboPanelCount) ||
+            (effect.stroboPanelCount != 3 && effect.stroboPanelCount != 5 &&
+             effect.stroboPanelCount != 7))
+            return false;
+    }
+    if (Find(value, "stroboPanelColumns") &&
+        !ReadUInt16(value, "stroboPanelColumns", effect.stroboPanelColumns))
+        return false;
+    if (Find(value, "stroboPanelRows") &&
+        !ReadUInt16(value, "stroboPanelRows", effect.stroboPanelRows))
+        return false;
+    if (Find(value, "stroboPanelGapRows") &&
+        !ReadUInt8(value, "stroboPanelGapRows", effect.stroboPanelGapRows))
+        return false;
+    if (Find(value, "stroboFlashPeriodMs") &&
+        !ReadUInt32(value, "stroboFlashPeriodMs", effect.stroboFlashPeriodMs))
+        return false;
+    if (effect.stroboPanelColumns == 0 || effect.stroboPanelColumns > 256 ||
+        effect.stroboPanelRows == 0 || effect.stroboPanelRows > 64 ||
+        effect.stroboPanelGapRows > 16 ||
+        effect.stroboFlashPeriodMs < 100 || effect.stroboFlashPeriodMs > 5000)
+        return false;
+    const JsonValue* stroboPanels = Find(value, "stroboPanels");
+    if (stroboPanels != nullptr) {
+        if (stroboPanels->type != JsonValue::Array ||
+            stroboPanels->array.size() != 7)
+            return false;
+        for (size_t i = 0; i < 7; ++i) {
+            const JsonValue& item = stroboPanels->array[i];
+            if (item.type != JsonValue::Object)
+                return false;
+            StroboWavePanelConfig& panel = effect.stroboPanels[i];
+            int pattern = static_cast<int>(panel.motionPattern);
+            int direction = static_cast<int>(panel.direction);
+            int density = static_cast<int>(panel.densityMode);
+            if (!ReadBool(item, "enabled", panel.enabled) ||
+                !ReadInt(item, "motionPattern", pattern) ||
+                pattern < 0 || pattern > static_cast<int>(LedMotionPattern::CenterAnchoredSideSlider) ||
+                !ReadInt(item, "direction", direction) ||
+                direction < 0 || direction > static_cast<int>(LedColorDirection::EdgeToCenter) ||
+                !ReadInt(item, "densityMode", density) ||
+                density < 0 || density > static_cast<int>(MotionDensityMode::Custom) ||
+                !ReadOptionalFloat(item, "densityX", panel.densityX) ||
+                !ReadOptionalFloat(item, "densityY", panel.densityY) ||
+                !ReadOptionalFloat(item, "phaseOffset", panel.phaseOffset) ||
+                !std::isfinite(panel.densityX) || panel.densityX < 0.25f || panel.densityX > 4.0f ||
+                !std::isfinite(panel.densityY) || panel.densityY < 0.25f || panel.densityY > 4.0f ||
+                !std::isfinite(panel.phaseOffset) || panel.phaseOffset < -1.0f || panel.phaseOffset > 1.0f)
+                return false;
+            panel.motionPattern = static_cast<LedMotionPattern>(pattern);
+            panel.direction = static_cast<LedColorDirection>(direction);
+            panel.densityMode = static_cast<MotionDensityMode>(density);
+        }
+    }
+
     int colorMode = static_cast<int>(effect.colorMode);
     int motionPattern = static_cast<int>(effect.motionPattern);
     if (!ReadInt(value, "colorMode", colorMode) ||
@@ -1555,6 +1611,43 @@ static bool AppendEffect(
     AppendInt(output, static_cast<int>(effect.motionPlayback));
     output += ",\"motionIntervalMs\":";
     AppendUInt(output, effect.motionIntervalMs);
+    output += ",\"stroboPanelCount\":";
+    AppendUInt(output, effect.stroboPanelCount);
+    output += ",\"stroboPanelColumns\":";
+    AppendUInt(output, effect.stroboPanelColumns);
+    output += ",\"stroboPanelRows\":";
+    AppendUInt(output, effect.stroboPanelRows);
+    output += ",\"stroboPanelGapRows\":";
+    AppendUInt(output, effect.stroboPanelGapRows);
+    output += ",\"stroboFlashPeriodMs\":";
+    AppendUInt(output, effect.stroboFlashPeriodMs);
+    output += ",\"stroboPanels\":[";
+    for (size_t i = 0; i < effect.stroboPanels.size(); ++i) {
+        if (i) output += ",";
+        const StroboWavePanelConfig& panel = effect.stroboPanels[i];
+        if (!std::isfinite(panel.densityX) || !std::isfinite(panel.densityY) ||
+            !std::isfinite(panel.phaseOffset) ||
+            panel.densityX < 0.25f || panel.densityX > 4.0f ||
+            panel.densityY < 0.25f || panel.densityY > 4.0f ||
+            panel.phaseOffset < -1.0f || panel.phaseOffset > 1.0f)
+            return false;
+        output += "{\"enabled\":";
+        output += panel.enabled ? "true" : "false";
+        output += ",\"motionPattern\":";
+        AppendInt(output, static_cast<int>(panel.motionPattern));
+        output += ",\"direction\":";
+        AppendInt(output, static_cast<int>(panel.direction));
+        output += ",\"densityMode\":";
+        AppendInt(output, static_cast<int>(panel.densityMode));
+        output += ",\"densityX\":";
+        if (!AppendFloat(output, panel.densityX)) return false;
+        output += ",\"densityY\":";
+        if (!AppendFloat(output, panel.densityY)) return false;
+        output += ",\"phaseOffset\":";
+        if (!AppendFloat(output, panel.phaseOffset)) return false;
+        output += "}";
+    }
+    output += "]";
 
     output += ",\"secondaryRed\":";
     AppendUInt(output, effect.secondaryRed);
