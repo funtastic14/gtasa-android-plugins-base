@@ -13,6 +13,7 @@ struct NativeLightRenderStats {
     uint32_t lightingPatches = 0;
     uint32_t frontPatches = 0;
     uint32_t rearPatches = 0;
+    uint32_t unclassifiedSidePatches = 0;
     uint32_t sideDisabled = 0;
     uint32_t missingMesh = 0;
     uint32_t invalidGeometry = 0;
