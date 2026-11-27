@@ -794,7 +794,11 @@ static void AnalyzeVehicleSpaceMeshes(
     }
 }
 
-static std::string SurfaceRoleHint(const AtomicGeometryInfo& info, const GlassPart& part) {
+static std::string SurfaceRoleHint(
+    const AtomicGeometryInfo& info,
+    const GlassPart& part,
+    bool textureNameMode
+) {
     std::string frameName = info.frameName;
     std::transform(frameName.begin(), frameName.end(), frameName.begin(),
         [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
@@ -902,7 +906,8 @@ static std::string SurfaceRoleHint(const AtomicGeometryInfo& info, const GlassPa
         part.triangles <= 384u;
     const bool eligibleLampIsland = bodyFrame
         ? (nativeLampTexture && compactBodyLampIsland)
-        : (compactLampIsland && (nativeLampTexture || namedLampFrame));
+        : (compactLampIsland &&
+           (nativeLampTexture || (!textureNameMode && namedLampFrame)));
     if (eligibleLampIsland && nearFrontOrRearEnd)
         return "LIGHTING_CANDIDATE";
 
@@ -1320,7 +1325,8 @@ static SurfaceRoleCandidate ToSurfaceRole(const std::string& hint) {
 
 static std::vector<SurfacePatch> BuildSurfacePatches(
     const std::vector<AtomicGeometryInfo>& details,
-    const std::vector<AtomicMesh>& meshes
+    const std::vector<AtomicMesh>& meshes,
+    bool textureNameMode
 ) {
     std::vector<SurfacePatch> patches;
     std::unordered_map<uint32_t, const AtomicMesh*> meshByAtomic;
@@ -1345,7 +1351,9 @@ static std::vector<SurfacePatch> BuildSurfacePatches(
             patch.atomicIndex = info.atomicIndex;
             patch.materialIndex = materialIndex;
             patch.frameName = info.frameName;
-            patch.role = ToSurfaceRole(SurfaceRoleHint(info, part));
+            patch.role = ToSurfaceRole(
+                SurfaceRoleHint(info, part, textureNameMode)
+            );
             patch.triangleIndices = part.triangleIndices;
             patch.centroid = {part.cx, part.cy, part.cz};
             patch.normal = {part.nx, part.ny, part.nz};
@@ -1424,7 +1432,8 @@ static void SaveDiagnosticReport(
 bool VehicleGeometryReader::Scan(
     CVehicle* vehicle,
     int modelId,
-    GeometryScanStats& stats
+    GeometryScanStats& stats,
+    bool textureNameMode
 ) {
     stats = GeometryScanStats{};
 
@@ -1572,7 +1581,8 @@ bool VehicleGeometryReader::Scan(
     );
 
     // Build surface patches while diagnostic geometry metadata is still available.
-    std::vector<SurfacePatch> surfacePatches = BuildSurfacePatches(details, meshes);
+    std::vector<SurfacePatch> surfacePatches =
+        BuildSurfacePatches(details, meshes, textureNameMode);
 
     // Replace caches only after the scan and patch extraction are complete.
     g_cachedMeshes.swap(meshes);
@@ -1633,7 +1643,8 @@ bool VehicleGeometryReader::ScanIncremental(
     CVehicle* vehicle,
     int modelId,
     GeometryScanStats& stats,
-    bool& complete
+    bool& complete,
+    bool textureNameMode
 ) {
     complete = false;
     stats = GeometryScanStats{};
