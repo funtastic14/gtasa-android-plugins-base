@@ -797,7 +797,7 @@ static void AnalyzeVehicleSpaceMeshes(
 static std::string SurfaceRoleHint(
     const AtomicGeometryInfo& info,
     const GlassPart& part,
-    bool textureNameMode
+    bool textureNameMode = false
 ) {
     std::string frameName = info.frameName;
     std::transform(frameName.begin(), frameName.end(), frameName.begin(),
@@ -2544,7 +2544,7 @@ bool VehicleGeometryReader::ScanIncremental(
             patch.materialIndex = materialIndex;
             patch.frameName = state.currentInfo.frameName;
             patch.role = ToSurfaceRole(
-                SurfaceRoleHint(state.currentInfo, part)
+                SurfaceRoleHint(state.currentInfo, part, textureNameMode)
             );
             patch.triangleIndices =
                 std::move(part.triangleIndices);
