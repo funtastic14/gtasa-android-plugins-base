@@ -519,10 +519,28 @@ static bool RenderMatrixEffect(
     static std::vector<RwImVertexIndex> indices;
     vertices.clear();
     indices.clear();
-    if (vertices.capacity() < pixelCount * 4)
-        vertices.reserve(pixelCount * 4);
-    if (indices.capacity() < pixelCount * 6)
-        indices.reserve(pixelCount * 6);
+    uint32_t verticesPerPixel = 4;
+    uint32_t indicesPerPixel = 6;
+    switch (effect.elementShape) {
+    case LedElementShape::CircleFilled:
+        verticesPerPixel = 17; indicesPerPixel = 48; break;
+    case LedElementShape::CircleOutline:
+        verticesPerPixel = 32; indicesPerPixel = 96; break;
+    case LedElementShape::Diamond:
+        verticesPerPixel = 5; indicesPerPixel = 12; break;
+    case LedElementShape::Triangle:
+        verticesPerPixel = 4; indicesPerPixel = 9; break;
+    case LedElementShape::Hexagon:
+        verticesPerPixel = 7; indicesPerPixel = 18; break;
+    case LedElementShape::Octagon:
+        verticesPerPixel = 9; indicesPerPixel = 24; break;
+    default:
+        break;
+    }
+    if (vertices.capacity() < pixelCount * verticesPerPixel)
+        vertices.reserve(pixelCount * verticesPerPixel);
+    if (indices.capacity() < pixelCount * indicesPerPixel)
+        indices.reserve(pixelCount * indicesPerPixel);
 
     // Resolve and decode the selected eye art once per placement, before
     // entering the per-pixel hot loop. Texture changes may load here, never
@@ -589,6 +607,10 @@ static bool RenderMatrixEffect(
                 (left + right) * 0.5f, (top + bottom) * 0.5f,
                 (right - left) * 0.5f, (top - bottom) * 0.5f, t.y,
                 local, shapeIndices, shapeVertexCount, shapeIndexCount);
+            // RenderWare uses 16-bit indices. Reject an oversized mesh safely
+            // rather than allowing index wrap on very dense custom matrices.
+            if (vertices.size() + shapeVertexCount > 65536u)
+                return false;
             for (uint32_t v = 0; v < shapeVertexCount; ++v) {
                 CVector world = TransformPlacementPoint(local[v], t, matrix);
                 RwIm3DVertex vertex;
