@@ -19,6 +19,7 @@
 #include <cctype>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <iomanip>
 #include <limits>
 #include <sstream>
