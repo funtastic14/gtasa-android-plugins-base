@@ -235,13 +235,33 @@ static std::string ReadTextureName(const char* name) {
 }
 
 static bool IsNativeLightingTexture(const std::string& name) {
+    if (name.empty())
+        return false;
+
     std::string normalized = name;
     std::transform(normalized.begin(), normalized.end(), normalized.begin(),
         [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    return normalized.find("vehiclelight") != std::string::npos ||
-           normalized.find("headlight") != std::string::npos ||
-           normalized.find("taillight") != std::string::npos ||
-           normalized.find("indicator") != std::string::npos;
+
+    // Match only the known GTA lamp-atlas families. A vehicle-specific
+    // variant must use an underscore separator and a non-empty model suffix:
+    // vehiclelights128, vehiclelights128_solair,
+    // vehiclelightson128_greenwoo, or the singular custom variant.
+    static const char* const prefixes[] = {
+        "vehiclelight128",
+        "vehiclelights128",
+        "vehiclelightson128"
+    };
+    for (const char* prefix : prefixes) {
+        const size_t length = std::strlen(prefix);
+        if (normalized == prefix)
+            return true;
+        if (normalized.size() > length &&
+            normalized.compare(0, length, prefix) == 0 &&
+            normalized[length] == '_' &&
+            normalized.size() > length + 1u)
+            return true;
+    }
+    return false;
 }
 
 static bool IsFiniteVertex(const RwV3d& vertex) {
@@ -816,16 +836,9 @@ static std::string SurfaceRoleHint(const AtomicGeometryInfo& info, const GlassPa
     // standard lamp atlas name (for example vehiclelights128_solair or
     // vehiclelights128_greenwoo). Accept only the known atlas base followed
     // by end-of-name or an underscore; do not match arbitrary body textures.
-    const auto isLampAtlasVariant = [](const std::string& name) {
-        return name == "vehiclelights128" ||
-               name.compare(0, 16, "vehiclelights128") == 0 &&
-                   (name.size() == 16u || name[16] == '_') ||
-               name == "vehiclelightson128" ||
-               name.compare(0, 18, "vehiclelightson128") == 0 &&
-                   (name.size() == 18u || name[18] == '_');
-    };
     const bool nativeLampTexture =
-        isLampAtlasVariant(textureName) || isLampAtlasVariant(maskName);
+        IsNativeLightingTexture(textureName) ||
+        IsNativeLightingTexture(maskName);
     const float ax = std::fabs(part.nx);
     const float ay = std::fabs(part.ny);
     const float az = std::fabs(part.nz);
