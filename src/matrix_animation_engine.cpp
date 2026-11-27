@@ -514,6 +514,56 @@ TextureCacheEntry* GetOrLoadCustomTexture(
         return entry;
 }
 
+
+bool FindSemanticRingSample(
+    const TextureCacheEntry* entry,
+    bool pairedEyes,
+    bool leftEye,
+    uint8_t targetLabel,
+    float centerX,
+    float centerY,
+    float directionX,
+    float directionY,
+    float radiusX,
+    float radiusY,
+    float& resultU,
+    float& resultV
+) {
+    if (entry == nullptr || entry->width == 0 || entry->height == 0 ||
+        entry->eyeParts.labels.empty())
+        return false;
+    const float directionLength = std::sqrt(
+        directionX * directionX + directionY * directionY);
+    if (directionLength < 0.0001f)
+        return false;
+    directionX /= directionLength;
+    directionY /= directionLength;
+    for (uint8_t probe = 0; probe < 8; ++probe) {
+        const float scale = 1.10f + 0.16f * probe;
+        const float candidateU = centerX + directionX * scale * radiusX;
+        const float candidateV = centerY + directionY * scale * radiusY;
+        if (candidateU <= 0.0f || candidateU >= 1.0f ||
+            candidateV <= 0.0f || candidateV >= 1.0f)
+            continue;
+        const float fullU = !pairedEyes ? candidateU :
+            (leftEye ? candidateU * 0.5f : 0.5f + candidateU * 0.5f);
+        const uint32_t px = std::min<uint32_t>(
+            entry->width - 1u,
+            static_cast<uint32_t>(fullU * entry->width));
+        const uint32_t py = std::min<uint32_t>(
+            entry->height - 1u,
+            static_cast<uint32_t>(candidateV * entry->height));
+        const size_t labelIndex = static_cast<size_t>(py) * entry->width + px;
+        if (labelIndex < entry->eyeParts.labels.size() &&
+            entry->eyeParts.labels[labelIndex] == targetLabel) {
+            resultU = candidateU;
+            resultV = candidateV;
+            return true;
+        }
+    }
+    return false;
+}
+
 void ApplyCustomTexture(
     const LedEffectConfig& effect,
     const std::string& textureName,
@@ -684,53 +734,6 @@ void ApplyCustomTexture(
             // Prefer a nearby pixel already classified as sclera. This lookup
             // is bounded to eight probes and runs only for pixels in the old
             // iris footprint; no per-frame buffer or allocation is needed.
-            const auto findSemanticRingSample = [&](
-                uint8_t targetLabel,
-                float centerX,
-                float centerY,
-                float directionX,
-                float directionY,
-                float radiusX,
-                float radiusY,
-                float& resultU,
-                float& resultV
-            ) {
-                const float directionLength = std::sqrt(
-                    directionX * directionX + directionY * directionY);
-                if (directionLength < 0.0001f ||
-                    entry->eyeParts.labels.empty())
-                    return false;
-                directionX /= directionLength;
-                directionY /= directionLength;
-                for (uint8_t probe = 0; probe < 8; ++probe) {
-                    const float scale = 1.10f + 0.16f * probe;
-                    const float candidateU =
-                        centerX + directionX * scale * radiusX;
-                    const float candidateV =
-                        centerY + directionY * scale * radiusY;
-                    if (candidateU <= 0.0f || candidateU >= 1.0f ||
-                        candidateV <= 0.0f || candidateV >= 1.0f)
-                        continue;
-                    const float fullU = !pairedEyes ? candidateU :
-                        (leftEye ? candidateU * 0.5f :
-                            0.5f + candidateU * 0.5f);
-                    const uint32_t px = std::min<uint32_t>(
-                        entry->width - 1u,
-                        static_cast<uint32_t>(fullU * entry->width));
-                    const uint32_t py = std::min<uint32_t>(
-                        entry->height - 1u,
-                        static_cast<uint32_t>(candidateV * entry->height));
-                    const size_t labelIndex =
-                        static_cast<size_t>(py) * entry->width + px;
-                    if (labelIndex < entry->eyeParts.labels.size() &&
-                        entry->eyeParts.labels[labelIndex] == targetLabel) {
-                        resultU = candidateU;
-                        resultV = candidateV;
-                        return true;
-                    }
-                }
-                return false;
-            };
             if (inDestinationIris) {
                 sampleLocalU = localU - irisMoveX;
                 sampleV = v - irisMoveY;
@@ -738,7 +741,7 @@ void ApplyCustomTexture(
                 // Reconstruct the exposed sclera from a classified clean
                 // sample, falling back to the old radial estimate if semantic
                 // detection is inconclusive for this particular texture.
-                if (!findSemanticRingSample(
+                if (!FindSemanticRingSample(entry, pairedEyes, leftEye,
                         static_cast<uint8_t>(EyeSemanticPart::Sclera),
                         irisCenterX, irisCenterY, sourceDx, sourceDy,
                         irisRadiusX, irisRadiusY,
@@ -823,7 +826,7 @@ void ApplyCustomTexture(
                     // fixed ring that may still contain the old dark pupil.
                     // The search is bounded and uses the same cached semantic
                     // labels as the iris-to-sclera repair above.
-                    if (!findSemanticRingSample(
+                    if (!FindSemanticRingSample(entry, pairedEyes, leftEye,
                             static_cast<uint8_t>(EyeSemanticPart::Iris),
                             pupilCenterX + irisMoveX,
                             pupilCenterY + irisMoveY,
