@@ -340,6 +340,88 @@ static void SetVertex(
     vertex.v = 0.0f;
 }
 
+
+// Build a compact polygon mesh for one LED element. The placement/panel
+// rectangle is unchanged; only the geometry inside each cell is shaped.
+static void BuildElementGeometry(
+    LedElementShape shape,
+    float centerX,
+    float centerZ,
+    float halfWidth,
+    float halfHeight,
+    float y,
+    CVector outVertices[32],
+    RwImVertexIndex outIndices[96],
+    uint32_t& vertexCount,
+    uint32_t& indexCount
+) {
+    static const float unitX[16] = {
+        1.0f, 0.92388f, 0.707107f, 0.382683f,
+        0.0f, -0.382683f, -0.707107f, -0.92388f,
+        -1.0f, -0.92388f, -0.707107f, -0.382683f,
+        0.0f, 0.382683f, 0.707107f, 0.92388f
+    };
+    static const float unitZ[16] = {
+        0.0f, 0.382683f, 0.707107f, 0.92388f,
+        1.0f, 0.92388f, 0.707107f, 0.382683f,
+        0.0f, -0.382683f, -0.707107f, -0.92388f,
+        -1.0f, -0.92388f, -0.707107f, -0.382683f
+    };
+    vertexCount = 0;
+    indexCount = 0;
+    auto add = [&](float x, float z) {
+        outVertices[vertexCount++] = CVector(centerX + x * halfWidth, y,
+                                             centerZ + z * halfHeight);
+    };
+    auto triangle = [&](uint32_t a, uint32_t b, uint32_t c) {
+        outIndices[indexCount++] = static_cast<RwImVertexIndex>(a);
+        outIndices[indexCount++] = static_cast<RwImVertexIndex>(b);
+        outIndices[indexCount++] = static_cast<RwImVertexIndex>(c);
+    };
+    if (shape == LedElementShape::Square) {
+        add(-1.0f, -1.0f); add(1.0f, -1.0f);
+        add(1.0f, 1.0f); add(-1.0f, 1.0f);
+        triangle(0, 1, 2); triangle(0, 2, 3);
+        return;
+    }
+    if (shape == LedElementShape::Diamond ||
+        shape == LedElementShape::Triangle ||
+        shape == LedElementShape::Hexagon ||
+        shape == LedElementShape::Octagon) {
+        uint32_t count = 4;
+        static const uint8_t diamond[4] = {0, 4, 8, 12};
+        static const uint8_t trianglePoints[3] = {0, 5, 11};
+        static const uint8_t hexagon[6] = {0, 3, 5, 8, 11, 13};
+        static const uint8_t octagon[8] = {0, 2, 4, 6, 8, 10, 12, 14};
+        const uint8_t* points = diamond;
+        if (shape == LedElementShape::Triangle) { count = 3; points = trianglePoints; }
+        else if (shape == LedElementShape::Hexagon) { count = 6; points = hexagon; }
+        else if (shape == LedElementShape::Octagon) { count = 8; points = octagon; }
+        add(0.0f, 0.0f);
+        for (uint32_t i = 0; i < count; ++i)
+            add(unitX[points[i]], unitZ[points[i]]);
+        for (uint32_t i = 0; i < count; ++i)
+            triangle(0, i + 1, ((i + 1) % count) + 1);
+        return;
+    }
+    if (shape == LedElementShape::CircleOutline) {
+        for (uint32_t i = 0; i < 16; ++i) add(unitX[i], unitZ[i]);
+        for (uint32_t i = 0; i < 16; ++i)
+            add(unitX[i] * 0.68f, unitZ[i] * 0.68f);
+        for (uint32_t i = 0; i < 16; ++i) {
+            const uint32_t next = (i + 1) % 16;
+            triangle(i, next, 16 + next);
+            triangle(i, 16 + next, 16 + i);
+        }
+        return;
+    }
+    // Filled circle (16-sided disc).
+    add(0.0f, 0.0f);
+    for (uint32_t i = 0; i < 16; ++i) add(unitX[i], unitZ[i]);
+    for (uint32_t i = 0; i < 16; ++i)
+        triangle(0, i + 1, ((i + 1) % 16) + 1);
+}
+
 static MotionPlaybackMode GetPlacementMotionPlayback(const LedPlacement& placement) {
     switch (placement.animationMode) {
     case 1: return MotionPlaybackMode::Automatic;
@@ -499,27 +581,23 @@ static bool RenderMatrixEffect(
                     transitionCoverage = 1.0f - transitionCoverage;
             }
 
-            CVector local[4];
-            local[0] = {left,  t.y, bottom};
-            local[1] = {right, t.y, bottom};
-            local[2] = {right, t.y, top};
-            local[3] = {left,  t.y, top};
-
-            for (uint32_t v = 0; v < 4; ++v) {
+            CVector local[32];
+            RwImVertexIndex shapeIndices[96];
+            uint32_t shapeVertexCount = 0;
+            uint32_t shapeIndexCount = 0;
+            BuildElementGeometry(effect.elementShape,
+                (left + right) * 0.5f, (top + bottom) * 0.5f,
+                (right - left) * 0.5f, (top - bottom) * 0.5f, t.y,
+                local, shapeIndices, shapeVertexCount, shapeIndexCount);
+            for (uint32_t v = 0; v < shapeVertexCount; ++v) {
                 CVector world = TransformPlacementPoint(local[v], t, matrix);
                 RwIm3DVertex vertex;
-                SetVertex(vertex, world, red, green, blue, ClampColor(output.alpha * TransitionEngine::Clamp01(alphaCoverage * transitionCoverage)));
+                SetVertex(vertex, world, red, green, blue,
+                    ClampColor(output.alpha * TransitionEngine::Clamp01(alphaCoverage * transitionCoverage)));
                 vertices.push_back(vertex);
             }
-
-            const RwImVertexIndex base =
-                static_cast<RwImVertexIndex>(vertexBase);
-            indices.push_back(base);
-            indices.push_back(static_cast<RwImVertexIndex>(base + 1));
-            indices.push_back(static_cast<RwImVertexIndex>(base + 2));
-            indices.push_back(base);
-            indices.push_back(static_cast<RwImVertexIndex>(base + 2));
-            indices.push_back(static_cast<RwImVertexIndex>(base + 3));
+            for (uint32_t i = 0; i < shapeIndexCount; ++i)
+                indices.push_back(static_cast<RwImVertexIndex>(vertexBase + shapeIndices[i]));
         }
     }
 
