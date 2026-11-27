@@ -2654,12 +2654,19 @@ bool VehicleGeometryReader::ScanIncremental(
                     materialPart.maxZ = -high;
                 materialPart.triangleIndices.reserve(materialCount.second);
 
-                for (uint32_t triangleIndex : part.triangleIndices) {
-                    if (triangleIndex >= mesh.triangles.size())
+                while (materialTriangleCursor < part.triangleIndices.size()) {
+                    const uint32_t triangleIndex =
+                        part.triangleIndices[materialTriangleCursor];
+                    if (triangleIndex >= mesh.triangles.size()) {
+                        ++materialTriangleCursor;
                         continue;
+                    }
                     const GeometryTriangle& triangle =
                         mesh.triangles[triangleIndex];
-                    if (triangle.materialIndex != materialIndex ||
+                    if (triangle.materialIndex > materialIndex)
+                        break;
+                    ++materialTriangleCursor;
+                    if (triangle.materialIndex < materialIndex ||
                         triangle.a >= mesh.vehicleSpaceVertices.size() ||
                         triangle.b >= mesh.vehicleSpaceVertices.size() ||
                         triangle.c >= mesh.vehicleSpaceVertices.size())
