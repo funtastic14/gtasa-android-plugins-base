@@ -1280,7 +1280,7 @@ static void RenderEditor() {
                         changed = true;
                     }
                     if (!selected.mappingConfigured)
-                        ImGui::TextWrapped("No custom UV map yet: the engine will use bounded whole-eye texture movement. Adjust these values to enable independent iris/pupil mapping.");
+                        ImGui::TextWrapped("No manual UV map saved. VLS first attempts conservative detection of sclera, iris, pupil and eyebrow from the PNG. If confidence is insufficient, the artwork stays still; set the iris and pupil UV regions here to calibrate it.");
                 }
             }
         }
@@ -1308,7 +1308,7 @@ static void RenderEditor() {
             }
             ImGui::TextWrapped("Procedural mode: the eye engine draws the iris and pupil and applies gaze movement. The three palettes remain independent.");
         } else {
-            ImGui::TextWrapped("Custom mode preserves PNG/PPM colors and alpha. VLS moves the iris/pupil sampling regions inside the stationary eye artwork and compresses the source vertically for blink. Mapping values are saved with this vehicle profile.");
+            ImGui::TextWrapped("Custom mode preserves PNG/PPM colors and alpha. VLS keeps the eyebrow and eyeball artwork stationary, moves the mapped iris and pupil independently, and closes blink/wink with an aperture mask rather than zooming or compressing the full texture. Mapping values are saved with this vehicle profile.");
             if (ImGui::CollapsingHeader("Custom Eye Mapping")) {
                 ImGui::TextWrapped("Adjust these normalized regions to match the iris and pupil positions in each half of your two-eye PNG.");
                 changed |= ImGui::SliderFloat("Iris Center X", &effect.eyeTextureIrisCenterX, 0.0f, 1.0f);
