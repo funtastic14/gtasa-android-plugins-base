@@ -1560,8 +1560,26 @@ static bool AppendEffect(
             static_cast<int>(LedEffectType::CustomAnimation) ||
         static_cast<int>(effect.elementShape) < 0 ||
         static_cast<int>(effect.elementShape) >
-            static_cast<int>(LedElementShape::Octagon)) {
+            static_cast<int>(LedElementShape::Octagon) ||
+        (effect.stroboPanelCount != 3 && effect.stroboPanelCount != 5 &&
+         effect.stroboPanelCount != 7) ||
+        effect.stroboPanelColumns == 0 || effect.stroboPanelColumns > 256 ||
+        effect.stroboPanelRows == 0 || effect.stroboPanelRows > 64 ||
+        effect.stroboPanelGapRows > 16 ||
+        effect.stroboFlashPeriodMs < 100 || effect.stroboFlashPeriodMs > 5000) {
         return false;
+    }
+    for (const StroboWavePanelConfig& panel : effect.stroboPanels) {
+        if (static_cast<int>(panel.motionPattern) < 0 ||
+            static_cast<int>(panel.motionPattern) >
+                static_cast<int>(LedMotionPattern::CenterAnchoredSideSlider) ||
+            static_cast<int>(panel.direction) < 0 ||
+            static_cast<int>(panel.direction) >
+                static_cast<int>(LedColorDirection::EdgeToCenter) ||
+            static_cast<int>(panel.densityMode) < 0 ||
+            static_cast<int>(panel.densityMode) >
+                static_cast<int>(MotionDensityMode::Custom))
+            return false;
     }
 
     output += "{\"type\":";
