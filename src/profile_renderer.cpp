@@ -997,8 +997,8 @@ static bool RenderEffect(
 
     const bool rendered = RwIm3DRenderIndexedPrimitive(
         rwPRIMTYPETRILIST,
-        indices,
-        indexCount
+        indices.data(),
+        static_cast<RwUInt32>(indices.size())
     );
 
     RwIm3DEnd();
