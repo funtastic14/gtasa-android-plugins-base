@@ -404,6 +404,8 @@ struct NativeVehicleLightConfig {
     bool rgbTaillightsEnabled = false;
     float rgbFlowSpeed = 1.0f;
     float rgbFlowIntensity = 1.0f;
+    // Native RGB is the base lighting layer; placement layers render above it.
+    LedLayerBlendMode blendMode = LedLayerBlendMode::Alpha;
 };
 
 struct VehicleProfile {

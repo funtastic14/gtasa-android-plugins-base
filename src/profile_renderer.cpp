@@ -889,14 +889,12 @@ static uint32_t RenderNativeLightsBatched(
     vertices.clear();
     indices.clear();
 
-    RenderStateGuard stateGuard;
+    RenderStateGuard stateGuard(profile.nativeLights.blendMode);
     RwRenderStateSet(rwRENDERSTATETEXTURERASTER, nullptr);
     RwRenderStateSet(rwRENDERSTATEVERTEXALPHAENABLE, reinterpret_cast<void*>(1));
     RwRenderStateSet(rwRENDERSTATESRCBLEND, reinterpret_cast<void*>(rwBLENDSRCALPHA));
-    // Use color-preserving alpha blending instead of additive blending.
-    // Additive blending combines the bright native lamp texture with RGB
-    // and washes saturated hues toward white (opal/pearl appearance).
-    RwRenderStateSet(rwRENDERSTATEDESTBLEND, reinterpret_cast<void*>(rwBLENDINVSRCALPHA));
+    // RenderStateGuard applies the selected native base-layer blend mode.
+    // Alpha remains the backward-compatible default; Additive is opt-in.
     // Respect the vehicle depth buffer: the RGB overlay must not shine
     // through body panels. Keep depth writes disabled for transparency.
     RwRenderStateSet(rwRENDERSTATEZTESTENABLE, reinterpret_cast<void*>(1));
@@ -1092,6 +1090,7 @@ static uint32_t RenderNativeLightsBatched(
 uint32_t ProfileRenderer::RenderNativeLights(
     CVehicle* vehicle,
     const VehicleProfile& profile,
+    uint32_t frameTimeMs,
     NativeLightRenderStats* stats
 ) {
     if (vehicle == nullptr || !profile.enabled ||
@@ -1105,25 +1104,22 @@ uint32_t ProfileRenderer::RenderNativeLights(
     if (meshes.empty() || patches.empty())
         return 0;
 
-    const uint32_t timeMs = static_cast<uint32_t>(CTimer::GetTimeInMS());
     return RenderNativeLightsBatched(
-        vehicle, profile, meshes, patches, timeMs, stats
+        vehicle, profile, meshes, patches, frameTimeMs, stats
     );
 }
 
 uint32_t ProfileRenderer::RenderVehicleProfile(
     CVehicle* vehicle,
-    const VehicleProfile& profile
+    const VehicleProfile& profile,
+    uint32_t frameTimeMs
 ) {
     if (vehicle == nullptr || !profile.enabled)
         return 0;
 
     uint32_t rendered = 0;
 
-    // Sample the game clock once so every placement and every visual layer
-    // evaluates the same frame timestamp, avoiding phase drift from repeated
-    // timer reads during a single render callback.
-    const uint32_t motionTimeMs = CTimer::GetTimeMS();
+    // The caller supplies one frame timestamp shared with Native RGB.
 
     for (const LedPlacement& placement : profile.placements) {
         if (!placement.enabled || placement.effects.empty())
@@ -1148,7 +1144,7 @@ uint32_t ProfileRenderer::RenderVehicleProfile(
             continue;
 
         const MotionFrameState motionFrame = BuildMotionFrameState(
-            *motionDriver, motionTimeMs, GetPlacementMotionPlayback(placement),
+            *motionDriver, frameTimeMs, GetPlacementMotionPlayback(placement),
             placement.animationIntervalMs
         );
 
@@ -1175,7 +1171,7 @@ uint32_t ProfileRenderer::RenderVehicleProfile(
             if (selectedIndex == placement.effects.size())
                 break;
             if (RenderEffect(vehicle, placement, placement.effects[selectedIndex],
-                    motionTimeMs, motionFrame))
+                    frameTimeMs, motionFrame))
                 ++rendered;
             hasPreviousLayer = true;
             previousLayerOrder = selectedOrder;

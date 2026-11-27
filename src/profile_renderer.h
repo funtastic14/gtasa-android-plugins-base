@@ -32,7 +32,8 @@ class ProfileRenderer {
 public:
     static uint32_t RenderVehicleProfile(
         CVehicle* vehicle,
-        const VehicleProfile& profile
+        const VehicleProfile& profile,
+        uint32_t frameTimeMs
     );
 
     static bool RenderSelectedEffect(
@@ -45,6 +46,7 @@ public:
     static uint32_t RenderNativeLights(
         CVehicle* vehicle,
         const VehicleProfile& profile,
+        uint32_t frameTimeMs,
         NativeLightRenderStats* stats = nullptr
     );
 };

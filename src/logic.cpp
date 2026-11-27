@@ -643,7 +643,18 @@ static void RenderEditor() {
     if (profile->nativeLights.rgbHeadlightsEnabled || profile->nativeLights.rgbTaillightsEnabled) {
         nativeLightsChanged |= ImGui::SliderFloat("Native Light RGB Flow Speed", &profile->nativeLights.rgbFlowSpeed, 0.1f, 4.0f);
         nativeLightsChanged |= ImGui::SliderFloat("Native Light RGB Intensity", &profile->nativeLights.rgbFlowIntensity, 0.1f, 2.0f);
-        ImGui::TextWrapped("Overlays RGB on detected lamp geometry, independent of vehiclelightson128 alpha. Only this player vehicle is affected.");
+        static const char* nativeRgbBlendModeNames[] = { "Alpha", "Additive" };
+        int nativeRgbBlendMode = static_cast<int>(profile->nativeLights.blendMode);
+        if (ImGui::Combo("Native RGB Blend Mode", &nativeRgbBlendMode,
+                         nativeRgbBlendModeNames, IM_ARRAYSIZE(nativeRgbBlendModeNames))) {
+            if (nativeRgbBlendMode < 0) nativeRgbBlendMode = 0;
+            if (nativeRgbBlendMode > static_cast<int>(VLS::LedLayerBlendMode::Additive))
+                nativeRgbBlendMode = static_cast<int>(VLS::LedLayerBlendMode::Additive);
+            profile->nativeLights.blendMode =
+                static_cast<VLS::LedLayerBlendMode>(nativeRgbBlendMode);
+            nativeLightsChanged = true;
+        }
+        ImGui::TextWrapped("Native RGB is rendered as the vehicle lighting base layer; placement layers are composited above it.");
     }
     if (nativeLightsChanged)
         g_profileManager.MarkDirty(modelId);
@@ -1811,6 +1822,8 @@ static void OnRenderEffects() {
     if (modelId >= 0) {
         const VLS::VehicleProfile* profile = g_profileManager.Find(modelId);
         if (profile != nullptr && profile->enabled) {
+            // One immutable timestamp synchronizes Native RGB and all LED layers.
+            const uint32_t frameTimeMs = CTimer::GetTimeMS();
             if (g_geometryScanSucceeded &&
                 g_geometryScanVehicle == currentVehicle &&
                 g_geometryScanModelId == modelId &&
@@ -1823,7 +1836,7 @@ static void OnRenderEffects() {
                 VLS::NativeLightRenderStats nativeStats;
                 const uint32_t renderedPatches =
                     VLS::ProfileRenderer::RenderNativeLights(
-                        currentVehicle, *profile, &nativeStats
+                        currentVehicle, *profile, frameTimeMs, &nativeStats
                     );
                 if (!g_nativeRgbRenderDiagnosticLogged) {
                     const auto& patches =
@@ -1920,7 +1933,7 @@ static void OnRenderEffects() {
                 // RenderSelectedEffect is intentionally reserved for one-off
                 // sequence/editor previews; using it here would silently hide
                 // every non-selected layer during normal gameplay.
-                VLS::ProfileRenderer::RenderVehicleProfile(vehicle, *profile);
+                VLS::ProfileRenderer::RenderVehicleProfile(vehicle, *profile, frameTimeMs);
             }
         }
     }

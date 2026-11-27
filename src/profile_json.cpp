@@ -1735,6 +1735,8 @@ bool Serialize(
     if (!AppendFloat(json, profile.nativeLights.rgbFlowSpeed)) return false;
     json += ",\"rgbFlowIntensity\":";
     if (!AppendFloat(json, profile.nativeLights.rgbFlowIntensity)) return false;
+    json += ",\"rgbBlendMode\":";
+    AppendInt(json, static_cast<int>(profile.nativeLights.blendMode));
     json += "}";
 
     json += ",\"placements\":[";
@@ -1806,6 +1808,7 @@ bool Deserialize(
     const JsonValue* nativeLights = Find(root, "nativeLights");
     if (nativeLights != nullptr) {
         int scanMode = static_cast<int>(result.nativeLights.scanMode);
+        int rgbBlendMode = static_cast<int>(result.nativeLights.blendMode);
         if (nativeLights->type != JsonValue::Object ||
             (Find(*nativeLights, "scanMode") != nullptr &&
              (!ReadInt(*nativeLights, "scanMode", scanMode) ||
@@ -1816,10 +1819,14 @@ bool Deserialize(
             !ReadBool(*nativeLights, "rgbHeadlightsEnabled", result.nativeLights.rgbHeadlightsEnabled) ||
             !ReadBool(*nativeLights, "rgbTaillightsEnabled", result.nativeLights.rgbTaillightsEnabled) ||
             !ReadOptionalFloat(*nativeLights, "rgbFlowSpeed", result.nativeLights.rgbFlowSpeed) ||
-            !ReadOptionalFloat(*nativeLights, "rgbFlowIntensity", result.nativeLights.rgbFlowIntensity)) {
+            !ReadOptionalFloat(*nativeLights, "rgbFlowIntensity", result.nativeLights.rgbFlowIntensity) ||
+            (Find(*nativeLights, "rgbBlendMode") != nullptr &&
+             (!ReadInt(*nativeLights, "rgbBlendMode", rgbBlendMode) ||
+              rgbBlendMode < 0 || rgbBlendMode > static_cast<int>(LedLayerBlendMode::Additive)))) {
             return false;
         }
         result.nativeLights.scanMode = static_cast<NativeLightScanMode>(scanMode);
+        result.nativeLights.blendMode = static_cast<LedLayerBlendMode>(rgbBlendMode);
         if (result.nativeLights.highBeamRange < 10.0f ||
             result.nativeLights.highBeamRange > 500.0f ||
             result.nativeLights.highBeamIntensity < 0.1f ||
