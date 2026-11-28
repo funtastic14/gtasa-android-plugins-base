@@ -108,20 +108,15 @@ float EvaluatePanelMotion(
     const StroboWavePanelConfig& panel,
     uint16_t column,
     uint16_t localRow,
-    uint32_t panelIndex,
-    uint32_t timeMs,
     const MotionFrameState& frame
 ) {
+    // Each sub-panel owns a local coordinate space. The complete stack is
+    // still one shared matrix/canvas for placement and transitions, but a
+    // panel's vertical sweep must not inherit the offset of panels above it.
     float x = (static_cast<float>(column) + 0.5f) /
         static_cast<float>(effect.stroboPanelColumns);
-    // All stacked panels share one logical vertical coordinate space.
-    // Physical gap rows are excluded so the animation does not jump at seams.
-    const uint32_t logicalRows =
-        static_cast<uint32_t>(effect.stroboPanelCount) * effect.stroboPanelRows;
-    const uint32_t logicalRow =
-        panelIndex * effect.stroboPanelRows + localRow;
-    float y = (static_cast<float>(logicalRow) + 0.5f) /
-        static_cast<float>(std::max<uint32_t>(1u, logicalRows));
+    float y = (static_cast<float>(localRow) + 0.5f) /
+        static_cast<float>(effect.stroboPanelRows);
     ApplyPanelDirection(panel.direction, x, y);
 
     float densityX = 1.0f, densityY = 1.0f;
@@ -130,10 +125,18 @@ float EvaluatePanelMotion(
     x = Clamp01((x - 0.5f) * densityX + 0.5f);
     y = Clamp01((y - 0.5f) * densityY + 0.5f);
 
+    // Pass transformed discrete coordinates too: otherwise checkerboard,
+    // alternate-row/column and other grid-sampled patterns ignore direction.
+    const uint16_t sampleColumn = static_cast<uint16_t>(
+        std::min<uint32_t>(effect.stroboPanelColumns - 1u,
+            static_cast<uint32_t>(x * effect.stroboPanelColumns)));
+    const uint16_t sampleRow = static_cast<uint16_t>(
+        std::min<uint32_t>(effect.stroboPanelRows - 1u,
+            static_cast<uint32_t>(y * effect.stroboPanelRows)));
     const float phase = Wrap01(frame.phase + panel.phaseOffset);
     return EvaluateMotionIntensity(
         panel.motionPattern, x, y, phase,
-        column, localRow,
+        sampleColumn, sampleRow,
         effect.stroboPanelColumns, effect.stroboPanelRows
     );
 }
@@ -1730,7 +1733,7 @@ bool MatrixAnimationEngine::EvaluatePixel(
             const float flash = phaseMs < period / 2u ? 1.0f : 0.0f;
             intensity *= flash * EvaluatePanelMotion(
                 effect, panel, column, static_cast<uint16_t>(localRow),
-                panelIndex, timeMs, localMotionFrame
+                localMotionFrame
             );
         }
     } else if (effect.type != LedEffectType::StroboEyes &&
