@@ -1109,31 +1109,44 @@ static bool ContainsLampName(
 
 static int ResolveNativeLightSide(
     const SurfacePatch& patch,
-    bool frontAxisPositive
+    bool frontAxisPositive,
+    float vehicleCenterY,
+    float vehicleLength
 ) {
-    const auto contains = [&patch](const char* token) {
-        return ContainsLampName(patch.frameName, token) ||
-            ContainsLampName(patch.textureName, token) ||
+    const auto frameContains = [&patch](const char* token) {
+        return ContainsLampName(patch.frameName, token);
+    };
+    const auto materialContains = [&patch](const char* token) {
+        return ContainsLampName(patch.textureName, token) ||
             ContainsLampName(patch.maskName, token);
     };
 
-    // Explicit model naming wins over coordinates. Avoid building a temporary
-    // combined string here: this function runs for every candidate each frame.
+    // Explicit model frame names are the strongest side hint. Keep material
+    // atlas checks specific: generic words such as "back" often occur in
+    // texture filenames unrelated to the physical rear of the vehicle.
     const bool namedFront =
-        contains("headlight") || contains("head_light") ||
-        contains("frontlamp") || contains("front_lamp") ||
-        contains("frontlight") || contains("front_light");
+        frameContains("head") || frameContains("front") ||
+        materialContains("headlight") || materialContains("head_light") ||
+        materialContains("frontlamp") || materialContains("front_lamp") ||
+        materialContains("frontlight") || materialContains("front_light");
     const bool namedRear =
-        contains("taillight") || contains("tail_light") ||
-        contains("rearlamp") || contains("rear_lamp") ||
-        contains("backlight") || contains("back_light");
+        frameContains("tail") || frameContains("rear") ||
+        frameContains("back") ||
+        materialContains("taillight") || materialContains("tail_light") ||
+        materialContains("rearlamp") || materialContains("rear_lamp") ||
+        materialContains("backlight") || materialContains("back_light");
     if (namedFront != namedRear)
         return namedFront ? 1 : -1;
 
-    const float longitudinal = frontAxisPositive
-        ? patch.centroid.y : -patch.centroid.y;
-    if (longitudinal > 0.001f) return 1;
-    if (longitudinal < -0.001f) return -1;
+    // Vehicle origins are not consistently centered in modded DFFs. Compare
+    // the lamp centroid to the whole scanned vehicle envelope instead of
+    // assuming that +Y/-Y are measured from the origin.
+    const float origin = std::isfinite(vehicleCenterY) ? vehicleCenterY : 0.0f;
+    const float threshold = std::max(0.015f, vehicleLength * 0.025f);
+    const float relativeY = patch.centroid.y - origin;
+    const float longitudinal = frontAxisPositive ? relativeY : -relativeY;
+    if (longitudinal > threshold) return 1;
+    if (longitudinal < -threshold) return -1;
     return 0;
 }
 
@@ -1158,10 +1171,21 @@ static uint32_t RenderNativeLightsBatched(
     // fixed lookup table once per render call instead of linearly searching
     // the mesh vector for every lamp patch.
     const AtomicMesh* meshByAtomic[128] = {};
+    float vehicleMinY = std::numeric_limits<float>::max();
+    float vehicleMaxY = std::numeric_limits<float>::lowest();
     for (const AtomicMesh& mesh : meshes) {
         if (mesh.atomicIndex < 128u)
             meshByAtomic[mesh.atomicIndex] = &mesh;
+        for (const GeometryVertex& vertex : mesh.vehicleSpaceVertices) {
+            if (!std::isfinite(vertex.y))
+                continue;
+            vehicleMinY = std::min(vehicleMinY, vertex.y);
+            vehicleMaxY = std::max(vehicleMaxY, vertex.y);
+        }
     }
+    const float vehicleLength = std::max(0.0f, vehicleMaxY - vehicleMinY);
+    const float vehicleCenterY = vehicleLength > 0.01f
+        ? (vehicleMinY + vehicleMaxY) * 0.5f : 0.0f;
 
     // One reusable batch replaces a separate RenderWare transform/draw call
     // for every lamp island. Keep each batch below the 16-bit index ceiling.
@@ -1233,7 +1257,8 @@ static uint32_t RenderNativeLightsBatched(
         if (stats != nullptr) ++stats->lightingPatches;
 
         const int lightSide = ResolveNativeLightSide(
-            patch, profile.nativeLights.frontAxisPositive);
+            patch, profile.nativeLights.frontAxisPositive,
+            vehicleCenterY, vehicleLength);
         const bool front = lightSide > 0;
         const bool rear = lightSide < 0;
         if (front && stats != nullptr) ++stats->frontPatches;
