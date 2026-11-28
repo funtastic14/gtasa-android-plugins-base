@@ -176,6 +176,13 @@ enum class MotionDensityMode : uint8_t {
     Custom = 3
 };
 
+// Defines how different panel motions are composed into one visual field.
+enum class PanelMotionCompositionMode : uint8_t {
+    UnifiedGeometry = 0,
+    CoordinatedMotion = 1,
+    IndependentMotion = 2
+};
+
 struct StroboWavePanelConfig {
     bool enabled = true;
     LedMotionPattern motionPattern = LedMotionPattern::LeftToRight;
@@ -360,6 +367,8 @@ struct LedEffectConfig {
     uint16_t stroboPanelColumns = 21;
     uint16_t stroboPanelRows = 7;
     uint8_t stroboPanelGapRows = 2;
+    PanelMotionCompositionMode stroboCompositionMode =
+        PanelMotionCompositionMode::UnifiedGeometry;
     // Optional hard strobe blink; disabled by default so motion remains visually clean.
     bool stroboFlashEnabled = false;
     uint32_t stroboFlashPeriodMs = 500;
