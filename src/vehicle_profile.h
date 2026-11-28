@@ -360,6 +360,8 @@ struct LedEffectConfig {
     uint16_t stroboPanelColumns = 21;
     uint16_t stroboPanelRows = 7;
     uint8_t stroboPanelGapRows = 2;
+    // Optional hard strobe blink; disabled by default so motion remains visually clean.
+    bool stroboFlashEnabled = false;
     uint32_t stroboFlashPeriodMs = 500;
     std::array<StroboWavePanelConfig, 7> stroboPanels;
 
