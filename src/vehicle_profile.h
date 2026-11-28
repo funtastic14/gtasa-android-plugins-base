@@ -185,6 +185,8 @@ enum class PanelMotionCompositionMode : uint8_t {
 
 struct StroboWavePanelConfig {
     bool enabled = true;
+    // Coordinated mode inherits the main motion pattern unless explicitly overridden.
+    bool useCustomMotionPattern = false;
     LedMotionPattern motionPattern = LedMotionPattern::LeftToRight;
     LedColorDirection direction = LedColorDirection::LeftToRight;
     MotionDensityMode densityMode = MotionDensityMode::Adaptive;
