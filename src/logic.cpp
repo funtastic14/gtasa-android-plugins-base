@@ -1030,7 +1030,7 @@ static void RenderEditor() {
             effect.stroboPanelCount = 5;
             effect.stroboPanelColumns = 21;
             effect.stroboPanelRows = 7;
-            effect.stroboPanelGapRows = 1;
+            effect.stroboPanelGapRows = 2;
             effect.matrix.enabled = true;
             effect.matrix.columns = 21;
             effect.matrix.rows = 39;
