@@ -797,7 +797,9 @@ static void AnalyzeVehicleSpaceMeshes(
 static std::string SurfaceRoleHint(
     const AtomicGeometryInfo& info,
     const GlassPart& part,
-    bool textureNameMode = false
+    bool textureNameMode = false,
+    float vehicleMinY = 0.0f,
+    float vehicleMaxY = 0.0f
 ) {
     std::string frameName = info.frameName;
     std::transform(frameName.begin(), frameName.end(), frameName.begin(),
@@ -892,8 +894,19 @@ static std::string SurfaceRoleHint(
         contains(frameName, "rearlamp") || contains(frameName, "rear_lamp") ||
         contains(frameName, "taillight") || contains(frameName, "tail_light") ||
         contains(frameName, "backlight") || contains(frameName, "back_light");
+    const float vehicleLength = vehicleMaxY - vehicleMinY;
+    const bool hasVehicleBounds =
+        std::isfinite(vehicleMinY) && std::isfinite(vehicleMaxY) &&
+        vehicleLength >= 1.0f;
+    const float vehicleCenterY = hasVehicleBounds
+        ? (vehicleMinY + vehicleMaxY) * 0.5f : 0.0f;
+    // Lamps normally occupy the outer quarter of the vehicle's longitudinal
+    // envelope. Use whole-vehicle bounds, never an individual lamp atomic's
+    // bounds (which are too small to identify front vs rear).
+    const bool nearVehicleEnd = hasVehicleBounds &&
+        std::fabs(part.cy - vehicleCenterY) >= vehicleLength * 0.25f;
     const bool nearFrontOrRearEnd =
-        std::fabs(part.cy) >= 0.01f || explicitlyNamedLampEnd ||
+        nearVehicleEnd || explicitlyNamedLampEnd ||
         namedLampFrame || nativeLampTexture;
     // Triangle winding on imported DFFs is not consistent: normals from
     // adjacent faces can cancel even when the component is a real lamp lens.
@@ -924,13 +937,24 @@ static std::string SurfaceRoleHint(
         patchDepth <= 0.55f &&
         part.area >= 0.003f && part.area <= 3.00f &&
         part.triangles <= 512u;
+    // Fallback for custom vehicle packs whose lamp meshes have generic
+    // frame/material names. A compact, shallow surface at either end of the
+    // WHOLE vehicle and facing longitudinally is a plausible lamp lens.
+    // This recovers anonymous head/tail lamps without admitting broad body
+    // panels, grille faces, or side trim as Native RGB emitters.
+    const bool longitudinalFacing = std::fabs(part.ny) >= 0.16f;
+    const bool anonymousEndLamp =
+        hasVehicleBounds && nearVehicleEnd && longitudinalFacing &&
+        ((compactLampIsland && part.triangles <= 512u) ||
+         (compactBodyLampIsland && part.triangles <= 384u));
     const bool eligibleLampIsland = bodyFrame
-        ? (nativeLampTexture && compactBodyLampIsland)
-        : ((compactLampIsland ||
-            ((explicitlyNamedLampEnd || (!textureNameMode && namedLampFrame)) &&
-             namedLampGeometry)) &&
-           (nativeLampTexture || explicitlyNamedLampEnd ||
-            (!textureNameMode && namedLampFrame)));
+        ? ((nativeLampTexture && compactBodyLampIsland) ||
+           anonymousEndLamp)
+        : ((compactLampIsland &&
+            (nativeLampTexture || explicitlyNamedLampEnd ||
+             (!textureNameMode && namedLampFrame) || anonymousEndLamp)) ||
+           ((explicitlyNamedLampEnd || (!textureNameMode && namedLampFrame)) &&
+            namedLampGeometry));
     if (eligibleLampIsland && nearFrontOrRearEnd)
         return "LIGHTING_CANDIDATE";
 
@@ -1353,8 +1377,17 @@ static std::vector<SurfacePatch> BuildSurfacePatches(
 ) {
     std::vector<SurfacePatch> patches;
     std::unordered_map<uint32_t, const AtomicMesh*> meshByAtomic;
-    for (const AtomicMesh& mesh : meshes)
+    float vehicleMinY = std::numeric_limits<float>::max();
+    float vehicleMaxY = std::numeric_limits<float>::lowest();
+    for (const AtomicMesh& mesh : meshes) {
         meshByAtomic[mesh.atomicIndex] = &mesh;
+        for (const GeometryVertex& vertex : mesh.vehicleSpaceVertices) {
+            if (!std::isfinite(vertex.y))
+                continue;
+            vehicleMinY = std::min(vehicleMinY, vertex.y);
+            vehicleMaxY = std::max(vehicleMaxY, vertex.y);
+        }
+    }
 
     for (const AtomicGeometryInfo& info : details) {
         const auto meshIt = meshByAtomic.find(info.atomicIndex);
@@ -1464,7 +1497,8 @@ static std::vector<SurfacePatch> BuildSurfacePatches(
                 patch.materialIndex = materialIndex;
                 patch.frameName = info.frameName;
                 patch.role = ToSurfaceRole(
-                    SurfaceRoleHint(info, materialPart, textureNameMode));
+                    SurfaceRoleHint(info, materialPart, textureNameMode,
+                        vehicleMinY, vehicleMaxY));
                 patch.triangleIndices =
                     std::move(materialPart.triangleIndices);
                 patch.centroid = {
