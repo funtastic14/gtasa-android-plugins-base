@@ -943,8 +943,12 @@ static std::string SurfaceRoleHint(
     // This recovers anonymous head/tail lamps without admitting broad body
     // panels, grille faces, or side trim as Native RGB emitters.
     const bool longitudinalFacing = std::fabs(part.ny) >= 0.16f;
+    const bool shallowAnonymousLens =
+        patchDepth <= 0.10f && part.area <= 0.80f &&
+        patchWidth <= 1.00f && patchHeight <= 0.60f;
     const bool anonymousEndLamp =
-        hasVehicleBounds && nearVehicleEnd && longitudinalFacing &&
+        hasVehicleBounds && nearVehicleEnd &&
+        (longitudinalFacing || shallowAnonymousLens) &&
         ((compactLampIsland && part.triangles <= 512u) ||
          (compactBodyLampIsland && part.triangles <= 384u));
     const bool eligibleLampIsland = bodyFrame
