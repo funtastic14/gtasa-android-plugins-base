@@ -51,8 +51,8 @@ Placement dimensions are still controlled by the LED placement transform. The ma
 
 | Value | Mode | Behavior |
 |---:|---|---|
-| 0 | Unified Geometry | Every panel samples the main effect motion pattern in one global coordinate field. Radial geometry is aspect-corrected for the full stack. Per-panel phase offsets remain active; per-panel pattern, direction, and density are bypassed. |
-| 1 | Coordinated Motion | Panels may use different patterns. Radial, spiral, orbit, circle, burst, and related center-based patterns share the full stack's global coordinates and center. Directional patterns retain their local panel direction. |
+| 0 | Unified Geometry | Every panel samples the main effect motion pattern and one shared phase in a global coordinate field. Radial geometry is aspect-corrected for the full stack. Per-panel pattern, direction, density, and phase offset are bypassed to prevent seams from breaking a spiral or radial front. |
+| 1 | Coordinated Motion | Panels may use different patterns. Radial, spiral, orbit, circle, burst, and related center-based patterns share the full stack's global coordinates, center, and phase. Directional patterns retain their local panel direction, density, and phase offset. |
 | 2 | Independent Motion | Each panel uses its own local pattern, direction, and density without requiring continuity with neighboring panels. |
 
 New profiles default to Unified Geometry. Older profiles without this field migrate to Coordinated Motion so their saved per-panel pattern and direction choices continue to work.
