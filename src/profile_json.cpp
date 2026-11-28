@@ -1102,11 +1102,10 @@ static bool ReadEffect(
         !ReadMatrix(*matrix, effect.matrix)) {
         return false;
     }
-    // Explicit Strobo Wave panel configuration owns its matrix dimensions.
-    // Legacy profiles without this key keep their original matrix untouched.
-    if (effect.type == LedEffectType::StroboWave &&
-        effect.stroboPanelStackEnabled &&
-        Find(value, "stroboPanelStackEnabled") != nullptr) {
+    // Strobo Wave is always a dedicated 3/5/7-panel matrix effect.
+    // Older one-panel profiles are migrated to the stacked layout on load.
+    if (effect.type == LedEffectType::StroboWave) {
+        effect.stroboPanelStackEnabled = true;
         const uint32_t totalRows =
             static_cast<uint32_t>(effect.stroboPanelCount) * effect.stroboPanelRows +
             static_cast<uint32_t>(effect.stroboPanelCount - 1u) * effect.stroboPanelGapRows;
@@ -1114,15 +1113,16 @@ static bool ReadEffect(
             static_cast<uint32_t>(effect.stroboPanelColumns) * totalRows;
         if (totalRows == 0 || totalRows > 256 || totalPixels > MAX_MATRIX_PIXELS)
             return false;
-        if (!effect.matrix.enabled || effect.matrix.pixels.empty()) {
-            effect.matrix.enabled = true;
-            effect.matrix.columns = effect.stroboPanelColumns;
-            effect.matrix.rows = static_cast<uint16_t>(totalRows);
-            effect.matrix.pixels.clear();
-        } else if (effect.matrix.columns != effect.stroboPanelColumns ||
-                   effect.matrix.rows != totalRows) {
-            return false;
-        }
+        effect.matrix.enabled = true;
+        effect.matrix.columns = effect.stroboPanelColumns;
+        effect.matrix.rows = static_cast<uint16_t>(totalRows);
+        effect.matrix.pixels.resize(totalPixels);
+        // The stack itself is one automatically shared logical canvas.
+        effect.matrix.canvasEnabled = true;
+        effect.matrix.canvasColumns = effect.stroboPanelColumns;
+        effect.matrix.canvasRows = static_cast<uint16_t>(totalRows);
+        effect.matrix.canvasOffsetColumn = 0;
+        effect.matrix.canvasOffsetRow = 0;
     }
     if (!ReadBool(value, "transparentMatrixBackground", effect.transparentMatrixBackground))
         return false;
@@ -1941,6 +1941,8 @@ bool Serialize(
     json += profile.nativeLights.rgbHeadlightsEnabled ? "true" : "false";
     json += ",\"rgbTaillightsEnabled\":";
     json += profile.nativeLights.rgbTaillightsEnabled ? "true" : "false";
+    json += ",\"frontAxisPositive\":";
+    json += profile.nativeLights.frontAxisPositive ? "true" : "false";
     json += ",\"rgbFlowSpeed\":";
     if (!AppendFloat(json, profile.nativeLights.rgbFlowSpeed)) return false;
     json += ",\"rgbFlowIntensity\":";
@@ -2029,6 +2031,7 @@ bool Deserialize(
             !ReadOptionalFloat(*nativeLights, "highBeamIntensity", result.nativeLights.highBeamIntensity) ||
             !ReadBool(*nativeLights, "rgbHeadlightsEnabled", result.nativeLights.rgbHeadlightsEnabled) ||
             !ReadBool(*nativeLights, "rgbTaillightsEnabled", result.nativeLights.rgbTaillightsEnabled) ||
+            !ReadOptionalBool(*nativeLights, "frontAxisPositive", result.nativeLights.frontAxisPositive) ||
             !ReadOptionalFloat(*nativeLights, "rgbFlowSpeed", result.nativeLights.rgbFlowSpeed) ||
             !ReadOptionalFloat(*nativeLights, "rgbFlowIntensity", result.nativeLights.rgbFlowIntensity) ||
             (Find(*nativeLights, "rgbBlendMode") != nullptr &&
