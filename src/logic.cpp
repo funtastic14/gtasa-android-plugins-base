@@ -1282,7 +1282,25 @@ static void RenderEditor() {
                 static_cast<int>(effect.stroboPanelRows),
                 static_cast<int>(effect.matrix.columns),
                 static_cast<int>(effect.matrix.rows));
-            ImGui::TextWrapped("Blank gap rows separate the physical panels. Select a panel below to edit its own motion pattern, direction, density and phase.");
+            static const char* compositionNames[] = {
+                "Unified Geometry", "Coordinated Motion", "Independent Motion"
+            };
+            int compositionMode = static_cast<int>(effect.stroboCompositionMode);
+            if (ImGui::Combo("Panel Motion Composition", &compositionMode,
+                             compositionNames, IM_ARRAYSIZE(compositionNames))) {
+                effect.stroboCompositionMode =
+                    static_cast<VLS::PanelMotionCompositionMode>(compositionMode);
+                changed = true;
+            }
+            if (effect.stroboCompositionMode ==
+                VLS::PanelMotionCompositionMode::UnifiedGeometry) {
+                ImGui::TextWrapped("Unified Geometry: every panel follows the main Motion Pattern as one continuous shape across the full stack. Panel phase offsets remain available; per-panel pattern, direction and density are intentionally bypassed.");
+            } else if (effect.stroboCompositionMode ==
+                       VLS::PanelMotionCompositionMode::CoordinatedMotion) {
+                ImGui::TextWrapped("Coordinated Motion: each panel may use a different pattern. Radial / spiral / burst patterns share the complete stack's center and geometry; directional patterns retain their panel direction.");
+            } else {
+                ImGui::TextWrapped("Independent Motion: each panel uses its own local pattern, direction and density, without forcing a continuous global shape.");
+            }
             if (effect.matrix.pixels.size() !=
                 static_cast<size_t>(effect.matrix.columns) * effect.matrix.rows) {
                 SyncMatrixPixels(effect);
@@ -1331,28 +1349,30 @@ static void RenderEditor() {
             VLS::StroboWavePanelConfig& panel =
                 effect.stroboPanels[static_cast<size_t>(selectedPanel)];
             changed |= ImGui::Checkbox("Panel Enabled", &panel.enabled);
-            int panelMotion = static_cast<int>(panel.motionPattern);
-            if (ImGui::Combo("Panel Motion Pattern", &panelMotion,
-                             motionNames, IM_ARRAYSIZE(motionNames))) {
-                panel.motionPattern = static_cast<VLS::LedMotionPattern>(panelMotion);
-                changed = true;
+            if (effect.stroboCompositionMode !=
+                VLS::PanelMotionCompositionMode::UnifiedGeometry) {
+                int panelMotion = static_cast<int>(panel.motionPattern);
+                if (ImGui::Combo("Panel Motion Pattern", &panelMotion,
+                                 motionNames, IM_ARRAYSIZE(motionNames))) {
+                    panel.motionPattern = static_cast<VLS::LedMotionPattern>(panelMotion);
+                    changed = true;
+                }
+                int panelDirection = static_cast<int>(panel.direction);
+                if (ImGui::Combo("Panel Direction", &panelDirection,
+                                 directionNames, IM_ARRAYSIZE(directionNames))) {
+                    panel.direction = static_cast<VLS::LedColorDirection>(panelDirection);
+                    changed = true;
+                }
+                int densityMode = static_cast<int>(panel.densityMode);
+                if (ImGui::Combo("Panel Density Mode", &densityMode,
+                                 densityNames, IM_ARRAYSIZE(densityNames))) {
+                    panel.densityMode = static_cast<VLS::MotionDensityMode>(densityMode);
+                    changed = true;
+                }
+                changed |= ImGui::SliderFloat("Panel Density X", &panel.densityX, 0.25f, 4.0f);
+                changed |= ImGui::SliderFloat("Panel Density Y", &panel.densityY, 0.25f, 4.0f);
             }
-            int panelDirection = static_cast<int>(panel.direction);
-            if (ImGui::Combo("Panel Direction", &panelDirection,
-                             directionNames, IM_ARRAYSIZE(directionNames))) {
-                panel.direction = static_cast<VLS::LedColorDirection>(panelDirection);
-                changed = true;
-            }
-            int densityMode = static_cast<int>(panel.densityMode);
-            if (ImGui::Combo("Panel Density Mode", &densityMode,
-                             densityNames, IM_ARRAYSIZE(densityNames))) {
-                panel.densityMode = static_cast<VLS::MotionDensityMode>(densityMode);
-                changed = true;
-            }
-            changed |= ImGui::SliderFloat("Panel Density X", &panel.densityX, 0.25f, 4.0f);
-            changed |= ImGui::SliderFloat("Panel Density Y", &panel.densityY, 0.25f, 4.0f);
             changed |= ImGui::SliderFloat("Panel Phase Offset", &panel.phaseOffset, -1.0f, 1.0f);
-            ImGui::TextWrapped("Each panel has independent motion, direction, density and phase. The complete stack is automatically sized as one shared canvas.");
         }
     } else if (effect.type == VLS::LedEffectType::StroboEyes) {
         ImGui::Separator();
