@@ -155,7 +155,11 @@ float EvaluatePanelMotion(
     const PanelMotionCompositionMode mode = effect.stroboCompositionMode;
     const bool unified = mode == PanelMotionCompositionMode::UnifiedGeometry;
     const bool coordinated = mode == PanelMotionCompositionMode::CoordinatedMotion;
-    const bool inheritMainPattern = unified ||
+    // A global-geometry main pattern is authoritative: panel overrides are
+    // suspended for that cycle so one spiral/radial front cannot tear at seams.
+    const bool mainPatternUsesGlobalGeometry =
+        coordinated && UsesGlobalRadialGeometry(frame.pattern);
+    const bool inheritMainPattern = unified || mainPatternUsesGlobalGeometry ||
         (coordinated && !panel.useCustomMotionPattern);
     const LedMotionPattern selectedPattern = inheritMainPattern
         ? frame.pattern : panel.motionPattern;
