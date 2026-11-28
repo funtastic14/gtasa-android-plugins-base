@@ -890,7 +890,8 @@ static std::string SurfaceRoleHint(
         contains(frameName, "front") || contains(frameName, "rear") ||
         contains(frameName, "back");
     const bool nearFrontOrRearEnd =
-        std::fabs(part.cy) >= 0.20f || explicitlyNamedLampEnd;
+        std::fabs(part.cy) >= 0.01f || explicitlyNamedLampEnd ||
+        namedLampFrame || nativeLampTexture;
     // Triangle winding on imported DFFs is not consistent: normals from
     // adjacent faces can cancel even when the component is a real lamp lens.
     // Do not make the normal direction a hard admission gate. The patch is
@@ -911,9 +912,18 @@ static std::string SurfaceRoleHint(
         patchDepth <= 0.22f &&
         part.area >= 0.003f && part.area <= 0.70f &&
         part.triangles <= 384u;
+    // Some vehicle packs use larger, separately named lamp atomics. Permit
+    // a wider envelope only when the atomic itself is explicitly lamp-named;
+    // generic body geometry remains protected by the tighter compact limits.
+    const bool namedLampGeometry =
+        patchWidth >= 0.04f && patchWidth <= 2.00f &&
+        patchHeight >= 0.025f && patchHeight <= 1.25f &&
+        patchDepth <= 0.55f &&
+        part.area >= 0.003f && part.area <= 3.00f &&
+        part.triangles <= 512u;
     const bool eligibleLampIsland = bodyFrame
         ? (nativeLampTexture && compactBodyLampIsland)
-        : (compactLampIsland &&
+        : ((compactLampIsland || (!textureNameMode && namedLampFrame && namedLampGeometry)) &&
            (nativeLampTexture || (!textureNameMode && namedLampFrame)));
     if (eligibleLampIsland && nearFrontOrRearEnd)
         return "LIGHTING_CANDIDATE";
