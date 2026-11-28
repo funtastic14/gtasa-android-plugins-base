@@ -804,6 +804,8 @@ static bool ReadEffect(
         effect.stroboFlashPeriodMs < 100 || effect.stroboFlashPeriodMs > 5000)
         return false;
     const JsonValue* stroboPanels = Find(value, "stroboPanels");
+    if (effect.type == LedEffectType::StroboWave && stroboPanels == nullptr)
+        InitializeStroboWavePanelDefaults(effect);
     if (stroboPanels != nullptr) {
         if (stroboPanels->type != JsonValue::Array ||
             stroboPanels->array.size() != 7)
