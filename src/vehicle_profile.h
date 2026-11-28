@@ -506,6 +506,8 @@ enum class NativeLightScanMode : uint8_t {
     TextureName = 1
 };
 
+enum class NativeRgbColorMode : uint8_t { Solid = 0, Rainbow = 1 };
+
 // Profil konfigurasi satu model kendaraan.
 struct NativeVehicleLightConfig {
     NativeLightScanMode scanMode = NativeLightScanMode::ModelId;
@@ -518,6 +520,14 @@ struct NativeVehicleLightConfig {
     bool frontAxisPositive = true;
     float rgbFlowSpeed = 1.0f;
     float rgbFlowIntensity = 1.0f;
+    NativeRgbColorMode headColorMode = NativeRgbColorMode::Rainbow;
+    NativeRgbColorMode tailColorMode = NativeRgbColorMode::Rainbow;
+    LedColorDirection headDirection = LedColorDirection::LeftToRight;
+    LedColorDirection tailDirection = LedColorDirection::LeftToRight;
+    uint8_t headRed = 255, headGreen = 255, headBlue = 255;
+    uint8_t tailRed = 255, tailGreen = 255, tailBlue = 255;
+    float headSpeed = 1.0f, tailSpeed = 1.0f;
+    float headSaturation = 0.65f, tailSaturation = 0.65f;
     // Native RGB is the base lighting layer; placement layers render above it.
     LedLayerBlendMode blendMode = LedLayerBlendMode::Alpha;
 };
