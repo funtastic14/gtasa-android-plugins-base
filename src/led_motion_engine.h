@@ -183,11 +183,17 @@ inline float EvaluateMotionIntensity(
         return d < 0.24f ? 1.0f - d / 0.24f : 0.035f;
     }
     case LedMotionPattern::CenterOut: {
-        const float d = fract(phase - std::fabs(x - 0.5f) * 2.0f);
+        // Matrix layouts radiate from the true two-dimensional center;
+        // one-row strips retain the familiar left/right center spread.
+        const float distance = rows > 1u
+            ? clamp01(radius) : std::fabs(x - 0.5f) * 2.0f;
+        const float d = fract(phase - distance);
         return d < 0.22f ? 1.0f - d / 0.22f : 0.025f;
     }
     case LedMotionPattern::EdgeToCenter: {
-        const float d = fract(phase - (1.0f - std::fabs(x - 0.5f) * 2.0f));
+        const float distance = rows > 1u
+            ? clamp01(radius) : std::fabs(x - 0.5f) * 2.0f;
+        const float d = fract(phase - (1.0f - distance));
         return d < 0.22f ? 1.0f - d / 0.22f : 0.025f;
     }
     case LedMotionPattern::ZoomIn:
