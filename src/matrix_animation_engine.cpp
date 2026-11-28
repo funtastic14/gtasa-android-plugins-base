@@ -217,7 +217,11 @@ float EvaluatePanelMotion(
         sampleRows = effect.stroboPanelRows;
     }
 
-    const float phase = Wrap01(frame.phase + panel.phaseOffset);
+    // Per-panel phase shifts would tear a unified spiral/radial front at
+    // panel seams. Keep one shared phase for global geometry; only local
+    // directional / independent motion may use a panel-specific offset.
+    const float phase = Wrap01(frame.phase +
+        (useGlobalCoordinates ? 0.0f : panel.phaseOffset));
     const float nextIntensity = EvaluateMotionIntensity(
         selectedPattern, x, y, phase, sampleColumn, sampleRow,
         sampleColumns, sampleRows, aspectX, aspectY
