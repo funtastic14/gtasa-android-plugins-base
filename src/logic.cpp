@@ -641,6 +641,9 @@ static void RenderEditor() {
     nativeLightsChanged |= ImGui::Checkbox("RGB Headlights", &profile->nativeLights.rgbHeadlightsEnabled);
     nativeLightsChanged |= ImGui::Checkbox("RGB Taillights", &profile->nativeLights.rgbTaillightsEnabled);
     if (profile->nativeLights.rgbHeadlightsEnabled || profile->nativeLights.rgbTaillightsEnabled) {
+        nativeLightsChanged |= ImGui::Checkbox(
+            "Vehicle Front Uses +Y Axis", &profile->nativeLights.frontAxisPositive);
+        ImGui::TextWrapped("Frame names containing head/front or tail/rear/back take priority. This axis setting is used only when a model has generic lamp names.");
         nativeLightsChanged |= ImGui::SliderFloat("Native Light RGB Flow Speed", &profile->nativeLights.rgbFlowSpeed, 0.1f, 4.0f);
         nativeLightsChanged |= ImGui::SliderFloat("Native Light RGB Intensity", &profile->nativeLights.rgbFlowIntensity, 0.1f, 2.0f);
         static const char* nativeRgbBlendModeNames[] = { "Alpha", "Additive" };
