@@ -984,6 +984,17 @@ static std::string BuildDiagnosticReport(
 
     report << "Model ID: " << modelId << "\n\n";
 
+    float diagnosticVehicleMinY = std::numeric_limits<float>::max();
+    float diagnosticVehicleMaxY = std::numeric_limits<float>::lowest();
+    for (const AtomicGeometryInfo& info : details) {
+        if (!info.hasVehicleSpaceBounds)
+            continue;
+        diagnosticVehicleMinY = std::min(diagnosticVehicleMinY, info.vehicleMinY);
+        diagnosticVehicleMaxY = std::max(diagnosticVehicleMaxY, info.vehicleMaxY);
+    }
+    report << "Whole Vehicle Longitudinal Bounds: Y["
+           << diagnosticVehicleMinY << "," << diagnosticVehicleMaxY << "]\n\n";
+
     report << "ATOMIC / GEOMETRY STATISTICS\n";
     report << "----------------------------------------\n";
 
@@ -1280,7 +1291,9 @@ static std::string BuildDiagnosticReport(
         report << "Candidate #" << i
                << " | Atomic #" << info.atomicIndex
                << " | Frame: " << info.frameName
-               << " | Role Hint: " << SurfaceRoleHint(info, part)
+               << " | Role Hint: " << SurfaceRoleHint(
+                    info, part, false,
+                    diagnosticVehicleMinY, diagnosticVehicleMaxY)
                << " | Triangles: " << part.triangles
                << " | Vertices: " << part.vertices
                << " | Area: " << part.area << "\n"
