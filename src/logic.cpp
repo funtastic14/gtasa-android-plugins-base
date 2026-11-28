@@ -628,9 +628,10 @@ static void RenderEditor() {
         nativeLightsChanged = true;
     }
     ImGui::TextWrapped(
-        "Both modes inspect vehicle geometry. Texture Name prioritizes "
-        "vehiclelight128/vehiclelights128/vehiclelightson128 atlas names; "
-        "explicit head/front/tail/rear frame names are also accepted."
+        "Native RGB scans each vehicle model independently. It first uses "
+        "known lamp texture atlases and head/front/tail/rear frame names, "
+        "then falls back to compact shallow lamp surfaces near the ends of "
+        "the whole vehicle when custom models use generic names."
     );
     nativeLightsChanged |= ImGui::Checkbox("High Beam", &profile->nativeLights.highBeamEnabled);
     if (profile->nativeLights.highBeamEnabled) {
