@@ -1724,13 +1724,16 @@ bool MatrixAnimationEngine::EvaluatePixel(
             intensity = 0.0f;
         } else {
             const StroboWavePanelConfig& panel = effect.stroboPanels[panelIndex];
-            const uint32_t period = std::max<uint32_t>(100u,
-                std::min<uint32_t>(5000u, effect.stroboFlashPeriodMs));
-            const int64_t shifted = static_cast<int64_t>(timeMs) +
-                static_cast<int64_t>(panel.phaseOffset * static_cast<float>(period));
-            const uint32_t phaseMs = static_cast<uint32_t>(
-                (shifted % static_cast<int64_t>(period) + period) % period);
-            const float flash = phaseMs < period / 2u ? 1.0f : 0.0f;
+            float flash = 1.0f;
+            if (effect.stroboFlashEnabled) {
+                const uint32_t period = std::max<uint32_t>(100u,
+                    std::min<uint32_t>(5000u, effect.stroboFlashPeriodMs));
+                const int64_t shifted = static_cast<int64_t>(timeMs) +
+                    static_cast<int64_t>(panel.phaseOffset * static_cast<float>(period));
+                const uint32_t phaseMs = static_cast<uint32_t>(
+                    (shifted % static_cast<int64_t>(period) + period) % period);
+                flash = phaseMs < period / 2u ? 1.0f : 0.0f;
+            }
             intensity *= flash * EvaluatePanelMotion(
                 effect, panel, column, static_cast<uint16_t>(localRow),
                 localMotionFrame
@@ -1740,7 +1743,8 @@ bool MatrixAnimationEngine::EvaluatePixel(
         (effect.type != LedEffectType::RunningText ||
          activePattern == LedMotionPattern::LaserWrite ||
          activePattern == LedMotionPattern::LaserWeld)) {
-        if (effect.type == LedEffectType::StroboWave)
+        if (effect.type == LedEffectType::StroboWave &&
+            effect.stroboFlashEnabled)
             intensity *= localMotionFrame.phase < 0.5f ? 1.0f : 0.0f;
         const float phase = localMotionFrame.phase;
         const bool verticalText =
