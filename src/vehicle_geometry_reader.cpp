@@ -123,6 +123,11 @@ struct FrameScanContext {
 static int g_lastSavedModelId = -2147483647;
 static std::vector<AtomicMesh> g_cachedMeshes;
 static std::vector<SurfacePatch> g_cachedSurfacePatches;
+static std::vector<DedicatedRgbNode> g_dedicatedRgbNodes;
+static CVehicle* g_dedicatedRgbVehicle = nullptr;
+static RpClump* g_dedicatedRgbClump = nullptr;
+static int g_dedicatedRgbModelId = -1;
+static bool g_dedicatedRgbScanComplete = false;
 
 static const uint32_t INCREMENTAL_VERTEX_BUDGET = 256;
 static const uint32_t INCREMENTAL_TRIANGLE_BUDGET = 384;
@@ -220,6 +225,49 @@ static RpAtomic* GetAtomicAtIndex(RpClump* clump, uint32_t index) {
     context.target = index;
     RpClumpForAllAtomics(clump, FindAtomicAtIndex, &context);
     return context.found;
+}
+
+struct DedicatedRgbScanContext {
+    std::vector<DedicatedRgbNode>* nodes = nullptr;
+    uint32_t atomicIndex = 0;
+};
+
+static RpAtomic* ScanDedicatedRgbAtomic(RpAtomic* atomic, void* data) {
+    if (atomic == nullptr || data == nullptr)
+        return atomic;
+    DedicatedRgbScanContext* context =
+        static_cast<DedicatedRgbScanContext*>(data);
+    const uint32_t index = context->atomicIndex++;
+    RwFrame* frame = RpAtomicGetFrame(atomic);
+    const char* rawName = GetFrameNodeName(frame);
+    if (rawName == nullptr || rawName[0] == '\\0')
+        return atomic;
+
+    std::string name(rawName);
+    std::transform(name.begin(), name.end(), name.begin(),
+        [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+
+    DedicatedRgbNodeSide side;
+    if (name == "rgb_light_front") {
+        side = DedicatedRgbNodeSide::Front;
+    } else if (name == "rgb_light_rear") {
+        side = DedicatedRgbNodeSide::Rear;
+    } else {
+        return atomic;
+    }
+
+    if (context->nodes != nullptr) {
+        DedicatedRgbNode node;
+        node.atomicIndex = index;
+        node.atomicIdentity = reinterpret_cast<uintptr_t>(atomic);
+        node.geometryIdentity = reinterpret_cast<uintptr_t>(
+            RpAtomicGetGeometry(atomic));
+        node.frameIdentity = reinterpret_cast<uintptr_t>(frame);
+        node.side = side;
+        node.frameName = name;
+        context->nodes->push_back(std::move(node));
+    }
+    return atomic;
 }
 
 static void ResetIncrementalScanState() {
@@ -1836,6 +1884,10 @@ bool VehicleGeometryReader::ScanIncremental(
         Clear();
         return false;
     }
+
+    // Discover explicitly named RGB nodes using only the atomic/frame list.
+    // The existing incremental mesh scan below remains unchanged.
+    ScanDedicatedRgbNodes(vehicle, modelId);
 
     IncrementalScanState& state = g_incrementalScan;
     if (state.vehicle != vehicle ||
