@@ -1284,6 +1284,46 @@ static uint32_t RenderNativeLightsBatched(
             continue;
         }
 
+        // If a transparent lamp lens/glass surface sits in front of the
+        // vehiclelights geometry, project the RGB overlay onto that local
+        // glass patch. Opaque body panels remain protected by the normal
+        // depth test; this is deliberately not a global Z-test bypass.
+        const SurfacePatch* glassProjectionPatch = nullptr;
+        const AtomicMesh* glassProjectionMesh = nullptr;
+        float bestGlassDistanceSq = 0.80f * 0.80f;
+        for (const SurfacePatch& candidate : patches) {
+            if (candidate.role != SurfaceRoleCandidate::FrontGlass &&
+                candidate.role != SurfaceRoleCandidate::RearGlass &&
+                candidate.role != SurfaceRoleCandidate::SideGlass &&
+                candidate.role != SurfaceRoleCandidate::GlassUnresolved)
+                continue;
+            const int glassSide = ResolveNativeLightSide(
+                candidate, profile.nativeLights.frontAxisPositive,
+                vehicleCenterY, vehicleLength);
+            if (glassSide != 0 && glassSide != lightSide)
+                continue;
+            // Reject unrelated windshield/body glass far from the lamp.
+            const float overlapX = std::min(patch.maxBounds.x, candidate.maxBounds.x) -
+                                   std::max(patch.minBounds.x, candidate.minBounds.x);
+            const float overlapZ = std::min(patch.maxBounds.z, candidate.maxBounds.z) -
+                                   std::max(patch.minBounds.z, candidate.minBounds.z);
+            if (overlapX < -0.10f || overlapZ < -0.10f)
+                continue;
+            const float dx = patch.centroid.x - candidate.centroid.x;
+            const float dy = patch.centroid.y - candidate.centroid.y;
+            const float dz = patch.centroid.z - candidate.centroid.z;
+            const float distanceSq = dx*dx + dy*dy + dz*dz;
+            if (distanceSq >= bestGlassDistanceSq)
+                continue;
+            const AtomicMesh* candidateMesh = candidate.atomicIndex < 256u
+                ? meshByAtomic[candidate.atomicIndex] : nullptr;
+            if (candidateMesh == nullptr || candidate.triangleIndices.empty())
+                continue;
+            bestGlassDistanceSq = distanceSq;
+            glassProjectionPatch = &candidate;
+            glassProjectionMesh = candidateMesh;
+        }
+
         const float minX = patch.minBounds.x;
         const float width = std::max(0.001f, patch.maxBounds.x - minX);
         CVector outward(patch.normal.x, patch.normal.y, patch.normal.z);
@@ -1354,7 +1394,22 @@ static uint32_t RenderNativeLightsBatched(
                 const GeometryVertex& source = mesh->vertices[sourceIndex];
                 const GeometryVertex& local = mesh->vehicleSpaceVertices[sourceIndex];
                 CVector vehicleLocal(local.x, local.y, local.z);
-                vehicleLocal += triangleOutward * NATIVE_RGB_SURFACE_OFFSET;
+                bool projectedToGlass = false;
+                if (glassProjectionPatch != nullptr && glassProjectionMesh != nullptr) {
+                    CVector glassPoint;
+                    if (ProjectToSurfacePatch(vehicleLocal, *glassProjectionPatch,
+                            *glassProjectionMesh, glassPoint)) {
+                        const CVector delta = glassPoint - vehicleLocal;
+                        const float distanceSq = DotProduct(delta, delta);
+                        // Keep projection strictly local to a lens-sized region.
+                        if (distanceSq <= 0.80f * 0.80f) {
+                            vehicleLocal = glassPoint;
+                            projectedToGlass = true;
+                        }
+                    }
+                }
+                if (!projectedToGlass)
+                    vehicleLocal += triangleOutward * NATIVE_RGB_SURFACE_OFFSET;
                 const CVector world = vehicleMatrix->TransformPoint(vehicleLocal);
 
                 const NativeRgbColorMode colorMode = front ? profile.nativeLights.headColorMode : profile.nativeLights.tailColorMode;
