@@ -1216,10 +1216,7 @@ static uint32_t RenderNativeLightsBatched(
     // color buildup caused by additive blending over bright lamp textures.
     const uint8_t alpha = ClampColor(profile.nativeLights.rgbFlowIntensity * 220.0f);
     if (stats != nullptr) stats->alpha = alpha;
-    const float flowOffset = std::fmod(
-        static_cast<float>(timeMs) * profile.nativeLights.rgbFlowSpeed * 0.09f,
-        360.0f
-    );
+    const float flowTime = static_cast<float>(timeMs) * 0.09f;
 
     const auto flushBatch = [&]() {
         if (indices.empty())
@@ -1360,11 +1357,44 @@ static uint32_t RenderNativeLightsBatched(
                 vehicleLocal += triangleOutward * NATIVE_RGB_SURFACE_OFFSET;
                 const CVector world = vehicleMatrix->TransformPoint(vehicleLocal);
 
-                // One complete, fully saturated spectrum spans the lamp;
-                // the time phase moves it continuously along the surface.
-                const float normalizedX = (local.x - minX) / width;
-                uint8_t red = 255, green = 255, blue = 255;
-                HSVtoRGB(normalizedX * 360.0f + flowOffset, red, green, blue);
+                const NativeRgbColorMode colorMode = front ? profile.nativeLights.headColorMode : profile.nativeLights.tailColorMode;
+                const LedColorDirection direction = front ? profile.nativeLights.headDirection : profile.nativeLights.tailDirection;
+                const float speed = front ? profile.nativeLights.headSpeed : profile.nativeLights.tailSpeed;
+                const float saturation = front ? profile.nativeLights.headSaturation : profile.nativeLights.tailSaturation;
+                const uint8_t solidRed = front ? profile.nativeLights.headRed : profile.nativeLights.tailRed;
+                const uint8_t solidGreen = front ? profile.nativeLights.headGreen : profile.nativeLights.tailGreen;
+                const uint8_t solidBlue = front ? profile.nativeLights.headBlue : profile.nativeLights.tailBlue;
+                const float minZ = patch.minBounds.z;
+                const float depth = std::max(0.001f, patch.maxBounds.z - minZ);
+                float position = 0.0f;
+                switch (direction) {
+                    case LedColorDirection::RightToLeft: position = 1.0f - (local.x - minX) / width; break;
+                    case LedColorDirection::TopToBottom: position = 1.0f - (local.z - minZ) / depth; break;
+                    case LedColorDirection::BottomToTop: position = (local.z - minZ) / depth; break;
+                    case LedColorDirection::DiagonalDown: position = 0.5f * ((local.x - minX) / width + 1.0f - (local.z - minZ) / depth); break;
+                    case LedColorDirection::DiagonalUp: position = 0.5f * ((local.x - minX) / width + (local.z - minZ) / depth); break;
+                    case LedColorDirection::CenterOut: {
+                        const float dx = std::fabs((local.x - minX) / width - 0.5f) * 2.0f;
+                        const float dz = std::fabs((local.z - minZ) / depth - 0.5f) * 2.0f;
+                        position = std::max(dx, dz); break;
+                    }
+                    case LedColorDirection::EdgeToCenter: {
+                        const float dx = std::fabs((local.x - minX) / width - 0.5f) * 2.0f;
+                        const float dz = std::fabs((local.z - minZ) / depth - 0.5f) * 2.0f;
+                        position = 1.0f - std::max(dx, dz); break;
+                    }
+                    case LedColorDirection::LeftToRight:
+                    default: position = (local.x - minX) / width; break;
+                }
+                position = std::max(0.0f, std::min(1.0f, position));
+                uint8_t red = solidRed, green = solidGreen, blue = solidBlue;
+                if (colorMode == NativeRgbColorMode::Rainbow) {
+                    HSVtoRGB(position * 360.0f + std::fmod(flowTime * speed, 360.0f), red, green, blue);
+                    const float gray = static_cast<float>(red) * 0.299f + static_cast<float>(green) * 0.587f + static_cast<float>(blue) * 0.114f;
+                    red = ClampColor(gray + (static_cast<float>(red) - gray) * saturation);
+                    green = ClampColor(gray + (static_cast<float>(green) - gray) * saturation);
+                    blue = ClampColor(gray + (static_cast<float>(blue) - gray) * saturation);
+                }
 
                 RwIm3DVertex vertex;
                 SetVertex(vertex, world, red, green, blue, alpha);
