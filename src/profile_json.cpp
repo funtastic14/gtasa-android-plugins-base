@@ -804,6 +804,7 @@ static bool ReadEffect(
         effect.stroboFlashPeriodMs < 100 || effect.stroboFlashPeriodMs > 5000)
         return false;
     const JsonValue* stroboPanels = Find(value, "stroboPanels");
+    bool legacyUniformPanelDefaults = stroboPanels != nullptr;
     if (effect.type == LedEffectType::StroboWave && stroboPanels == nullptr)
         InitializeStroboWavePanelDefaults(effect);
     if (stroboPanels != nullptr) {
@@ -835,7 +836,20 @@ static bool ReadEffect(
             panel.motionPattern = static_cast<LedMotionPattern>(pattern);
             panel.direction = static_cast<LedColorDirection>(direction);
             panel.densityMode = static_cast<MotionDensityMode>(density);
+            legacyUniformPanelDefaults = legacyUniformPanelDefaults &&
+                panel.enabled &&
+                panel.motionPattern == LedMotionPattern::LeftToRight &&
+                panel.direction == LedColorDirection::LeftToRight &&
+                panel.densityMode == MotionDensityMode::Adaptive &&
+                panel.densityX == 1.0f && panel.densityY == 1.0f &&
+                panel.phaseOffset == 0.0f;
         }
+        // Profiles saved by the first panel-stack revision serialized seven
+        // identical default panels. Migrate that untouched default only;
+        // any user-customized panel configuration remains intact.
+        if (effect.type == LedEffectType::StroboWave &&
+            legacyUniformPanelDefaults)
+            InitializeStroboWavePanelDefaults(effect);
     }
 
     int colorMode = static_cast<int>(effect.colorMode);
