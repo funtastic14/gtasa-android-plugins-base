@@ -795,8 +795,9 @@ static bool ReadEffect(
     if (Find(value, "stroboPanelGapRows") &&
         !ReadUInt8(value, "stroboPanelGapRows", effect.stroboPanelGapRows))
         return false;
+    const bool hasCompositionMode = Find(value, "stroboCompositionMode") != nullptr;
     int compositionMode = static_cast<int>(effect.stroboCompositionMode);
-    if (Find(value, "stroboCompositionMode")) {
+    if (hasCompositionMode) {
         if (!ReadInt(value, "stroboCompositionMode", compositionMode) ||
             compositionMode < 0 ||
             compositionMode > static_cast<int>(PanelMotionCompositionMode::IndependentMotion))
@@ -1116,6 +1117,11 @@ static bool ReadEffect(
             }
         }
     }
+    // Older profiles predate composition modes and rely on per-panel patterns
+    // and directions. Preserve their established behavior on migration.
+    if (!hasCompositionMode && effect.type == LedEffectType::StroboWave)
+        effect.stroboCompositionMode = PanelMotionCompositionMode::CoordinatedMotion;
+
     int motionPlayback = static_cast<int>(effect.motionPlayback);
     if (!ReadInt(value, "motionPlayback", motionPlayback) || motionPlayback < 0 || motionPlayback > static_cast<int>(MotionPlaybackMode::Random)) return false;
     effect.motionPlayback = static_cast<MotionPlaybackMode>(motionPlayback);
