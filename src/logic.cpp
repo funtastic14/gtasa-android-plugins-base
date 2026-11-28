@@ -1241,6 +1241,15 @@ static void RenderEditor() {
             if (ImGui::SliderInt("Panel Width (Columns)", &panelColumns, 3, 64)) changed = true;
             if (ImGui::SliderInt("Panel Height (Rows)", &panelRows, 3, 24)) changed = true;
             if (ImGui::SliderInt("Panel Gap (Rows)", &panelGap, 0, 8)) changed = true;
+            // Keep the full logical grid under the 4096-pixel safety budget.
+            while (static_cast<uint32_t>(panelColumns) *
+                    (static_cast<uint32_t>(effect.stroboPanelCount) * panelRows +
+                     static_cast<uint32_t>(effect.stroboPanelCount - 1) * panelGap) > 4096u) {
+                if (panelGap > 0) --panelGap;
+                else if (panelRows > 3) --panelRows;
+                else if (panelColumns > 3) --panelColumns;
+                else break;
+            }
             effect.stroboPanelColumns = static_cast<uint16_t>(panelColumns);
             effect.stroboPanelRows = static_cast<uint16_t>(panelRows);
             effect.stroboPanelGapRows = static_cast<uint8_t>(panelGap);
