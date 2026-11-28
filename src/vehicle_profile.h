@@ -354,7 +354,7 @@ struct LedEffectConfig {
 
     // Dedicated vertical panel stack for Strobo Wave. Panel cells are
     // addressed within one logical canvas; no heap-backed panel list.
-    bool stroboPanelStackEnabled = false;
+    bool stroboPanelStackEnabled = true;
     uint8_t stroboPanelCount = 5;
     uint16_t stroboPanelColumns = 21;
     uint16_t stroboPanelRows = 7;
@@ -474,6 +474,7 @@ struct NativeVehicleLightConfig {
     float highBeamIntensity = 1.25f;
     bool rgbHeadlightsEnabled = false;
     bool rgbTaillightsEnabled = false;
+    bool frontAxisPositive = true;
     float rgbFlowSpeed = 1.0f;
     float rgbFlowIntensity = 1.0f;
     // Native RGB is the base lighting layer; placement layers render above it.
