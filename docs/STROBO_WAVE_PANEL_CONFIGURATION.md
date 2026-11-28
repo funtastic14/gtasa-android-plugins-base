@@ -55,7 +55,7 @@ Placement dimensions are still controlled by the LED placement transform. The ma
 | 1 | Coordinated Motion | Panels inherit the main effect pattern by default. Enable `useCustomMotionPattern` per panel to override it. If the main effect pattern is global geometry (spiral, radial, orbit, circle, burst, center-origin, or related geometry), it takes priority and temporarily suspends all panel pattern overrides so the shape remains one continuous field. For non-global main patterns, custom panel patterns can differ; global-geometry overrides still sample the full-stack center and coordinates. Directional patterns retain their local panel direction, density, and phase offset. |
 | 2 | Independent Motion | Each panel uses its own local pattern, direction, and density without requiring continuity with neighboring panels. |
 
-New profiles default to Unified Geometry. Older profiles without this field migrate to Coordinated Motion. Profiles without `useCustomMotionPattern` treat it as false, preserving backward compatibility.
+New profiles default to Unified Geometry. Older profiles without this field migrate to Coordinated Motion. When an older profile explicitly uses Coordinated Motion but lacks `useCustomMotionPattern`, the parser treats its stored panel patterns as enabled overrides, preserving the old behavior. Newly saved profiles store the flag explicitly.
 
 ## Density modes
 
