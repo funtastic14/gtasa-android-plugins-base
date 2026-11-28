@@ -1997,6 +1997,20 @@ bool Serialize(
     if (!AppendFloat(json, profile.nativeLights.rgbFlowSpeed)) return false;
     json += ",\"rgbFlowIntensity\":";
     if (!AppendFloat(json, profile.nativeLights.rgbFlowIntensity)) return false;
+    json += ",\"headColorMode\":"; AppendInt(json, static_cast<int>(profile.nativeLights.headColorMode));
+    json += ",\"tailColorMode\":"; AppendInt(json, static_cast<int>(profile.nativeLights.tailColorMode));
+    json += ",\"headDirection\":"; AppendInt(json, static_cast<int>(profile.nativeLights.headDirection));
+    json += ",\"tailDirection\":"; AppendInt(json, static_cast<int>(profile.nativeLights.tailDirection));
+    json += ",\"headRed\":"; AppendInt(json, profile.nativeLights.headRed);
+    json += ",\"headGreen\":"; AppendInt(json, profile.nativeLights.headGreen);
+    json += ",\"headBlue\":"; AppendInt(json, profile.nativeLights.headBlue);
+    json += ",\"tailRed\":"; AppendInt(json, profile.nativeLights.tailRed);
+    json += ",\"tailGreen\":"; AppendInt(json, profile.nativeLights.tailGreen);
+    json += ",\"tailBlue\":"; AppendInt(json, profile.nativeLights.tailBlue);
+    json += ",\"headSpeed\":"; if (!AppendFloat(json, profile.nativeLights.headSpeed)) return false;
+    json += ",\"tailSpeed\":"; if (!AppendFloat(json, profile.nativeLights.tailSpeed)) return false;
+    json += ",\"headSaturation\":"; if (!AppendFloat(json, profile.nativeLights.headSaturation)) return false;
+    json += ",\"tailSaturation\":"; if (!AppendFloat(json, profile.nativeLights.tailSaturation)) return false;
     json += ",\"rgbBlendMode\":";
     AppendInt(json, static_cast<int>(profile.nativeLights.blendMode));
     json += "}";
@@ -2071,6 +2085,8 @@ bool Deserialize(
     if (nativeLights != nullptr) {
         int scanMode = static_cast<int>(result.nativeLights.scanMode);
         int rgbBlendMode = static_cast<int>(result.nativeLights.blendMode);
+        int headColorMode = 1, tailColorMode = 1, headDirection = 0, tailDirection = 0;
+        int headRed = 255, headGreen = 255, headBlue = 255, tailRed = 255, tailGreen = 255, tailBlue = 255;
         if (nativeLights->type != JsonValue::Object ||
             (Find(*nativeLights, "scanMode") != nullptr &&
              (!ReadInt(*nativeLights, "scanMode", scanMode) ||
@@ -2092,6 +2108,12 @@ bool Deserialize(
         }
         result.nativeLights.scanMode = static_cast<NativeLightScanMode>(scanMode);
         result.nativeLights.blendMode = static_cast<LedLayerBlendMode>(rgbBlendMode);
+        result.nativeLights.headColorMode = static_cast<NativeRgbColorMode>(headColorMode);
+        result.nativeLights.tailColorMode = static_cast<NativeRgbColorMode>(tailColorMode);
+        result.nativeLights.headDirection = static_cast<LedColorDirection>(headDirection);
+        result.nativeLights.tailDirection = static_cast<LedColorDirection>(tailDirection);
+        result.nativeLights.headRed = static_cast<uint8_t>(headRed); result.nativeLights.headGreen = static_cast<uint8_t>(headGreen); result.nativeLights.headBlue = static_cast<uint8_t>(headBlue);
+        result.nativeLights.tailRed = static_cast<uint8_t>(tailRed); result.nativeLights.tailGreen = static_cast<uint8_t>(tailGreen); result.nativeLights.tailBlue = static_cast<uint8_t>(tailBlue);
         if (!std::isfinite(result.nativeLights.highBeamRange) ||
             !std::isfinite(result.nativeLights.highBeamWidthDegrees) ||
             !std::isfinite(result.nativeLights.highBeamIntensity) ||
