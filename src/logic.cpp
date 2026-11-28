@@ -1255,9 +1255,15 @@ static void RenderEditor() {
             effect.stroboPanelColumns = static_cast<uint16_t>(panelColumns);
             effect.stroboPanelRows = static_cast<uint16_t>(panelRows);
             effect.stroboPanelGapRows = static_cast<uint8_t>(panelGap);
-            int flashPeriod = static_cast<int>(effect.stroboFlashPeriodMs);
-            if (ImGui::SliderInt("Flash Period (ms)", &flashPeriod, 100, 2000)) changed = true;
-            effect.stroboFlashPeriodMs = static_cast<uint32_t>(flashPeriod);
+            if (ImGui::Checkbox("Optional Strobe Flash", &effect.stroboFlashEnabled))
+                changed = true;
+            ImGui::TextWrapped("Off by default: motion patterns run continuously without an imposed on/off pulse. Enable this only when a classic blinking strobe is desired.");
+            if (effect.stroboFlashEnabled) {
+                int flashPeriod = static_cast<int>(effect.stroboFlashPeriodMs);
+                if (ImGui::SliderInt("Flash Period (ms)", &flashPeriod, 100, 2000))
+                    changed = true;
+                effect.stroboFlashPeriodMs = static_cast<uint32_t>(flashPeriod);
+            }
 
             const uint32_t totalRows =
                 effect.stroboPanelCount * effect.stroboPanelRows +
