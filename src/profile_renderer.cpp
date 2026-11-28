@@ -9,6 +9,7 @@
 #include <cctype>
 #include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <limits>
 #include <string>
 #include <vector>
@@ -1093,30 +1094,39 @@ static bool RenderEffect(
 }
 
 
+static bool ContainsLampName(
+    const std::string& value,
+    const char* token
+) {
+    const size_t tokenLength = std::strlen(token);
+    if (tokenLength == 0 || value.size() < tokenLength)
+        return false;
+    return std::search(value.begin(), value.end(), token, token + tokenLength,
+        [](unsigned char left, unsigned char right) {
+            return static_cast<unsigned char>(std::tolower(left)) == right;
+        }) != value.end();
+}
+
 static int ResolveNativeLightSide(
     const SurfacePatch& patch,
     bool frontAxisPositive
 ) {
-    std::string names = patch.frameName + " " + patch.textureName + " " + patch.maskName;
-    std::transform(names.begin(), names.end(), names.begin(),
-        [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+    const auto contains = [&patch](const char* token) {
+        return ContainsLampName(patch.frameName, token) ||
+            ContainsLampName(patch.textureName, token) ||
+            ContainsLampName(patch.maskName, token);
+    };
 
-    // Explicit model naming wins over coordinates. Vehicle mods commonly
-    // split headlamp and taillamp atomics but use nonstandard local origins.
+    // Explicit model naming wins over coordinates. Avoid building a temporary
+    // combined string here: this function runs for every candidate each frame.
     const bool namedFront =
-        names.find("headlight") != std::string::npos ||
-        names.find("head_light") != std::string::npos ||
-        names.find("frontlamp") != std::string::npos ||
-        names.find("front_lamp") != std::string::npos ||
-        names.find("frontlight") != std::string::npos ||
-        names.find("front_light") != std::string::npos;
+        contains("headlight") || contains("head_light") ||
+        contains("frontlamp") || contains("front_lamp") ||
+        contains("frontlight") || contains("front_light");
     const bool namedRear =
-        names.find("taillight") != std::string::npos ||
-        names.find("tail_light") != std::string::npos ||
-        names.find("rearlamp") != std::string::npos ||
-        names.find("rear_lamp") != std::string::npos ||
-        names.find("backlight") != std::string::npos ||
-        names.find("back_light") != std::string::npos;
+        contains("taillight") || contains("tail_light") ||
+        contains("rearlamp") || contains("rear_lamp") ||
+        contains("backlight") || contains("back_light");
     if (namedFront != namedRear)
         return namedFront ? 1 : -1;
 
