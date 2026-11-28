@@ -875,7 +875,7 @@ static bool RenderEffect(
             break;
 
         case LedEffectType::StroboWave:
-            intensity = strobeOn ? 1.0f : 0.0f;
+            intensity = (!effect.stroboFlashEnabled || strobeOn) ? 1.0f : 0.0f;
             break;
 
         case LedEffectType::StroboEyes:
