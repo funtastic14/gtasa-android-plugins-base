@@ -795,6 +795,9 @@ static bool ReadEffect(
     if (Find(value, "stroboPanelGapRows") &&
         !ReadUInt8(value, "stroboPanelGapRows", effect.stroboPanelGapRows))
         return false;
+    if (Find(value, "stroboFlashEnabled") &&
+        !ReadBool(value, "stroboFlashEnabled", effect.stroboFlashEnabled))
+        return false;
     if (Find(value, "stroboFlashPeriodMs") &&
         !ReadUInt32(value, "stroboFlashPeriodMs", effect.stroboFlashPeriodMs))
         return false;
@@ -1680,6 +1683,8 @@ static bool AppendEffect(
     AppendUInt(output, effect.stroboPanelRows);
     output += ",\"stroboPanelGapRows\":";
     AppendUInt(output, effect.stroboPanelGapRows);
+    output += ",\"stroboFlashEnabled\":";
+    output += effect.stroboFlashEnabled ? "true" : "false";
     output += ",\"stroboFlashPeriodMs\":";
     AppendUInt(output, effect.stroboFlashPeriodMs);
     output += ",\"stroboPanels\":[";
