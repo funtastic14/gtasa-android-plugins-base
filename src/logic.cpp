@@ -1297,7 +1297,7 @@ static void RenderEditor() {
                 ImGui::TextWrapped("Unified Geometry: every panel follows the main Motion Pattern and one shared phase across the full stack. Per-panel pattern, direction, density and phase offset are bypassed so spiral arms and radial fronts stay continuous at panel seams.");
             } else if (effect.stroboCompositionMode ==
                        VLS::PanelMotionCompositionMode::CoordinatedMotion) {
-                ImGui::TextWrapped("Coordinated Motion: each panel may use a different pattern. Radial / spiral / orbit / burst patterns share the complete stack's center, coordinates and phase; panel direction, density and phase offsets are bypassed for those patterns. Directional patterns retain those per-panel controls.");
+                ImGui::TextWrapped("Coordinated Motion: panels inherit the main pattern by default. Enable Override Main Motion Pattern to assign a different pattern to a panel. Spiral / radial / orbit / burst / center-origin geometry always uses the complete stack's shared center, coordinates and phase; directional overrides retain per-panel direction, density and phase controls.");
             } else {
                 ImGui::TextWrapped("Independent Motion: each panel uses its own local pattern, direction and density, without forcing a continuous global shape.");
             }
@@ -1349,8 +1349,18 @@ static void RenderEditor() {
             VLS::StroboWavePanelConfig& panel =
                 effect.stroboPanels[static_cast<size_t>(selectedPanel)];
             changed |= ImGui::Checkbox("Panel Enabled", &panel.enabled);
-            if (effect.stroboCompositionMode !=
-                VLS::PanelMotionCompositionMode::UnifiedGeometry) {
+            const bool coordinatedMode = effect.stroboCompositionMode ==
+                VLS::PanelMotionCompositionMode::CoordinatedMotion;
+            const bool independentMode = effect.stroboCompositionMode ==
+                VLS::PanelMotionCompositionMode::IndependentMotion;
+            if (coordinatedMode) {
+                changed |= ImGui::Checkbox("Override Main Motion Pattern",
+                    &panel.useCustomMotionPattern);
+                if (!panel.useCustomMotionPattern) {
+                    ImGui::TextWrapped("This panel inherits the main Motion Pattern. Global spiral, circular, center-in/out and burst geometry remains continuous across the full panel stack.");
+                }
+            }
+            if (independentMode || (coordinatedMode && panel.useCustomMotionPattern)) {
                 int panelMotion = static_cast<int>(panel.motionPattern);
                 if (ImGui::Combo("Panel Motion Pattern", &panelMotion,
                                  motionNames, IM_ARRAYSIZE(motionNames))) {
@@ -1372,8 +1382,7 @@ static void RenderEditor() {
                 changed |= ImGui::SliderFloat("Panel Density X", &panel.densityX, 0.25f, 4.0f);
                 changed |= ImGui::SliderFloat("Panel Density Y", &panel.densityY, 0.25f, 4.0f);
             }
-            if (effect.stroboCompositionMode !=
-                VLS::PanelMotionCompositionMode::UnifiedGeometry) {
+            if (independentMode || (coordinatedMode && panel.useCustomMotionPattern)) {
                 changed |= ImGui::SliderFloat("Panel Phase Offset", &panel.phaseOffset, -1.0f, 1.0f);
             }
         }
