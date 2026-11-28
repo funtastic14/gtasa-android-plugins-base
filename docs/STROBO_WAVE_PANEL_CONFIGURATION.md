@@ -10,7 +10,7 @@ Add these fields inside a Strobo Wave effect object:
   "stroboPanelCount": 5,
   "stroboPanelColumns": 21,
   "stroboPanelRows": 7,
-  "stroboPanelGapRows": 1,
+  "stroboPanelGapRows": 2,
   "stroboFlashPeriodMs": 500,
   "stroboPanels": [
     { "enabled": true, "motionPattern": 0, "direction": 0, "densityMode": 0, "densityX": 1.0, "densityY": 1.0, "phaseOffset": 0.0 },
@@ -61,6 +61,6 @@ The `motionPattern` integer follows the stable `LedMotionPattern` enum order in 
 
 ## Canvas and geometry
 
-The loader automatically enables and sizes the matrix when `stroboPanelStackEnabled` is true and no conflicting per-pixel matrix is supplied. Five panels of 21 × 7 with one blank row between panels produce a 21 × 39 logical grid. Panel gaps are excluded from the shared motion coordinate space, so waves and directional movement remain continuous across the stack.
+The loader automatically enables and sizes the matrix when `stroboPanelStackEnabled` is true and no conflicting per-pixel matrix is supplied. Five panels of 21 × 7 with two blank rows between panels produce a 21 × 43 logical grid. Panel gaps are excluded from the shared motion coordinate space, so waves and directional movement remain continuous across the stack.
 
 Legacy profiles without `stroboPanelStackEnabled` are not converted automatically. The renderer uses fixed-size panel configuration storage and performs no per-frame heap allocation for panel state.
