@@ -1297,7 +1297,7 @@ static void RenderEditor() {
                 ImGui::TextWrapped("Unified Geometry: every panel follows the main Motion Pattern and one shared phase across the full stack. Per-panel pattern, direction, density and phase offset are bypassed so spiral arms and radial fronts stay continuous at panel seams.");
             } else if (effect.stroboCompositionMode ==
                        VLS::PanelMotionCompositionMode::CoordinatedMotion) {
-                ImGui::TextWrapped("Coordinated Motion: each panel may use a different pattern. Radial / spiral / orbit / burst patterns share the complete stack's center, coordinates and phase; directional patterns retain their panel direction, density and phase offset.");
+                ImGui::TextWrapped("Coordinated Motion: each panel may use a different pattern. Radial / spiral / orbit / burst patterns share the complete stack's center, coordinates and phase; panel direction, density and phase offsets are bypassed for those patterns. Directional patterns retain those per-panel controls.");
             } else {
                 ImGui::TextWrapped("Independent Motion: each panel uses its own local pattern, direction and density, without forcing a continuous global shape.");
             }
