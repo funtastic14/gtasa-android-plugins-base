@@ -107,6 +107,11 @@ bool UsesGlobalRadialGeometry(LedMotionPattern pattern) {
     switch (pattern) {
     case LedMotionPattern::CenterOut:
     case LedMotionPattern::EdgeToCenter:
+    case LedMotionPattern::CenterCollision:
+    case LedMotionPattern::DiagonalCollision:
+    case LedMotionPattern::CollisionRebound:
+    case LedMotionPattern::CenterSplit:
+    case LedMotionPattern::SideCollision:
     case LedMotionPattern::ZoomIn:
     case LedMotionPattern::ZoomOut:
     case LedMotionPattern::Ripple:
@@ -129,6 +134,8 @@ bool UsesGlobalRadialGeometry(LedMotionPattern pattern) {
     case LedMotionPattern::CircleCollapse:
     case LedMotionPattern::TriangleConverge:
     case LedMotionPattern::TriangleOrbit:
+    case LedMotionPattern::TriangleFanSweep:
+    case LedMotionPattern::DiagonalXCross:
     case LedMotionPattern::MultiAxisCenterBurst:
     case LedMotionPattern::SegmentedCenterExpand:
         return true;
@@ -146,11 +153,13 @@ float EvaluatePanelMotion(
     const MotionFrameState& frame
 ) {
     const PanelMotionCompositionMode mode = effect.stroboCompositionMode;
-    const LedMotionPattern selectedPattern = mode ==
-        PanelMotionCompositionMode::UnifiedGeometry
-            ? frame.pattern : panel.motionPattern;
     const bool unified = mode == PanelMotionCompositionMode::UnifiedGeometry;
-    const bool globalRadial = mode == PanelMotionCompositionMode::CoordinatedMotion &&
+    const bool coordinated = mode == PanelMotionCompositionMode::CoordinatedMotion;
+    const bool inheritMainPattern = unified ||
+        (coordinated && !panel.useCustomMotionPattern);
+    const LedMotionPattern selectedPattern = inheritMainPattern
+        ? frame.pattern : panel.motionPattern;
+    const bool globalRadial = coordinated &&
         UsesGlobalRadialGeometry(selectedPattern);
     const bool useGlobalCoordinates = unified || globalRadial;
 
@@ -227,7 +236,7 @@ float EvaluatePanelMotion(
         sampleColumns, sampleRows, aspectX, aspectY
     );
 
-    if (unified && frame.transitionProgress < 0.9999f) {
+    if (inheritMainPattern && frame.transitionProgress < 0.9999f) {
         const float previousIntensity = EvaluateMotionIntensity(
             frame.previousPattern, x, y, phase, sampleColumn, sampleRow,
             sampleColumns, sampleRows,
