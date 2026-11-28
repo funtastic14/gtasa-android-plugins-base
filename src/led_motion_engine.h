@@ -244,7 +244,7 @@ inline float EvaluateMotionIntensity(
     case LedMotionPattern::DiagonalCenterBurst: {
         // A center-originating wave expands outward. The diagonal variant
         // adds a moving diagonal ignition sweep before the radial burst.
-        const float radialDistance = std::sqrt(dx * dx + dy * dy) * 1.41421356f;
+        const float radialDistance = radius;
         if (pattern == LedMotionPattern::DiagonalCenterBurst && phase < 0.28f) {
             const float sweep = fract(phase / 0.28f - fract(x + y));
             return sweep < 0.18f ? 1.0f - sweep / 0.18f : 0.025f;
@@ -349,9 +349,12 @@ inline float EvaluateMotionIntensity(
         );
     }
     case LedMotionPattern::CornerBurst: {
-        const float cx = std::min(x, 1.0f - x);
-        const float cy = std::min(y, 1.0f - y);
-        const float cornerRadius = std::sqrt(cx * cx + cy * cy) * 1.41421356f;
+        const float cx = 0.5f - std::fabs(x - 0.5f);
+        const float cy = 0.5f - std::fabs(y - 0.5f);
+        const float cornerDx = cx * aspectScaleX;
+        const float cornerDy = cy * aspectScaleY;
+        const float cornerRadius = std::sqrt(
+            cornerDx * cornerDx + cornerDy * cornerDy) * radialNormalization;
         const float wave = clamp01(1.0f - std::fabs(cornerRadius - phase) * 16.0f);
         return 0.025f + 0.975f * wave;
     }
