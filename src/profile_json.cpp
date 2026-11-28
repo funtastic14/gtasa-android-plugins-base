@@ -795,6 +795,15 @@ static bool ReadEffect(
     if (Find(value, "stroboPanelGapRows") &&
         !ReadUInt8(value, "stroboPanelGapRows", effect.stroboPanelGapRows))
         return false;
+    int compositionMode = static_cast<int>(effect.stroboCompositionMode);
+    if (Find(value, "stroboCompositionMode")) {
+        if (!ReadInt(value, "stroboCompositionMode", compositionMode) ||
+            compositionMode < 0 ||
+            compositionMode > static_cast<int>(PanelMotionCompositionMode::IndependentMotion))
+            return false;
+        effect.stroboCompositionMode =
+            static_cast<PanelMotionCompositionMode>(compositionMode);
+    }
     if (Find(value, "stroboFlashEnabled") &&
         !ReadBool(value, "stroboFlashEnabled", effect.stroboFlashEnabled))
         return false;
@@ -1610,6 +1619,9 @@ static bool AppendEffect(
         effect.stroboPanelColumns == 0 || effect.stroboPanelColumns > 256 ||
         effect.stroboPanelRows == 0 || effect.stroboPanelRows > 64 ||
         effect.stroboPanelGapRows > 16 ||
+        static_cast<int>(effect.stroboCompositionMode) < 0 ||
+        static_cast<int>(effect.stroboCompositionMode) >
+            static_cast<int>(PanelMotionCompositionMode::IndependentMotion) ||
         effect.stroboFlashPeriodMs < 100 || effect.stroboFlashPeriodMs > 5000) {
         return false;
     }
@@ -1683,6 +1695,8 @@ static bool AppendEffect(
     AppendUInt(output, effect.stroboPanelRows);
     output += ",\"stroboPanelGapRows\":";
     AppendUInt(output, effect.stroboPanelGapRows);
+    output += ",\"stroboCompositionMode\":";
+    AppendInt(output, static_cast<int>(effect.stroboCompositionMode));
     output += ",\"stroboFlashEnabled\":";
     output += effect.stroboFlashEnabled ? "true" : "false";
     output += ",\"stroboFlashPeriodMs\":";
