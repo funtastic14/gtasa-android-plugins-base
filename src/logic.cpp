@@ -645,7 +645,51 @@ static void RenderEditor() {
         nativeLightsChanged |= ImGui::Checkbox(
             "Vehicle Front Uses +Y Axis", &profile->nativeLights.frontAxisPositive);
         ImGui::TextWrapped("Frame names containing head/front or tail/rear/back take priority. This axis setting is used only when a model has generic lamp names.");
-        nativeLightsChanged |= ImGui::SliderFloat("Native Light RGB Flow Speed", &profile->nativeLights.rgbFlowSpeed, 0.1f, 4.0f);
+        static const char* nativeRgbColorNames[] = { "Solid Colour", "Rainbow" };
+        static const char* nativeRgbDirectionNames[] = {
+            "Left to Right", "Right to Left", "Top to Bottom", "Bottom to Top",
+            "Diagonal Down", "Diagonal Up", "Center to Out", "Out to Center"
+        };
+        auto drawNativeRgbControls = [&](const char* label, VLS::NativeRgbColorMode& mode,
+                                         VLS::LedColorDirection& direction,
+                                         uint8_t& red, uint8_t& green, uint8_t& blue,
+                                         float& speed, float& saturation) {
+            ImGui::Separator(); ImGui::Text("%s", label);
+            int colorMode = static_cast<int>(mode);
+            const std::string modeLabel = std::string(label) + " Colour Mode";
+            if (ImGui::Combo(modeLabel.c_str(), &colorMode, nativeRgbColorNames, IM_ARRAYSIZE(nativeRgbColorNames))) {
+                mode = static_cast<VLS::NativeRgbColorMode>(colorMode); nativeLightsChanged = true;
+            }
+            if (mode == VLS::NativeRgbColorMode::Solid) {
+                int rr = red, gg = green, bb = blue;
+                const std::string rLabel = std::string(label) + " Red";
+                const std::string gLabel = std::string(label) + " Green";
+                const std::string bLabel = std::string(label) + " Blue";
+                if (ImGui::SliderInt(rLabel.c_str(), &rr, 0, 255) |
+                    ImGui::SliderInt(gLabel.c_str(), &gg, 0, 255) |
+                    ImGui::SliderInt(bLabel.c_str(), &bb, 0, 255)) {
+                    red = static_cast<uint8_t>(rr); green = static_cast<uint8_t>(gg); blue = static_cast<uint8_t>(bb);
+                    nativeLightsChanged = true;
+                }
+            }
+            int dir = static_cast<int>(direction);
+            const std::string dirLabel = std::string(label) + " Direction";
+            if (ImGui::Combo(dirLabel.c_str(), &dir, nativeRgbDirectionNames, IM_ARRAYSIZE(nativeRgbDirectionNames))) {
+                direction = static_cast<VLS::LedColorDirection>(dir); nativeLightsChanged = true;
+            }
+            const std::string speedLabel = std::string(label) + " Speed";
+            const std::string satLabel = std::string(label) + " Saturation";
+            nativeLightsChanged |= ImGui::SliderFloat(speedLabel.c_str(), &speed, 0.1f, 4.0f);
+            nativeLightsChanged |= ImGui::SliderFloat(satLabel.c_str(), &saturation, 0.0f, 1.0f);
+        };
+        if (profile->nativeLights.rgbHeadlightsEnabled)
+            drawNativeRgbControls("RGB Headlight", profile->nativeLights.headColorMode, profile->nativeLights.headDirection,
+                profile->nativeLights.headRed, profile->nativeLights.headGreen, profile->nativeLights.headBlue,
+                profile->nativeLights.headSpeed, profile->nativeLights.headSaturation);
+        if (profile->nativeLights.rgbTaillightsEnabled)
+            drawNativeRgbControls("RGB Taillight", profile->nativeLights.tailColorMode, profile->nativeLights.tailDirection,
+                profile->nativeLights.tailRed, profile->nativeLights.tailGreen, profile->nativeLights.tailBlue,
+                profile->nativeLights.tailSpeed, profile->nativeLights.tailSaturation);
         nativeLightsChanged |= ImGui::SliderFloat("Native Light RGB Intensity", &profile->nativeLights.rgbFlowIntensity, 0.1f, 2.0f);
         static const char* nativeRgbBlendModeNames[] = { "Alpha", "Additive" };
         int nativeRgbBlendMode = static_cast<int>(profile->nativeLights.blendMode);
