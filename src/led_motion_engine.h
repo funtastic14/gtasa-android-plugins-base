@@ -150,13 +150,22 @@ inline float EvaluateMotionIntensity(
     uint16_t column,
     uint16_t row,
     uint16_t columns,
-    uint16_t rows
+    uint16_t rows,
+    float aspectScaleX = 1.0f,
+    float aspectScaleY = 1.0f
 ) {
     constexpr float PI2 = 6.28318530717958647692f;
     const float wavePhase = PI2 * phase;
-    const float dx = x - 0.5f;
-    const float dy = y - 0.5f;
-    const float radius = std::sqrt(dx * dx + dy * dy) * 1.41421356f;
+    // Optional physical-aspect correction keeps radial geometry circular on
+    // non-square shared canvases (including tall multi-panel stacks).
+    aspectScaleX = std::max(0.001f, aspectScaleX);
+    aspectScaleY = std::max(0.001f, aspectScaleY);
+    const float dx = (x - 0.5f) * aspectScaleX;
+    const float dy = (y - 0.5f) * aspectScaleY;
+    const float radialNormalization = 1.41421356f /
+        std::sqrt((aspectScaleX * aspectScaleX +
+                   aspectScaleY * aspectScaleY) * 0.5f);
+    const float radius = std::sqrt(dx * dx + dy * dy) * radialNormalization;
     const auto fract = [](float value) {
         return value - std::floor(value);
     };
