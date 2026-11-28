@@ -185,11 +185,13 @@ float EvaluatePanelMotion(
         sampleColumn = column;
         sampleRow = static_cast<uint16_t>(std::min<uint32_t>(
             safeTotalRows - 1u, globalRow));
+        const float maxDimension = static_cast<float>(
+            std::max<uint16_t>(totalColumns, safeTotalRows));
+        const float canvasAspectX = static_cast<float>(totalColumns) / maxDimension;
+        const float canvasAspectY = static_cast<float>(safeTotalRows) / maxDimension;
         if (UsesGlobalRadialGeometry(selectedPattern)) {
-            const float maxDimension = static_cast<float>(
-                std::max<uint16_t>(totalColumns, safeTotalRows));
-            aspectX = static_cast<float>(totalColumns) / maxDimension;
-            aspectY = static_cast<float>(safeTotalRows) / maxDimension;
+            aspectX = canvasAspectX;
+            aspectY = canvasAspectY;
         }
     } else {
         // Independent / non-radial coordinated motion keeps the existing
@@ -225,8 +227,14 @@ float EvaluatePanelMotion(
         const float previousIntensity = EvaluateMotionIntensity(
             frame.previousPattern, x, y, phase, sampleColumn, sampleRow,
             sampleColumns, sampleRows,
-            UsesGlobalRadialGeometry(frame.previousPattern) ? aspectX : 1.0f,
-            UsesGlobalRadialGeometry(frame.previousPattern) ? aspectY : 1.0f
+            UsesGlobalRadialGeometry(frame.previousPattern)
+                ? static_cast<float>(totalColumns) /
+                    static_cast<float>(std::max<uint16_t>(totalColumns, safeTotalRows))
+                : 1.0f,
+            UsesGlobalRadialGeometry(frame.previousPattern)
+                ? static_cast<float>(safeTotalRows) /
+                    static_cast<float>(std::max<uint16_t>(totalColumns, safeTotalRows))
+                : 1.0f
         );
         const float transitionCoverage = TransitionEngine::EvaluateIncoming(
             EffectTransitionMode::Wipe,
