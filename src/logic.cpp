@@ -1372,7 +1372,10 @@ static void RenderEditor() {
                 changed |= ImGui::SliderFloat("Panel Density X", &panel.densityX, 0.25f, 4.0f);
                 changed |= ImGui::SliderFloat("Panel Density Y", &panel.densityY, 0.25f, 4.0f);
             }
-            changed |= ImGui::SliderFloat("Panel Phase Offset", &panel.phaseOffset, -1.0f, 1.0f);
+            if (effect.stroboCompositionMode !=
+                VLS::PanelMotionCompositionMode::UnifiedGeometry) {
+                changed |= ImGui::SliderFloat("Panel Phase Offset", &panel.phaseOffset, -1.0f, 1.0f);
+            }
         }
     } else if (effect.type == VLS::LedEffectType::StroboEyes) {
         ImGui::Separator();
