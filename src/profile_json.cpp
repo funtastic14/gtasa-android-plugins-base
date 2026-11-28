@@ -2144,7 +2144,11 @@ bool Deserialize(
             result.nativeLights.rgbFlowSpeed < 0.1f ||
             result.nativeLights.rgbFlowSpeed > 4.0f ||
             result.nativeLights.rgbFlowIntensity < 0.1f ||
-            result.nativeLights.rgbFlowIntensity > 2.0f) {
+            result.nativeLights.rgbFlowIntensity > 2.0f ||
+            result.nativeLights.headSpeed < 0.1f || result.nativeLights.headSpeed > 4.0f ||
+            result.nativeLights.tailSpeed < 0.1f || result.nativeLights.tailSpeed > 4.0f ||
+            result.nativeLights.headSaturation < 0.0f || result.nativeLights.headSaturation > 1.0f ||
+            result.nativeLights.tailSaturation < 0.0f || result.nativeLights.tailSaturation > 1.0f) {
             return false;
         }
     }
