@@ -1,8 +1,20 @@
 # Strobo Wave Panel Stack
 
-The dedicated panel stack is opt-in so older Strobo Wave profiles keep their original behavior.
+Strobo Wave uses a dedicated vertical stack of 3, 5, or 7 sub-panels. Each sub-panel has its own motion pattern, direction, density profile, phase offset, and enable switch. The complete stack is rendered as one matrix/shared canvas.
 
-Add these fields inside a Strobo Wave effect object:
+The in-game editor exposes **Strobo Panel Count**, panel width/height, physical gap rows, flash period, and **Configure Panel**. Select a panel there to edit its individual settings.
+
+## Default layout
+
+- 5 panels
+- 21 columns × 7 rows per panel
+- 2 blank rows between panels
+- Total matrix: 21 × 43
+- Default directions: panel 1 left→right, panel 2 right→left, panel 3 top→bottom, panel 4 right→left, panel 5 left→right
+
+Placement dimensions are still controlled by the LED placement transform. The matrix grid and panel gap determine how that placement is divided into visible panel regions.
+
+## JSON fields
 
 ```json
 {
@@ -14,35 +26,33 @@ Add these fields inside a Strobo Wave effect object:
   "stroboFlashPeriodMs": 500,
   "stroboPanels": [
     { "enabled": true, "motionPattern": 0, "direction": 0, "densityMode": 0, "densityX": 1.0, "densityY": 1.0, "phaseOffset": 0.0 },
-    { "enabled": true, "motionPattern": 1, "direction": 1, "densityMode": 0, "densityX": 1.0, "densityY": 1.0, "phaseOffset": 0.0 },
-    { "enabled": true, "motionPattern": 2, "direction": 2, "densityMode": 0, "densityX": 1.0, "densityY": 1.0, "phaseOffset": 0.0 },
-    { "enabled": true, "motionPattern": 1, "direction": 1, "densityMode": 1, "densityX": 1.0, "densityY": 1.0, "phaseOffset": 0.25 },
-    { "enabled": true, "motionPattern": 0, "direction": 0, "densityMode": 3, "densityX": 1.5, "densityY": 1.0, "phaseOffset": 0.5 },
+    { "enabled": true, "motionPattern": 0, "direction": 1, "densityMode": 0, "densityX": 1.0, "densityY": 1.0, "phaseOffset": 0.5 },
+    { "enabled": true, "motionPattern": 0, "direction": 2, "densityMode": 0, "densityX": 1.0, "densityY": 1.0, "phaseOffset": 0.25 },
+    { "enabled": true, "motionPattern": 0, "direction": 1, "densityMode": 0, "densityX": 1.0, "densityY": 1.0, "phaseOffset": 0.75 },
     { "enabled": true, "motionPattern": 0, "direction": 0, "densityMode": 0, "densityX": 1.0, "densityY": 1.0, "phaseOffset": 0.0 },
-    { "enabled": true, "motionPattern": 0, "direction": 0, "densityMode": 0, "densityX": 1.0, "densityY": 1.0, "phaseOffset": 0.0 }
+    { "enabled": true, "motionPattern": 0, "direction": 3, "densityMode": 0, "densityX": 1.0, "densityY": 1.0, "phaseOffset": 0.5 },
+    { "enabled": true, "motionPattern": 0, "direction": 0, "densityMode": 0, "densityX": 1.0, "densityY": 1.0, "phaseOffset": 0.25 }
   ]
 }
 ```
 
-## Values
-
 - `stroboPanelCount`: 3, 5, or 7.
-- `stroboPanelColumns`: columns per panel; example 21.
-- `stroboPanelRows`: rows per panel; example 7.
+- `stroboPanelColumns`: columns per panel; e.g. 21.
+- `stroboPanelRows`: rows per panel; e.g. 7.
 - `stroboPanelGapRows`: blank matrix rows between panels, 0–16.
 - `stroboFlashPeriodMs`: strobe cycle, 100–5000 ms.
 - `stroboPanels`: fixed seven-entry array; only the first selected panel count is rendered.
 
-### Density mode
+## Density modes
 
 | Value | Mode | Behavior |
 |---:|---|---|
-| 0 | Adaptive | Pattern-specific density; detail patterns scale while broad sweeps retain space. |
-| 1 | Fixed | Keep the base density regardless of panel resolution. |
-| 2 | Scalable | Scale density with panel dimensions relative to 21 × 7. |
+| 0 | Adaptive | Pattern-specific density; detail patterns scale while broad sweeps retain spacing. |
+| 1 | Fixed | Keep base density regardless of panel resolution. |
+| 2 | Scalable | Scale density relative to 21 × 7. |
 | 3 | Custom | Use `densityX` and `densityY` (0.25–4.0). |
 
-### Direction values
+## Direction values
 
 | Value | Direction |
 |---:|---|
@@ -53,14 +63,10 @@ Add these fields inside a Strobo Wave effect object:
 | 4 | Diagonal Down |
 | 5 | Diagonal Up |
 | 6 | Center Out |
-| 7 | Edge To Center |
+| 7 | Edges to Center |
 
-### Motion pattern values
+Motion pattern values follow the stable `LedMotionPattern` enum order in `src/vehicle_profile.h`.
 
-The `motionPattern` integer follows the stable `LedMotionPattern` enum order in `src/vehicle_profile.h`. For example: 0 = LeftToRight, 1 = RightToLeft, 2 = CenterOut, 3 = EdgeToCenter, 10 = Wave, 11 = Diagonal.
+## Compatibility and performance
 
-## Canvas and geometry
-
-The loader automatically enables and sizes the matrix when `stroboPanelStackEnabled` is true and no conflicting per-pixel matrix is supplied. Five panels of 21 × 7 with two blank rows between panels produce a 21 × 43 logical grid. Panel gaps are excluded from the shared motion coordinate space, so waves and directional movement remain continuous across the stack.
-
-Legacy profiles without `stroboPanelStackEnabled` are not converted automatically. The renderer uses fixed-size panel configuration storage and performs no per-frame heap allocation for panel state.
+Legacy Strobo Wave profiles are migrated to the 5-panel default when loaded. Existing customized panel arrays are preserved; old arrays that still contain the original seven identical untouched defaults are migrated to the distinct direction layout. Per-panel state uses fixed-size storage and does not allocate on every rendered frame.
