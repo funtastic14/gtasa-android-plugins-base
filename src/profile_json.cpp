@@ -2031,7 +2031,8 @@ bool Deserialize(
             !ReadOptionalFloat(*nativeLights, "highBeamIntensity", result.nativeLights.highBeamIntensity) ||
             !ReadBool(*nativeLights, "rgbHeadlightsEnabled", result.nativeLights.rgbHeadlightsEnabled) ||
             !ReadBool(*nativeLights, "rgbTaillightsEnabled", result.nativeLights.rgbTaillightsEnabled) ||
-            !ReadOptionalBool(*nativeLights, "frontAxisPositive", result.nativeLights.frontAxisPositive) ||
+            (Find(*nativeLights, "frontAxisPositive") != nullptr &&
+             !ReadBool(*nativeLights, "frontAxisPositive", result.nativeLights.frontAxisPositive)) ||
             !ReadOptionalFloat(*nativeLights, "rgbFlowSpeed", result.nativeLights.rgbFlowSpeed) ||
             !ReadOptionalFloat(*nativeLights, "rgbFlowIntensity", result.nativeLights.rgbFlowIntensity) ||
             (Find(*nativeLights, "rgbBlendMode") != nullptr &&
