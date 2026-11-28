@@ -425,6 +425,33 @@ struct LedEffectConfig {
     bool transparentMatrixBackground = false;
 };
 
+// Practical factory defaults for a visibly segmented vertical Strobo Wave.
+// Users can still override every panel's pattern, direction, density and phase.
+inline void InitializeStroboWavePanelDefaults(LedEffectConfig& effect) {
+    static const LedColorDirection directions[7] = {
+        LedColorDirection::LeftToRight,
+        LedColorDirection::RightToLeft,
+        LedColorDirection::TopToBottom,
+        LedColorDirection::RightToLeft,
+        LedColorDirection::LeftToRight,
+        LedColorDirection::BottomToTop,
+        LedColorDirection::LeftToRight
+    };
+    static const float phases[7] = {
+        0.0f, 0.5f, 0.25f, 0.75f, 0.0f, 0.5f, 0.25f
+    };
+    for (size_t i = 0; i < effect.stroboPanels.size(); ++i) {
+        StroboWavePanelConfig& panel = effect.stroboPanels[i];
+        panel.enabled = true;
+        panel.motionPattern = LedMotionPattern::LeftToRight;
+        panel.direction = directions[i];
+        panel.densityMode = MotionDensityMode::Adaptive;
+        panel.densityX = 1.0f;
+        panel.densityY = 1.0f;
+        panel.phaseOffset = phases[i];
+    }
+}
+
 // Satu titik pemasangan LED.
 struct LedPlacement {
     uint32_t id = 0;
