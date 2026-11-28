@@ -27,12 +27,12 @@ Placement dimensions are still controlled by the LED placement transform. The ma
   "stroboFlashEnabled": false,
   "stroboFlashPeriodMs": 500,
   "stroboPanels": [
-    { "enabled": true, "motionPattern": 0, "direction": 0, "densityMode": 0, "densityX": 1.0, "densityY": 1.0, "phaseOffset": 0.0 },
-    { "enabled": true, "motionPattern": 0, "direction": 1, "densityMode": 0, "densityX": 1.0, "densityY": 1.0, "phaseOffset": 0.5 },
-    { "enabled": true, "motionPattern": 0, "direction": 2, "densityMode": 0, "densityX": 1.0, "densityY": 1.0, "phaseOffset": 0.25 },
+    { "enabled": true, "useCustomMotionPattern": false, "motionPattern": 0, "direction": 0, "densityMode": 0, "densityX": 1.0, "densityY": 1.0, "phaseOffset": 0.0 },
+    { "enabled": true, "useCustomMotionPattern": false, "motionPattern": 0, "direction": 1, "densityMode": 0, "densityX": 1.0, "densityY": 1.0, "phaseOffset": 0.5 },
+    { "enabled": true, "useCustomMotionPattern": false, "motionPattern": 0, "direction": 2, "densityMode": 0, "densityX": 1.0, "densityY": 1.0, "phaseOffset": 0.25 },
     { "enabled": true, "motionPattern": 0, "direction": 1, "densityMode": 0, "densityX": 1.0, "densityY": 1.0, "phaseOffset": 0.75 },
     { "enabled": true, "motionPattern": 0, "direction": 0, "densityMode": 0, "densityX": 1.0, "densityY": 1.0, "phaseOffset": 0.0 },
-    { "enabled": true, "motionPattern": 0, "direction": 3, "densityMode": 0, "densityX": 1.0, "densityY": 1.0, "phaseOffset": 0.5 },
+    { "enabled": true, "useCustomMotionPattern": false, "motionPattern": 0, "direction": 3, "densityMode": 0, "densityX": 1.0, "densityY": 1.0, "phaseOffset": 0.5 },
     { "enabled": true, "motionPattern": 0, "direction": 0, "densityMode": 0, "densityX": 1.0, "densityY": 1.0, "phaseOffset": 0.25 }
   ]
 }
@@ -45,17 +45,17 @@ Placement dimensions are still controlled by the LED placement transform. The ma
 - `stroboCompositionMode`: 0 Unified Geometry, 1 Coordinated Motion, 2 Independent Motion.
 - `stroboFlashEnabled`: optional hard flash overlay; false by default.
 - `stroboFlashPeriodMs`: strobe cycle, 100–5000 ms.
-- `stroboPanels`: fixed seven-entry array; only the first selected panel count is rendered.
+- `stroboPanels`: fixed seven-entry array; only the first selected panel count is rendered. Each entry also supports `useCustomMotionPattern` (default false) for coordinated-mode pattern overrides.
 
 ## Panel motion composition
 
 | Value | Mode | Behavior |
 |---:|---|---|
 | 0 | Unified Geometry | Every panel samples the main effect motion pattern and one shared phase in a global coordinate field. Radial geometry is aspect-corrected for the full stack. Per-panel pattern, direction, density, and phase offset are bypassed to prevent seams from breaking a spiral or radial front. |
-| 1 | Coordinated Motion | Panels may use different patterns. Radial, spiral, orbit, circle, burst, and related center-based patterns share the full stack's global coordinates, center, and phase; panel direction, density, and phase offsets are bypassed for those patterns. Directional patterns retain their local panel direction, density, and phase offset. |
+| 1 | Coordinated Motion | Panels inherit the main effect pattern by default. Enable `useCustomMotionPattern` per panel to override it. If the main effect pattern is global geometry (spiral, radial, orbit, circle, burst, center-origin, or related geometry), it takes priority and temporarily suspends all panel pattern overrides so the shape remains one continuous field. For non-global main patterns, custom panel patterns can differ; global-geometry overrides still sample the full-stack center and coordinates. Directional patterns retain their local panel direction, density, and phase offset. |
 | 2 | Independent Motion | Each panel uses its own local pattern, direction, and density without requiring continuity with neighboring panels. |
 
-New profiles default to Unified Geometry. Older profiles without this field migrate to Coordinated Motion so their saved per-panel pattern and direction choices continue to work.
+New profiles default to Unified Geometry. Older profiles without this field migrate to Coordinated Motion. Profiles without `useCustomMotionPattern` treat it as false, preserving backward compatibility.
 
 ## Density modes
 
