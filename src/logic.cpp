@@ -628,9 +628,9 @@ static void RenderEditor() {
         nativeLightsChanged = true;
     }
     ImGui::TextWrapped(
-        "Model ID uses the vehicle geometry scan. Texture Name only accepts "
-        "vehiclelight128/vehiclelights128/vehiclelightson128 atlas names, "
-        "including vehicle-specific suffixes such as _solair."
+        "Both modes inspect vehicle geometry. Texture Name prioritizes "
+        "vehiclelight128/vehiclelights128/vehiclelightson128 atlas names; "
+        "explicit head/front/tail/rear frame names are also accepted."
     );
     nativeLightsChanged |= ImGui::Checkbox("High Beam", &profile->nativeLights.highBeamEnabled);
     if (profile->nativeLights.highBeamEnabled) {
