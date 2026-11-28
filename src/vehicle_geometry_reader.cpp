@@ -986,14 +986,20 @@ static std::string BuildDiagnosticReport(
 
     float diagnosticVehicleMinY = std::numeric_limits<float>::max();
     float diagnosticVehicleMaxY = std::numeric_limits<float>::lowest();
+    bool diagnosticHasVehicleBounds = false;
     for (const AtomicGeometryInfo& info : details) {
         if (!info.hasVehicleSpaceBounds)
             continue;
         diagnosticVehicleMinY = std::min(diagnosticVehicleMinY, info.vehicleMinY);
         diagnosticVehicleMaxY = std::max(diagnosticVehicleMaxY, info.vehicleMaxY);
+        diagnosticHasVehicleBounds = true;
     }
-    report << "Whole Vehicle Longitudinal Bounds: Y["
-           << diagnosticVehicleMinY << "," << diagnosticVehicleMaxY << "]\n\n";
+    if (diagnosticHasVehicleBounds) {
+        report << "Whole Vehicle Longitudinal Bounds: Y["
+               << diagnosticVehicleMinY << "," << diagnosticVehicleMaxY << "]\n\n";
+    } else {
+        report << "Whole Vehicle Longitudinal Bounds: unavailable\n\n";
+    }
 
     report << "ATOMIC / GEOMETRY STATISTICS\n";
     report << "----------------------------------------\n";
