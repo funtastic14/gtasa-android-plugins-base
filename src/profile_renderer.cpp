@@ -1092,6 +1092,40 @@ static bool RenderEffect(
 }
 
 
+static int ResolveNativeLightSide(
+    const SurfacePatch& patch,
+    bool frontAxisPositive
+) {
+    std::string names = patch.frameName + " " + patch.textureName + " " + patch.maskName;
+    std::transform(names.begin(), names.end(), names.begin(),
+        [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+
+    // Explicit model naming wins over coordinates. Vehicle mods commonly
+    // split headlamp and taillamp atomics but use nonstandard local origins.
+    const bool namedFront =
+        names.find("headlight") != std::string::npos ||
+        names.find("head_light") != std::string::npos ||
+        names.find("frontlamp") != std::string::npos ||
+        names.find("front_lamp") != std::string::npos ||
+        names.find("frontlight") != std::string::npos ||
+        names.find("front_light") != std::string::npos;
+    const bool namedRear =
+        names.find("taillight") != std::string::npos ||
+        names.find("tail_light") != std::string::npos ||
+        names.find("rearlamp") != std::string::npos ||
+        names.find("rear_lamp") != std::string::npos ||
+        names.find("backlight") != std::string::npos ||
+        names.find("back_light") != std::string::npos;
+    if (namedFront != namedRear)
+        return namedFront ? 1 : -1;
+
+    const float longitudinal = frontAxisPositive
+        ? patch.centroid.y : -patch.centroid.y;
+    if (longitudinal > 0.001f) return 1;
+    if (longitudinal < -0.001f) return -1;
+    return 0;
+}
+
 static uint32_t RenderNativeLightsBatched(
     CVehicle* vehicle,
     const VehicleProfile& profile,
@@ -1108,20 +1142,6 @@ static uint32_t RenderNativeLightsBatched(
         if (stats != nullptr) ++stats->missingVehicleMatrix;
         return 0;
     }
-
-    // Derive front/rear thresholds from each vehicle's actual geometry.
-    // Absolute Y thresholds misclassified lamps on short/custom vehicle models.
-    float vehicleMinY = std::numeric_limits<float>::max();
-    float vehicleMaxY = std::numeric_limits<float>::lowest();
-    for (const AtomicMesh& mesh : meshes) {
-        for (const GeometryVertex& vertex : mesh.vehicleSpaceVertices) {
-            vehicleMinY = std::min(vehicleMinY, vertex.y);
-            vehicleMaxY = std::max(vehicleMaxY, vertex.y);
-        }
-    }
-    const float vehicleLength = std::max(0.0f, vehicleMaxY - vehicleMinY);
-    const float longitudinalMid = (vehicleMinY + vehicleMaxY) * 0.5f;
-    const float longitudinalThreshold = std::max(0.06f, vehicleLength * 0.08f);
 
     // Atomic indices are bounded by the geometry scanner (0..127). Build a
     // fixed lookup table once per render call instead of linearly searching
@@ -1201,16 +1221,13 @@ static uint32_t RenderNativeLightsBatched(
             continue;
         if (stats != nullptr) ++stats->lightingPatches;
 
-        const bool front = patch.centroid.y >
-            longitudinalMid + longitudinalThreshold;
-        const bool rear = patch.centroid.y <
-            longitudinalMid - longitudinalThreshold;
+        const int lightSide = ResolveNativeLightSide(
+            patch, profile.nativeLights.frontAxisPositive);
+        const bool front = lightSide > 0;
+        const bool rear = lightSide < 0;
         if (front && stats != nullptr) ++stats->frontPatches;
         if (rear && stats != nullptr) ++stats->rearPatches;
-        if (!front && !rear) {
-            // A patch near the vehicle's longitudinal center is not a
-            // front/rear lamp candidate. Keep it separate from user-disabled
-            // headlight/taillight patches in diagnostics.
+        if (lightSide == 0) {
             if (stats != nullptr) ++stats->unclassifiedSidePatches;
             continue;
         }
