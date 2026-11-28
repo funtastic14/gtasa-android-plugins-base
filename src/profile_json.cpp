@@ -847,6 +847,12 @@ static bool ReadEffect(
                 !std::isfinite(panel.densityY) || panel.densityY < 0.25f || panel.densityY > 4.0f ||
                 !std::isfinite(panel.phaseOffset) || panel.phaseOffset < -1.0f || panel.phaseOffset > 1.0f)
                 return false;
+            // Older Coordinated Motion profiles always treated the stored panel
+            // pattern as an active override. Preserve that behavior when the new
+            // opt-in flag is absent; newly saved profiles carry it explicitly.
+            if (Find(item, "useCustomMotionPattern") == nullptr &&
+                effect.stroboCompositionMode == PanelMotionCompositionMode::CoordinatedMotion)
+                panel.useCustomMotionPattern = true;
             panel.motionPattern = static_cast<LedMotionPattern>(pattern);
             panel.direction = static_cast<LedColorDirection>(direction);
             panel.densityMode = static_cast<MotionDensityMode>(density);
