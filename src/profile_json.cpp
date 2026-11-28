@@ -2101,6 +2101,20 @@ bool Deserialize(
              !ReadBool(*nativeLights, "frontAxisPositive", result.nativeLights.frontAxisPositive)) ||
             !ReadOptionalFloat(*nativeLights, "rgbFlowSpeed", result.nativeLights.rgbFlowSpeed) ||
             !ReadOptionalFloat(*nativeLights, "rgbFlowIntensity", result.nativeLights.rgbFlowIntensity) ||
+            (Find(*nativeLights, "headColorMode") && (!ReadInt(*nativeLights, "headColorMode", headColorMode) || headColorMode < 0 || headColorMode > 1)) ||
+            (Find(*nativeLights, "tailColorMode") && (!ReadInt(*nativeLights, "tailColorMode", tailColorMode) || tailColorMode < 0 || tailColorMode > 1)) ||
+            (Find(*nativeLights, "headDirection") && (!ReadInt(*nativeLights, "headDirection", headDirection) || headDirection < 0 || headDirection > 7)) ||
+            (Find(*nativeLights, "tailDirection") && (!ReadInt(*nativeLights, "tailDirection", tailDirection) || tailDirection < 0 || tailDirection > 7)) ||
+            (Find(*nativeLights, "headRed") && (!ReadInt(*nativeLights, "headRed", headRed) || headRed < 0 || headRed > 255)) ||
+            (Find(*nativeLights, "headGreen") && (!ReadInt(*nativeLights, "headGreen", headGreen) || headGreen < 0 || headGreen > 255)) ||
+            (Find(*nativeLights, "headBlue") && (!ReadInt(*nativeLights, "headBlue", headBlue) || headBlue < 0 || headBlue > 255)) ||
+            (Find(*nativeLights, "tailRed") && (!ReadInt(*nativeLights, "tailRed", tailRed) || tailRed < 0 || tailRed > 255)) ||
+            (Find(*nativeLights, "tailGreen") && (!ReadInt(*nativeLights, "tailGreen", tailGreen) || tailGreen < 0 || tailGreen > 255)) ||
+            (Find(*nativeLights, "tailBlue") && (!ReadInt(*nativeLights, "tailBlue", tailBlue) || tailBlue < 0 || tailBlue > 255)) ||
+            !ReadOptionalFloat(*nativeLights, "headSpeed", result.nativeLights.headSpeed) ||
+            !ReadOptionalFloat(*nativeLights, "tailSpeed", result.nativeLights.tailSpeed) ||
+            !ReadOptionalFloat(*nativeLights, "headSaturation", result.nativeLights.headSaturation) ||
+            !ReadOptionalFloat(*nativeLights, "tailSaturation", result.nativeLights.tailSaturation) ||
             (Find(*nativeLights, "rgbBlendMode") != nullptr &&
              (!ReadInt(*nativeLights, "rgbBlendMode", rgbBlendMode) ||
               rgbBlendMode < 0 || rgbBlendMode > static_cast<int>(LedLayerBlendMode::Additive)))) {
@@ -2114,7 +2128,11 @@ bool Deserialize(
         result.nativeLights.tailDirection = static_cast<LedColorDirection>(tailDirection);
         result.nativeLights.headRed = static_cast<uint8_t>(headRed); result.nativeLights.headGreen = static_cast<uint8_t>(headGreen); result.nativeLights.headBlue = static_cast<uint8_t>(headBlue);
         result.nativeLights.tailRed = static_cast<uint8_t>(tailRed); result.nativeLights.tailGreen = static_cast<uint8_t>(tailGreen); result.nativeLights.tailBlue = static_cast<uint8_t>(tailBlue);
-        if (!std::isfinite(result.nativeLights.highBeamRange) ||
+        if (Find(*nativeLights, "headSpeed") == nullptr) result.nativeLights.headSpeed = result.nativeLights.rgbFlowSpeed;
+        if (Find(*nativeLights, "tailSpeed") == nullptr) result.nativeLights.tailSpeed = result.nativeLights.rgbFlowSpeed;
+        if (!std::isfinite(result.nativeLights.headSpeed) || !std::isfinite(result.nativeLights.tailSpeed) ||
+            !std::isfinite(result.nativeLights.headSaturation) || !std::isfinite(result.nativeLights.tailSaturation) ||
+            !std::isfinite(result.nativeLights.highBeamRange) ||
             !std::isfinite(result.nativeLights.highBeamWidthDegrees) ||
             !std::isfinite(result.nativeLights.highBeamIntensity) ||
             result.nativeLights.highBeamRange < 10.0f ||
