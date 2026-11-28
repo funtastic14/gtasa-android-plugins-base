@@ -1021,6 +1021,21 @@ static void RenderEditor() {
             if (effect.matrix.columns < 24)
                 effect.matrix.columns = 24;
             SyncMatrixPixels(effect);
+        } else if (effect.type == VLS::LedEffectType::StroboWave) {
+            effect.stroboPanelStackEnabled = true;
+            effect.stroboPanelCount = 5;
+            effect.stroboPanelColumns = 21;
+            effect.stroboPanelRows = 7;
+            effect.stroboPanelGapRows = 1;
+            effect.matrix.enabled = true;
+            effect.matrix.columns = 21;
+            effect.matrix.rows = 39;
+            effect.matrix.canvasEnabled = true;
+            effect.matrix.canvasColumns = 21;
+            effect.matrix.canvasRows = 39;
+            effect.matrix.canvasOffsetColumn = 0;
+            effect.matrix.canvasOffsetRow = 0;
+            SyncMatrixPixels(effect);
         }
         changed = true;
     }
