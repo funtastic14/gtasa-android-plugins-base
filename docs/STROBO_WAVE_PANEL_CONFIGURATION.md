@@ -79,7 +79,7 @@ New profiles default to Unified Geometry. Older profiles without this field migr
 | 6 | Center Out |
 | 7 | Edges to Center |
 
-Motion pattern values follow the stable `LedMotionPattern` enum order in `src/vehicle_profile.h`.
+Motion pattern values follow the stable `LedMotionPattern` enum order in `src/vehicle_profile.h`. On multi-row matrix canvases, **Center Out** and **Edges to Center** use a true two-dimensional radial distance; one-row strips retain their left/right center sweep.
 
 ## Compatibility and performance
 
