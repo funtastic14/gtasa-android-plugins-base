@@ -2,6 +2,7 @@
 #pragma once
 
 #include <cstdint>
+#include <cstddef>
 #include <array>
 #include "effect_transition_engine.h"
 #include <vector>
@@ -440,7 +441,7 @@ inline void InitializeStroboWavePanelDefaults(LedEffectConfig& effect) {
     static const float phases[7] = {
         0.0f, 0.5f, 0.25f, 0.75f, 0.0f, 0.5f, 0.25f
     };
-    for (size_t i = 0; i < effect.stroboPanels.size(); ++i) {
+    for (std::size_t i = 0; i < effect.stroboPanels.size(); ++i) {
         StroboWavePanelConfig& panel = effect.stroboPanels[i];
         panel.enabled = true;
         panel.motionPattern = LedMotionPattern::LeftToRight;
