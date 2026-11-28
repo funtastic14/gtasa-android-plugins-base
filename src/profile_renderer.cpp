@@ -10,6 +10,7 @@
 #include <cmath>
 #include <cstdint>
 #include <limits>
+#include <string>
 #include <vector>
 
 #include <plugin-sdk/game_sa/base/Matrix.h>
