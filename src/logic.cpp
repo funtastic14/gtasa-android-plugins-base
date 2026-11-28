@@ -1218,6 +1218,115 @@ static void RenderEditor() {
         ImGui::TextWrapped("Geometry Motion: Rotating Square and Triangle Orbit trace geometric outlines; Curved Sweep bends its travelling front; Square / Circle Expand and Collapse move frames between center and edges; Triangle Converge sends three luminous points to meet at center.");
         ImGui::TextWrapped("Multi-panel motion: Multi-Line Flutter, Triangle Fan Sweep, Diagonal X Cross, Multi-Axis Center Burst, Triple Mirror Wave and Segmented Center Expand are designed to span a shared canvas across vertically stacked placements.");
         ImGui::TextWrapped("Progressive motion: Accumulate patterns add one moving LED at a time and leave each arrived LED illuminated until the canvas fills. Anchored sliders keep the selected anchor points lit while the remaining element(s) slide between or away from them.");
+
+        if (effect.type == VLS::LedEffectType::StroboWave) {
+            ImGui::Separator();
+            ImGui::Text("STROBO WAVE - MULTI PANEL STACK");
+            effect.stroboPanelStackEnabled = true;
+            static const char* countNames[] = {"3 Panels", "5 Panels", "7 Panels"};
+            int countChoice = effect.stroboPanelCount == 3 ? 0 :
+                (effect.stroboPanelCount == 7 ? 2 : 1);
+            if (ImGui::Combo("Strobo Panel Count", &countChoice,
+                             countNames, IM_ARRAYSIZE(countNames))) {
+                effect.stroboPanelCount = countChoice == 0 ? 3 :
+                    (countChoice == 2 ? 7 : 5);
+                changed = true;
+            }
+            int panelColumns = effect.stroboPanelColumns;
+            int panelRows = effect.stroboPanelRows;
+            int panelGap = effect.stroboPanelGapRows;
+            if (ImGui::SliderInt("Panel Width (Columns)", &panelColumns, 3, 64)) changed = true;
+            if (ImGui::SliderInt("Panel Height (Rows)", &panelRows, 3, 24)) changed = true;
+            if (ImGui::SliderInt("Panel Gap (Rows)", &panelGap, 0, 8)) changed = true;
+            effect.stroboPanelColumns = static_cast<uint16_t>(panelColumns);
+            effect.stroboPanelRows = static_cast<uint16_t>(panelRows);
+            effect.stroboPanelGapRows = static_cast<uint8_t>(panelGap);
+            int flashPeriod = static_cast<int>(effect.stroboFlashPeriodMs);
+            if (ImGui::SliderInt("Flash Period (ms)", &flashPeriod, 100, 2000)) changed = true;
+            effect.stroboFlashPeriodMs = static_cast<uint32_t>(flashPeriod);
+
+            const uint32_t totalRows =
+                effect.stroboPanelCount * effect.stroboPanelRows +
+                (effect.stroboPanelCount - 1u) * effect.stroboPanelGapRows;
+            effect.matrix.enabled = true;
+            effect.matrix.columns = effect.stroboPanelColumns;
+            effect.matrix.rows = static_cast<uint16_t>(totalRows);
+            effect.matrix.canvasEnabled = true;
+            effect.matrix.canvasColumns = effect.stroboPanelColumns;
+            effect.matrix.canvasRows = static_cast<uint16_t>(totalRows);
+            effect.matrix.canvasOffsetColumn = 0;
+            effect.matrix.canvasOffsetRow = 0;
+            if (effect.matrix.pixels.size() !=
+                static_cast<size_t>(effect.matrix.columns) * effect.matrix.rows) {
+                SyncMatrixPixels(effect);
+                changed = true;
+            }
+
+            static const char* motionNames[] = {
+                "Left to Right", "Right to Left", "Center Out", "Edges to Center",
+                "Zoom In", "Zoom Out", "Fade In", "Fade Out", "Rolling", "Flow",
+                "Wave", "Diagonal", "Ripple", "Pulse", "Alternate Rows",
+                "Alternate Columns", "Checkerboard", "Windmill", "Spiral",
+                "Starburst", "Laser Write", "Laser Weld", "Arrow Left", "Arrow Right",
+                "Arrow Up", "Arrow Down", "Opposing Arrows", "Center Collision",
+                "Center Burst", "Diagonal + Collision", "Diagonal + Center Burst",
+                "Multi Collision", "Cross Burst", "Radial Burst", "Ping-Pong",
+                "Mirror Reflection", "Reflective Wave", "Collision Rebound",
+                "Center Split", "Dual Flow", "Mirrored Diagonal", "Double Rebound",
+                "Vertical Sweep", "Side Collision", "Corner Burst", "Twin Spiral",
+                "Orbit Ring", "Meteor Shower", "Comet Chase", "Knight Scanner",
+                "Heartbeat", "Aurora Flow", "Sparkle", "Flame Flicker", "Waterfall",
+                "Vortex", "Police Flash", "Rotating Square", "Curved Sweep",
+                "Square Expand", "Square Collapse", "Circle Expand", "Circle Collapse",
+                "Triangle Converge", "Triangle Orbit", "Multi-Line Flutter",
+                "Triangle Fan Sweep", "Diagonal X Cross", "Multi-Axis Center Burst",
+                "Triple Mirror Wave", "Segmented Center Expand",
+                "Accumulate Left to Right", "Accumulate Right to Left",
+                "Accumulate Center Out", "Accumulate Edges to Center",
+                "Side Anchored - Center Slider", "Center Anchored - Side Sliders"
+            };
+            static const char* directionNames[] = {
+                "Left to Right", "Right to Left", "Top to Bottom", "Bottom to Top",
+                "Diagonal Down", "Diagonal Up", "Center Out", "Edges to Center"
+            };
+            static const char* densityNames[] = {"Adaptive", "Fixed", "Scalable", "Custom"};
+            static const char* panelNames[] = {
+                "Panel 1", "Panel 2", "Panel 3", "Panel 4",
+                "Panel 5", "Panel 6", "Panel 7"
+            };
+            static int selectedPanel = 0;
+            selectedPanel = std::max(0, std::min(
+                selectedPanel, static_cast<int>(effect.stroboPanelCount) - 1));
+            if (ImGui::Combo("Configure Panel", &selectedPanel,
+                             panelNames, effect.stroboPanelCount)) {
+                changed = true;
+            }
+            VLS::StroboWavePanelConfig& panel =
+                effect.stroboPanels[static_cast<size_t>(selectedPanel)];
+            changed |= ImGui::Checkbox("Panel Enabled", &panel.enabled);
+            int panelMotion = static_cast<int>(panel.motionPattern);
+            if (ImGui::Combo("Panel Motion Pattern", &panelMotion,
+                             motionNames, IM_ARRAYSIZE(motionNames))) {
+                panel.motionPattern = static_cast<VLS::LedMotionPattern>(panelMotion);
+                changed = true;
+            }
+            int panelDirection = static_cast<int>(panel.direction);
+            if (ImGui::Combo("Panel Direction", &panelDirection,
+                             directionNames, IM_ARRAYSIZE(directionNames))) {
+                panel.direction = static_cast<VLS::LedColorDirection>(panelDirection);
+                changed = true;
+            }
+            int densityMode = static_cast<int>(panel.densityMode);
+            if (ImGui::Combo("Panel Density Mode", &densityMode,
+                             densityNames, IM_ARRAYSIZE(densityNames))) {
+                panel.densityMode = static_cast<VLS::MotionDensityMode>(densityMode);
+                changed = true;
+            }
+            changed |= ImGui::SliderFloat("Panel Density X", &panel.densityX, 0.25f, 4.0f);
+            changed |= ImGui::SliderFloat("Panel Density Y", &panel.densityY, 0.25f, 4.0f);
+            changed |= ImGui::SliderFloat("Panel Phase Offset", &panel.phaseOffset, -1.0f, 1.0f);
+            ImGui::TextWrapped("Each panel has independent motion, direction, density and phase. The complete stack is automatically sized as one shared canvas.");
+        }
     } else if (effect.type == VLS::LedEffectType::StroboEyes) {
         ImGui::Separator();
         ImGui::Text("STROBO EYES - Texture-Based Renderer");
