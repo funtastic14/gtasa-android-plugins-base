@@ -358,7 +358,7 @@ struct LedEffectConfig {
     uint8_t stroboPanelCount = 5;
     uint16_t stroboPanelColumns = 21;
     uint16_t stroboPanelRows = 7;
-    uint8_t stroboPanelGapRows = 1;
+    uint8_t stroboPanelGapRows = 2;
     uint32_t stroboFlashPeriodMs = 500;
     std::array<StroboWavePanelConfig, 7> stroboPanels;
 
