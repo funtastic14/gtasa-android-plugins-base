@@ -1297,7 +1297,7 @@ static void RenderEditor() {
                 ImGui::TextWrapped("Unified Geometry: every panel follows the main Motion Pattern and one shared phase across the full stack. Per-panel pattern, direction, density and phase offset are bypassed so spiral arms and radial fronts stay continuous at panel seams.");
             } else if (effect.stroboCompositionMode ==
                        VLS::PanelMotionCompositionMode::CoordinatedMotion) {
-                ImGui::TextWrapped("Coordinated Motion: panels inherit the main pattern by default. Enable Override Main Motion Pattern to assign a different pattern to a panel. Spiral / radial / orbit / burst / center-origin geometry always uses the complete stack's shared center, coordinates and phase; directional overrides retain per-panel direction, density and phase controls.");
+                ImGui::TextWrapped("Coordinated Motion: panels inherit the main pattern by default. Enable Override Main Motion Pattern to assign a different pattern to a panel. When the main pattern is spiral / radial / orbit / burst / center-origin geometry, it takes priority and temporarily suspends panel pattern overrides so the shape cannot tear at panel seams. For other main patterns, custom panel patterns and their directional controls can differ.");
             } else {
                 ImGui::TextWrapped("Independent Motion: each panel uses its own local pattern, direction and density, without forcing a continuous global shape.");
             }
