@@ -103,42 +103,144 @@ void ResolvePanelDensity(
     }
 }
 
+bool UsesGlobalRadialGeometry(LedMotionPattern pattern) {
+    switch (pattern) {
+    case LedMotionPattern::CenterOut:
+    case LedMotionPattern::EdgeToCenter:
+    case LedMotionPattern::ZoomIn:
+    case LedMotionPattern::ZoomOut:
+    case LedMotionPattern::Ripple:
+    case LedMotionPattern::Windmill:
+    case LedMotionPattern::Spiral:
+    case LedMotionPattern::Starburst:
+    case LedMotionPattern::CenterBurst:
+    case LedMotionPattern::DiagonalCenterBurst:
+    case LedMotionPattern::CrossBurst:
+    case LedMotionPattern::RadialBurst:
+    case LedMotionPattern::MultiCollision:
+    case LedMotionPattern::CornerBurst:
+    case LedMotionPattern::TwinSpiral:
+    case LedMotionPattern::OrbitRing:
+    case LedMotionPattern::Vortex:
+    case LedMotionPattern::RotatingSquare:
+    case LedMotionPattern::SquareExpand:
+    case LedMotionPattern::SquareCollapse:
+    case LedMotionPattern::CircleExpand:
+    case LedMotionPattern::CircleCollapse:
+    case LedMotionPattern::TriangleConverge:
+    case LedMotionPattern::TriangleOrbit:
+    case LedMotionPattern::MultiAxisCenterBurst:
+    case LedMotionPattern::SegmentedCenterExpand:
+        return true;
+    default:
+        return false;
+    }
+}
+
 float EvaluatePanelMotion(
     const LedEffectConfig& effect,
     const StroboWavePanelConfig& panel,
     uint16_t column,
+    uint16_t panelIndex,
     uint16_t localRow,
     const MotionFrameState& frame
 ) {
-    // Each sub-panel owns a local coordinate space. The complete stack is
-    // still one shared matrix/canvas for placement and transitions, but a
-    // panel's vertical sweep must not inherit the offset of panels above it.
-    float x = (static_cast<float>(column) + 0.5f) /
-        static_cast<float>(effect.stroboPanelColumns);
-    float y = (static_cast<float>(localRow) + 0.5f) /
-        static_cast<float>(effect.stroboPanelRows);
-    ApplyPanelDirection(panel.direction, x, y);
+    const PanelMotionCompositionMode mode = effect.stroboCompositionMode;
+    const LedMotionPattern selectedPattern = mode ==
+        PanelMotionCompositionMode::UnifiedGeometry
+            ? frame.pattern : panel.motionPattern;
+    const bool unified = mode == PanelMotionCompositionMode::UnifiedGeometry;
+    const bool globalRadial = mode == PanelMotionCompositionMode::CoordinatedMotion &&
+        UsesGlobalRadialGeometry(selectedPattern);
+    const bool useGlobalCoordinates = unified || globalRadial;
 
-    float densityX = 1.0f, densityY = 1.0f;
-    ResolvePanelDensity(panel, effect.stroboPanelColumns,
-        effect.stroboPanelRows, densityX, densityY);
-    x = Clamp01((x - 0.5f) * densityX + 0.5f);
-    y = Clamp01((y - 0.5f) * densityY + 0.5f);
+    const uint32_t panelStride = static_cast<uint32_t>(effect.stroboPanelRows) +
+        effect.stroboPanelGapRows;
+    const uint32_t totalRows =
+        static_cast<uint32_t>(effect.stroboPanelCount) * effect.stroboPanelRows +
+        static_cast<uint32_t>(effect.stroboPanelCount - 1u) * effect.stroboPanelGapRows;
+    const uint32_t globalRow = static_cast<uint32_t>(panelIndex) * panelStride +
+        localRow;
+    const uint16_t totalColumns = effect.stroboPanelColumns;
+    const uint16_t safeTotalRows = static_cast<uint16_t>(
+        std::max<uint32_t>(1u, totalRows));
 
-    // Pass transformed discrete coordinates too: otherwise checkerboard,
-    // alternate-row/column and other grid-sampled patterns ignore direction.
-    const uint16_t sampleColumn = static_cast<uint16_t>(
-        std::min<uint32_t>(effect.stroboPanelColumns - 1u,
-            static_cast<uint32_t>(x * effect.stroboPanelColumns)));
-    const uint16_t sampleRow = static_cast<uint16_t>(
-        std::min<uint32_t>(effect.stroboPanelRows - 1u,
-            static_cast<uint32_t>(y * effect.stroboPanelRows)));
+    float x = 0.0f;
+    float y = 0.0f;
+    uint16_t sampleColumn = 0;
+    uint16_t sampleRow = 0;
+    uint16_t sampleColumns = totalColumns;
+    uint16_t sampleRows = safeTotalRows;
+    float aspectX = 1.0f;
+    float aspectY = 1.0f;
+
+    if (useGlobalCoordinates) {
+        // Every panel samples the same logical field. The panel's row offset
+        // is retained, so radial centers and spiral arms continue across the
+        // complete stack instead of restarting at each panel boundary.
+        x = (static_cast<float>(column) + 0.5f) /
+            static_cast<float>(std::max<uint16_t>(1u, totalColumns));
+        y = (static_cast<float>(globalRow) + 0.5f) /
+            static_cast<float>(safeTotalRows);
+        sampleColumn = column;
+        sampleRow = static_cast<uint16_t>(std::min<uint32_t>(
+            safeTotalRows - 1u, globalRow));
+        if (UsesGlobalRadialGeometry(selectedPattern)) {
+            const float maxDimension = static_cast<float>(
+                std::max<uint16_t>(totalColumns, safeTotalRows));
+            aspectX = static_cast<float>(totalColumns) / maxDimension;
+            aspectY = static_cast<float>(safeTotalRows) / maxDimension;
+        }
+    } else {
+        // Independent / non-radial coordinated motion keeps the existing
+        // per-panel coordinate transform, direction and density controls.
+        x = (static_cast<float>(column) + 0.5f) /
+            static_cast<float>(std::max<uint16_t>(1u, effect.stroboPanelColumns));
+        y = (static_cast<float>(localRow) + 0.5f) /
+            static_cast<float>(std::max<uint16_t>(1u, effect.stroboPanelRows));
+        ApplyPanelDirection(panel.direction, x, y);
+
+        float densityX = 1.0f, densityY = 1.0f;
+        ResolvePanelDensity(panel, effect.stroboPanelColumns,
+            effect.stroboPanelRows, densityX, densityY);
+        x = Clamp01((x - 0.5f) * densityX + 0.5f);
+        y = Clamp01((y - 0.5f) * densityY + 0.5f);
+        sampleColumn = static_cast<uint16_t>(
+            std::min<uint32_t>(effect.stroboPanelColumns - 1u,
+                static_cast<uint32_t>(x * effect.stroboPanelColumns)));
+        sampleRow = static_cast<uint16_t>(
+            std::min<uint32_t>(effect.stroboPanelRows - 1u,
+                static_cast<uint32_t>(y * effect.stroboPanelRows)));
+        sampleColumns = effect.stroboPanelColumns;
+        sampleRows = effect.stroboPanelRows;
+    }
+
     const float phase = Wrap01(frame.phase + panel.phaseOffset);
-    return EvaluateMotionIntensity(
-        panel.motionPattern, x, y, phase,
-        sampleColumn, sampleRow,
-        effect.stroboPanelColumns, effect.stroboPanelRows
+    const float nextIntensity = EvaluateMotionIntensity(
+        selectedPattern, x, y, phase, sampleColumn, sampleRow,
+        sampleColumns, sampleRows, aspectX, aspectY
     );
+
+    if (unified && frame.transitionProgress < 0.9999f) {
+        const float previousIntensity = EvaluateMotionIntensity(
+            frame.previousPattern, x, y, phase, sampleColumn, sampleRow,
+            sampleColumns, sampleRows,
+            UsesGlobalRadialGeometry(frame.previousPattern) ? aspectX : 1.0f,
+            UsesGlobalRadialGeometry(frame.previousPattern) ? aspectY : 1.0f
+        );
+        const float transitionCoverage = TransitionEngine::EvaluateIncoming(
+            EffectTransitionMode::Wipe,
+            EffectTransitionDirection::LeftToRight,
+            frame.transitionProgress,
+            x, y, sampleColumn, sampleRow,
+            sampleColumns, sampleRows,
+            (static_cast<uint32_t>(sampleColumns) << 16) |
+                static_cast<uint32_t>(sampleRows)
+        );
+        return previousIntensity * (1.0f - transitionCoverage) +
+            nextIntensity * transitionCoverage;
+    }
+    return nextIntensity;
 }
 
 uint8_t ClampColor(float value) {
@@ -1735,8 +1837,8 @@ bool MatrixAnimationEngine::EvaluatePixel(
                 flash = phaseMs < period / 2u ? 1.0f : 0.0f;
             }
             intensity *= flash * EvaluatePanelMotion(
-                effect, panel, column, static_cast<uint16_t>(localRow),
-                localMotionFrame
+                effect, panel, column, static_cast<uint16_t>(panelIndex),
+                static_cast<uint16_t>(localRow), localMotionFrame
             );
         }
     } else if (effect.type != LedEffectType::StroboEyes &&
