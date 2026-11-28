@@ -833,6 +833,7 @@ static bool ReadEffect(
             int direction = static_cast<int>(panel.direction);
             int density = static_cast<int>(panel.densityMode);
             if (!ReadBool(item, "enabled", panel.enabled) ||
+                !ReadBool(item, "useCustomMotionPattern", panel.useCustomMotionPattern) ||
                 !ReadInt(item, "motionPattern", pattern) ||
                 pattern < 0 || pattern > static_cast<int>(LedMotionPattern::CenterAnchoredSideSlider) ||
                 !ReadInt(item, "direction", direction) ||
@@ -1719,6 +1720,8 @@ static bool AppendEffect(
             return false;
         output += "{\"enabled\":";
         output += panel.enabled ? "true" : "false";
+        output += ",\"useCustomMotionPattern\":";
+        output += panel.useCustomMotionPattern ? "true" : "false";
         output += ",\"motionPattern\":";
         AppendInt(output, static_cast<int>(panel.motionPattern));
         output += ",\"direction\":";
