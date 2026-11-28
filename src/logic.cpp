@@ -1026,6 +1026,7 @@ static void RenderEditor() {
             SyncMatrixPixels(effect);
         } else if (effect.type == VLS::LedEffectType::StroboWave) {
             effect.stroboPanelStackEnabled = true;
+            VLS::InitializeStroboWavePanelDefaults(effect);
             effect.stroboPanelCount = 5;
             effect.stroboPanelColumns = 21;
             effect.stroboPanelRows = 7;
@@ -1268,6 +1269,13 @@ static void RenderEditor() {
             effect.matrix.canvasRows = static_cast<uint16_t>(totalRows);
             effect.matrix.canvasOffsetColumn = 0;
             effect.matrix.canvasOffsetRow = 0;
+            ImGui::Text("Stack: %d separate panels | %d x %d pixels each | total grid %d x %d",
+                static_cast<int>(effect.stroboPanelCount),
+                static_cast<int>(effect.stroboPanelColumns),
+                static_cast<int>(effect.stroboPanelRows),
+                static_cast<int>(effect.matrix.columns),
+                static_cast<int>(effect.matrix.rows));
+            ImGui::TextWrapped("Blank gap rows separate the physical panels. Select a panel below to edit its own motion pattern, direction, density and phase.");
             if (effect.matrix.pixels.size() !=
                 static_cast<size_t>(effect.matrix.columns) * effect.matrix.rows) {
                 SyncMatrixPixels(effect);
