@@ -835,7 +835,9 @@ static std::string SurfaceRoleHint(
     };
     const bool namedLampFrame =
         contains(frameName, "lamp") || contains(frameName, "light") ||
-        contains(frameName, "headlight") || contains(frameName, "taillight") ||
+        contains(frameName, "head") || contains(frameName, "tail") ||
+        contains(frameName, "front") || contains(frameName, "rear") ||
+        contains(frameName, "back") ||
         contains(frameName, "indicator") || contains(frameName, "signal");
     // GTA vehicle mods commonly append vehicle/model identifiers to the
     // standard lamp atlas name (for example vehiclelights128_solair or
@@ -883,7 +885,12 @@ static std::string SurfaceRoleHint(
     const float patchWidth = part.maxX - part.minX;
     const float patchHeight = part.maxZ - part.minZ;
     const float patchDepth = part.maxY - part.minY;
-    const bool nearFrontOrRearEnd = std::fabs(part.cy) >= 0.38f;
+    const bool explicitlyNamedLampEnd =
+        contains(frameName, "head") || contains(frameName, "tail") ||
+        contains(frameName, "front") || contains(frameName, "rear") ||
+        contains(frameName, "back");
+    const bool nearFrontOrRearEnd =
+        std::fabs(part.cy) >= 0.20f || explicitlyNamedLampEnd;
     // Triangle winding on imported DFFs is not consistent: normals from
     // adjacent faces can cancel even when the component is a real lamp lens.
     // Do not make the normal direction a hard admission gate. The patch is
@@ -1963,6 +1970,11 @@ bool VehicleGeometryReader::ScanIncremental(
                 const bool namedLampFrame =
                     frameName.find("lamp") != std::string::npos ||
                     frameName.find("light") != std::string::npos ||
+                    frameName.find("head") != std::string::npos ||
+                    frameName.find("tail") != std::string::npos ||
+                    frameName.find("front") != std::string::npos ||
+                    frameName.find("rear") != std::string::npos ||
+                    frameName.find("back") != std::string::npos ||
                     frameName.find("indicator") != std::string::npos ||
                     frameName.find("signal") != std::string::npos;
                 bool hasLampMaterial = false;
