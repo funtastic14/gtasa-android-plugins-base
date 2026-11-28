@@ -91,6 +91,17 @@ struct SurfacePatch {
     float area = 0.0f;
 };
 
+enum class DedicatedRgbNodeSide : uint8_t { Front, Rear };
+
+struct DedicatedRgbNode {
+    uint32_t atomicIndex = 0;
+    uintptr_t atomicIdentity = 0;
+    uintptr_t geometryIdentity = 0;
+    uintptr_t frameIdentity = 0;
+    DedicatedRgbNodeSide side = DedicatedRgbNodeSide::Front;
+    std::string frameName;
+};
+
 struct AtomicMesh {
     uint32_t atomicIndex = 0;
     uint32_t geometryIndex = 0;
@@ -127,6 +138,11 @@ public:
         bool& complete,
         bool textureNameMode = false
     );
+
+    // Lightweight lookup for explicitly named rgb_light_front/rear DFF nodes.
+    // This does not copy geometry or alter the legacy Native RGB scan.
+    static bool ScanDedicatedRgbNodes(CVehicle* vehicle, int modelId);
+    static const std::vector<DedicatedRgbNode>& GetDedicatedRgbNodes();
 
     // Mengakses mesh kendaraan yang terakhir dipindai.
     static const std::vector<AtomicMesh>& GetMeshes();
