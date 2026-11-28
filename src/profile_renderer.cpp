@@ -1170,11 +1170,11 @@ static uint32_t RenderNativeLightsBatched(
     // Atomic indices are bounded by the geometry scanner (0..127). Build a
     // fixed lookup table once per render call instead of linearly searching
     // the mesh vector for every lamp patch.
-    const AtomicMesh* meshByAtomic[128] = {};
+    const AtomicMesh* meshByAtomic[256] = {};
     float vehicleMinY = std::numeric_limits<float>::max();
     float vehicleMaxY = std::numeric_limits<float>::lowest();
     for (const AtomicMesh& mesh : meshes) {
-        if (mesh.atomicIndex < 128u)
+        if (mesh.atomicIndex < 256u)
             meshByAtomic[mesh.atomicIndex] = &mesh;
         for (const GeometryVertex& vertex : mesh.vehicleSpaceVertices) {
             if (!std::isfinite(vertex.y))
@@ -1273,7 +1273,7 @@ static uint32_t RenderNativeLightsBatched(
             continue;
         }
 
-        const AtomicMesh* mesh = patch.atomicIndex < 128u
+        const AtomicMesh* mesh = patch.atomicIndex < 256u
             ? meshByAtomic[patch.atomicIndex] : nullptr;
         if (mesh == nullptr) {
             if (stats != nullptr) ++stats->missingMesh;
