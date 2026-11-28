@@ -887,8 +887,11 @@ static std::string SurfaceRoleHint(
     const float patchDepth = part.maxY - part.minY;
     const bool explicitlyNamedLampEnd =
         contains(frameName, "head") || contains(frameName, "tail") ||
-        contains(frameName, "front") || contains(frameName, "rear") ||
-        contains(frameName, "back");
+        contains(frameName, "frontlamp") || contains(frameName, "front_lamp") ||
+        contains(frameName, "frontlight") || contains(frameName, "front_light") ||
+        contains(frameName, "rearlamp") || contains(frameName, "rear_lamp") ||
+        contains(frameName, "taillight") || contains(frameName, "tail_light") ||
+        contains(frameName, "backlight") || contains(frameName, "back_light");
     const bool nearFrontOrRearEnd =
         std::fabs(part.cy) >= 0.01f || explicitlyNamedLampEnd ||
         namedLampFrame || nativeLampTexture;
@@ -923,8 +926,11 @@ static std::string SurfaceRoleHint(
         part.triangles <= 512u;
     const bool eligibleLampIsland = bodyFrame
         ? (nativeLampTexture && compactBodyLampIsland)
-        : ((compactLampIsland || (!textureNameMode && namedLampFrame && namedLampGeometry)) &&
-           (nativeLampTexture || (!textureNameMode && namedLampFrame)));
+        : ((compactLampIsland ||
+            ((explicitlyNamedLampEnd || (!textureNameMode && namedLampFrame)) &&
+             namedLampGeometry)) &&
+           (nativeLampTexture || explicitlyNamedLampEnd ||
+            (!textureNameMode && namedLampFrame)));
     if (eligibleLampIsland && nearFrontOrRearEnd)
         return "LIGHTING_CANDIDATE";
 
