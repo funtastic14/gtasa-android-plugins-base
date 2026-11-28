@@ -40,7 +40,7 @@ static const uint32_t MAX_FRAME_DEPTH = 128;
 // Conservative Native RGB admission limits for low-memory Android devices.
 // These are hard safety ceilings, not targets; incremental scanning will
 // further reduce the amount of work performed in any single game frame.
-static const uint32_t MAX_SCAN_ATOMIC_COUNT = 128;
+static const uint32_t MAX_SCAN_ATOMIC_COUNT = 256;
 // RenderWare triangle indices are 16-bit in this reader. Keep the per-mesh
 // ceiling aligned with that representation; incremental cursors bound work
 // per frame, so small DFF meshes are not rejected by arbitrary 8k/12k caps.
@@ -1405,7 +1405,7 @@ static std::vector<SurfacePatch> BuildSurfacePatches(
                 continue;
 
             for (const auto& materialCount : part.materialCounts) {
-                if (patches.size() >= 512u)
+                if (patches.size() >= 1024u)
                     break;
                 const int16_t materialIndex = materialCount.first;
                 GlassPart materialPart;
@@ -2547,7 +2547,7 @@ bool VehicleGeometryReader::ScanIncremental(
 
             if (partIndex == std::numeric_limits<uint32_t>::max()) {
                 if (g_cachedSurfacePatches.size() +
-                    state.currentInfo.glassParts.size() >= 512u)
+                    state.currentInfo.glassParts.size() >= 1024u)
                     continue;
                 if (newPartsThisFrame >= 8u)
                     break;
@@ -2707,7 +2707,7 @@ bool VehicleGeometryReader::ScanIncremental(
             );
             size_t materialTriangleCursor = 0;
             for (const auto& materialCount : part.materialCounts) {
-                if (g_cachedSurfacePatches.size() >= 512u)
+                if (g_cachedSurfacePatches.size() >= 1024u)
                     break;
                 const int16_t materialIndex = materialCount.first;
                 GlassPart materialPart;
