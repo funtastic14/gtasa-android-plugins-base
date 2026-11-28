@@ -1767,9 +1767,22 @@ bool MatrixAnimationEngine::EvaluatePixel(
                 localMotionFrame.previousPattern, motionX, motionY, phase,
                 sampleColumn, sampleRow, canvasColumns, canvasRows
             );
-            intensity *= previousIntensity * (1.0f -
-                localMotionFrame.transitionProgress) +
-                nextIntensity * localMotionFrame.transitionProgress;
+            // Apply the shared spatial transition engine to every automatic,
+            // sequential and random motion-pattern change. The transition is
+            // evaluated in the same logical canvas coordinates as the motion,
+            // so split/shared matrices reveal as one continuous field.
+            const float transitionCoverage = TransitionEngine::EvaluateIncoming(
+                EffectTransitionMode::Wipe,
+                EffectTransitionDirection::LeftToRight,
+                localMotionFrame.transitionProgress,
+                motionX, motionY,
+                sampleColumn, sampleRow,
+                canvasColumns, canvasRows,
+                (static_cast<uint32_t>(canvasColumns) << 16) |
+                    static_cast<uint32_t>(canvasRows)
+            );
+            intensity *= previousIntensity * (1.0f - transitionCoverage) +
+                nextIntensity * transitionCoverage;
         } else {
             intensity *= nextIntensity;
         }
