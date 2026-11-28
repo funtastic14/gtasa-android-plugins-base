@@ -270,6 +270,39 @@ static RpAtomic* ScanDedicatedRgbAtomic(RpAtomic* atomic, void* data) {
     return atomic;
 }
 
+bool VehicleGeometryReader::ScanDedicatedRgbNodes(
+    CVehicle* vehicle,
+    int modelId
+) {
+    if (vehicle == nullptr || vehicle->m_pRwClump == nullptr)
+        return false;
+
+    RpClump* clump = vehicle->m_pRwClump;
+    if (g_dedicatedRgbScanComplete &&
+        g_dedicatedRgbVehicle == vehicle &&
+        g_dedicatedRgbClump == clump &&
+        g_dedicatedRgbModelId == modelId) {
+        return true;
+    }
+
+    g_dedicatedRgbNodes.clear();
+    DedicatedRgbScanContext context;
+    context.nodes = &g_dedicatedRgbNodes;
+    context.atomicIndex = 0;
+    RpClumpForAllAtomics(clump, ScanDedicatedRgbAtomic, &context);
+
+    g_dedicatedRgbVehicle = vehicle;
+    g_dedicatedRgbClump = clump;
+    g_dedicatedRgbModelId = modelId;
+    g_dedicatedRgbScanComplete = true;
+    return true;
+}
+
+const std::vector<DedicatedRgbNode>&
+VehicleGeometryReader::GetDedicatedRgbNodes() {
+    return g_dedicatedRgbNodes;
+}
+
 static void ResetIncrementalScanState() {
     g_incrementalScan = IncrementalScanState{};
 }
