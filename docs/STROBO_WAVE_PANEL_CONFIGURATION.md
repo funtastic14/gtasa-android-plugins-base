@@ -1,8 +1,8 @@
 # Strobo Wave Panel Stack
 
-Strobo Wave uses a dedicated vertical stack of 3, 5, or 7 sub-panels. Each sub-panel has its own motion pattern, direction, density profile, phase offset, and enable switch. The complete stack is rendered as one matrix/shared canvas.
+Strobo Wave uses a dedicated vertical stack of 3, 5, or 7 sub-panels. Each sub-panel has an enable switch and phase offset. Pattern, direction, and density behavior depends on the selected composition mode. The complete stack is rendered as one matrix/shared canvas.
 
-The in-game editor exposes **Strobo Panel Count**, panel width/height, physical gap rows, flash period, and **Configure Panel**. Select a panel there to edit its individual settings.
+The in-game editor exposes **Strobo Panel Count**, panel width/height, physical gap rows, flash period, **Panel Motion Composition**, and **Configure Panel**. Select a panel there to edit its individual settings.
 
 ## Default layout
 
@@ -23,6 +23,8 @@ Placement dimensions are still controlled by the LED placement transform. The ma
   "stroboPanelColumns": 21,
   "stroboPanelRows": 7,
   "stroboPanelGapRows": 2,
+  "stroboCompositionMode": 0,
+  "stroboFlashEnabled": false,
   "stroboFlashPeriodMs": 500,
   "stroboPanels": [
     { "enabled": true, "motionPattern": 0, "direction": 0, "densityMode": 0, "densityX": 1.0, "densityY": 1.0, "phaseOffset": 0.0 },
@@ -40,8 +42,20 @@ Placement dimensions are still controlled by the LED placement transform. The ma
 - `stroboPanelColumns`: columns per panel; e.g. 21.
 - `stroboPanelRows`: rows per panel; e.g. 7.
 - `stroboPanelGapRows`: blank matrix rows between panels, 0–16.
+- `stroboCompositionMode`: 0 Unified Geometry, 1 Coordinated Motion, 2 Independent Motion.
+- `stroboFlashEnabled`: optional hard flash overlay; false by default.
 - `stroboFlashPeriodMs`: strobe cycle, 100–5000 ms.
 - `stroboPanels`: fixed seven-entry array; only the first selected panel count is rendered.
+
+## Panel motion composition
+
+| Value | Mode | Behavior |
+|---:|---|---|
+| 0 | Unified Geometry | Every panel samples the main effect motion pattern in one global coordinate field. Radial geometry is aspect-corrected for the full stack. Per-panel phase offsets remain active; per-panel pattern, direction, and density are bypassed. |
+| 1 | Coordinated Motion | Panels may use different patterns. Radial, spiral, orbit, circle, burst, and related center-based patterns share the full stack's global coordinates and center. Directional patterns retain their local panel direction. |
+| 2 | Independent Motion | Each panel uses its own local pattern, direction, and density without requiring continuity with neighboring panels. |
+
+New profiles default to Unified Geometry. Older profiles without this field migrate to Coordinated Motion so their saved per-panel pattern and direction choices continue to work.
 
 ## Density modes
 
@@ -69,4 +83,4 @@ Motion pattern values follow the stable `LedMotionPattern` enum order in `src/ve
 
 ## Compatibility and performance
 
-Legacy Strobo Wave profiles are migrated to the 5-panel default when loaded. Existing customized panel arrays are preserved; old arrays that still contain the original seven identical untouched defaults are migrated to the distinct direction layout. Per-panel state uses fixed-size storage and does not allocate on every rendered frame.
+Legacy Strobo Wave profiles without a composition setting retain their previous per-panel behavior through Coordinated Motion. Existing customized panel arrays are preserved; old arrays that still contain the original seven identical untouched defaults are migrated to the distinct direction layout. Global geometry uses fixed-size scalar calculations and does not allocate on every rendered frame.
